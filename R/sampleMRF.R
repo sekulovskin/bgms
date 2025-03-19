@@ -115,6 +115,7 @@ mrfSampler = function(no_states,
                       thresholds,
                       variable_type = "ordinal",
                       reference_category,
+                      initial_values,
                       iter = 1e3) {
   # Check no_states, no_variables, iter --------------------------------------------
   if(no_states <= 0 ||
@@ -294,6 +295,7 @@ mrfSampler = function(no_states,
                            no_categories = no_categories,
                            interactions = interactions,
                            thresholds = thresholds,
+                           initial_values = initial_values,
                            iter = iter)
   } else {
     x <- sample_bcomrf_gibbs(no_states = no_states,

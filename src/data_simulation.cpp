@@ -7,9 +7,17 @@ IntegerMatrix sample_omrf_gibbs(int no_states,
                                 IntegerVector no_categories,
                                 NumericMatrix interactions,
                                 NumericMatrix thresholds,
-                                int iter) {
+                                int iter,
+                                IntegerMatrix initial_values) {
 
-  IntegerMatrix observations(no_states, no_variables);
+  // Ensure the provided matrix has the correct dimensions
+  if (initial_values.nrow() != no_states || initial_values.ncol() != no_variables) {
+    Rcpp::stop("Dimension mismatch: 'initial_values' must have dimensions (no_states, no_variables).");
+  }
+
+  // Use the provided initial values
+  IntegerMatrix observations = Rcpp::clone(initial_values);
+
   int max_no_categories = max(no_categories);
   NumericVector probabilities(max_no_categories + 1);
   double exponent = 0.0;
@@ -18,27 +26,7 @@ IntegerMatrix sample_omrf_gibbs(int no_states,
   double u = 0.0;
   int score = 0;
 
-  //Random (uniform) starting values -------------------------------------------
-  for(int variable = 0; variable < no_variables; variable++) {
-    for(int person =  0; person < no_states; person++) {
-      cumsum = 1.0;
-      probabilities[0] = 1.0;
-      for(int category = 0; category < no_categories[variable]; category++) {
-        cumsum += 1;
-        probabilities[category + 1] = cumsum;
-      }
-
-      u = cumsum * R::unif_rand();
-
-      score = 0;
-      while (u > probabilities[score]) {
-        score++;
-      }
-      observations(person, variable) = score;
-    }
-  }
-
-  //The Gibbs sampler ----------------------------------------------------------
+  // The Gibbs sampler ----------------------------------------------------------
   for(int iteration = 0; iteration < iter; iteration++) {
     for(int variable = 0; variable < no_variables; variable++) {
       for(int person =  0; person < no_states; person++) {
