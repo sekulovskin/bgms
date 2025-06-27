@@ -341,11 +341,9 @@ bgm = function(x,
   save_pairwise = check_logical(save_pairwise, "save_pairwise")
   save_indicator = check_logical(save_indicator, "save_indicator")
 
-
   # Check update method
   update_method_input = update_method
   update_method = match.arg(update_method)
-
 
   #Check data input ------------------------------------------------------------
   if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame"))
