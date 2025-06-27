@@ -9,6 +9,7 @@
 
 * The bgm function with the "Stochastic-Block" prior can now also return the sampled allocations and block probabilities, and sample and return the number of blocks.
 * The underlying R and c++ functions received a massive update to improve their efficiency and maintainance.
+* Repository moved to the Bayesian Graphical Modelling Lab organization.
 
 ## Bug fixes
 
