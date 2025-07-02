@@ -16,7 +16,8 @@ Authors@R: c(
     comment = c(ORCID = "0000-0002-9838-7308"))
   )
 Maintainer: Maarten Marsman <m.marsman@uva.nl>
-Description: Bayesian variable selection methods for analyzing the structure of a Markov Random Field model for a network of binary and/or ordinal variables. Details of the implemented methods can be found in: Marsman, van den Bergh, and Haslbeck (in press) <doi:10.31234/osf.io/ukwrf>.
+Description: Bayesian variable selection methods for analyzing the structure of a Markov Random Field model for a network of binary and/or ordinal variables. Details of the implemented methods can be found in: Marsman, van den Bergh, and Haslbeck (in press) <doi:10.31234/osf.io/ukwrf>. 
+Copyright: Includes datasets 'ADHD' and 'Boredom', which are licensed under CC-BY 4. See individual data documentation for license and citation.
 License: GPL (>= 2)
 URL: https://Bayesian-Graphical-Modelling-Lab.github.io/bgms/
 BugReports: https://github.com/Bayesian-Graphical-Modelling-Lab/bgms/issues
