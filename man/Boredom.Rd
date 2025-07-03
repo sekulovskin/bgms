@@ -3,10 +3,11 @@
 \docType{data}
 \name{Boredom}
 \alias{Boredom}
-\title{Items measuring boredom proneness}
+\title{Short Boredom Proneness Scale Responses}
 \format{
-A matrix with 986 rows and 9 columns:
+A matrix with 986 rows and 9 columns. Each row corresponds to a respondent.
 \describe{
+  \item{language}{Language in which the SBPS was administered: "en" = English, "fr" = French}
   \item{loose_ends}{I often find myself at “loose ends,” not knowing what to
   do.}
   \item{entertain}{I find it hard to entertain myself.}
@@ -22,20 +23,19 @@ A matrix with 986 rows and 9 columns:
 }
 }
 \source{
-\insertCite{Martarelli_2023_Boredom;textual}{bgms}. Data retrieved from \url{https://osf.io/qhux8}.
-Licensed under the Creative Commons Attribution 4.0 International License (CC-BY 4.0). https://creativecommons.org/licenses/by/4.0/
+\insertCite{Martarelli_2023_Boredom;textual}{bgms}.
+Data retrieved from \url{https://osf.io/qhux8}.
+Licensed under the CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
 }
 \usage{
 data("Boredom")
 }
 \description{
-A dataset containing items measuring proneness to boredom. The dataset is a
-subset of the data from \insertCite{Martarelli_2023_Boredom;textual}{bgms},
-and contains the 8 items from the Short Boredom Proneness Scale (SBPS). Each
-item was scored on a 7-point Likert scale ranging from 1 ("strongly disagree")
-to 7 ("strongly agree"). The SBPS was administered either in English (the
-language of the original scale, by \insertCite{Struk_2015_boredom;textual}{bgms})
-or French (as translated by \insertCite{Martarelli_2023_Boredom;textual}{bgms}).
+This dataset includes responses to the 8-item Short Boredom Proneness Scale (SBPS),
+a self-report measure of an individual's susceptibility to boredom
+\insertCite{Martarelli_2023_Boredom}{bgms}. Items were rated on a 7-point Likert scale
+ranging from 1 ("strongly disagree") to 7 ("strongly agree"). The scale was administered
+in either English \insertCite{Struk_2015_boredom}{bgms} or French (translated by \insertCite{Martarelli_2023_Boredom}{bgms}).
 }
 \references{
 \insertAllCited{}

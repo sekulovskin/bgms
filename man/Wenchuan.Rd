@@ -3,9 +3,9 @@
 \docType{data}
 \name{Wenchuan}
 \alias{Wenchuan}
-\title{Post-traumatic stress disorder symptoms of Wenchuan earthquake survivors}
+\title{PTSD Symptoms in Wenchuan Earthquake Survivors Who Lost a Child}
 \format{
-A matrix with 362 rows and 17 columns:
+A matrix with 362 rows and 17 columns. Each row represents a participant.
 \describe{
   \item{intrusion}{Repeated, disturbing memories, thoughts, or images of a
   stressful experience from the past?}
@@ -43,14 +43,12 @@ A matrix with 362 rows and 17 columns:
 data("Wenchuan")
 }
 \description{
-A data set containing items measuring symptoms of posttraumatic stress
-disorder (PTSD) \insertCite{McNallyEtAl_2015}{bgms}. Participants were 362
-Chinese adults who survived the Wenchuan earthquake and lost at least one
-child in the disaster. PTSD symptoms were reported using the civilian version
-of the Posttraumatic Checklist, which consists of 17 items, each assessing
-one of the DSM-IV symptoms of PTSD. Participants rated each item on a
-five-point scale ranging from  "not at all" to "extremely" to indicate how
-much the symptom bothered them in the past month.
+This dataset contains responses to 17 items assessing symptoms of post-traumatic stress disorder (PTSD)
+in Chinese adults who survived the 2008 Wenchuan earthquake and lost at least one child in the disaster
+\insertCite{McNallyEtAl_2015}{bgms}. Participants completed the civilian version of the Posttraumatic Checklist,
+with each item corresponding to a DSM-IV PTSD symptom. Items were rated on a 5-point Likert scale from
+"not at all" to "extremely," indicating the degree to which the symptom bothered the respondent in the
+past month.
 }
 \references{
 \insertAllCited{}

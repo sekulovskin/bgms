@@ -1,15 +1,13 @@
-#' Post-traumatic stress disorder symptoms of Wenchuan earthquake survivors
+#' PTSD Symptoms in Wenchuan Earthquake Survivors Who Lost a Child
 #'
-#' A data set containing items measuring symptoms of posttraumatic stress
-#' disorder (PTSD) \insertCite{McNallyEtAl_2015}{bgms}. Participants were 362
-#' Chinese adults who survived the Wenchuan earthquake and lost at least one
-#' child in the disaster. PTSD symptoms were reported using the civilian version
-#' of the Posttraumatic Checklist, which consists of 17 items, each assessing
-#' one of the DSM-IV symptoms of PTSD. Participants rated each item on a
-#' five-point scale ranging from  "not at all" to "extremely" to indicate how
-#' much the symptom bothered them in the past month.
+#' This dataset contains responses to 17 items assessing symptoms of post-traumatic stress disorder (PTSD)
+#' in Chinese adults who survived the 2008 Wenchuan earthquake and lost at least one child in the disaster
+#' \insertCite{McNallyEtAl_2015}{bgms}. Participants completed the civilian version of the Posttraumatic Checklist,
+#' with each item corresponding to a DSM-IV PTSD symptom. Items were rated on a 5-point Likert scale from
+#' "not at all" to "extremely," indicating the degree to which the symptom bothered the respondent in the
+#' past month.
 #'
-#' @format A matrix with 362 rows and 17 columns:
+#' @format A matrix with 362 rows and 17 columns. Each row represents a participant.
 #' \describe{
 #'   \item{intrusion}{Repeated, disturbing memories, thoughts, or images of a
 #'   stressful experience from the past?}
@@ -43,36 +41,26 @@
 #' @source \url{http://psychosystems.org/wp-content/uploads/2014/10/Wenchuan.csv}
 #'
 #' @docType data
-#'
 #' @keywords datasets
-#'
 #' @name Wenchuan
-#'
 #' @usage data("Wenchuan")
-#'
 #' @references
-#'
 #' \insertAllCited{}
-#'
 NULL
 
-#' ADHD symptoms of children aged 6-8 years
+#' ADHD Symptom Checklist for Children Aged 6–8 Years
 #'
-#' A data set containing items measuring symptoms of attention deficit
-#' hyperactivity disorder (ADHD) \insertCite{Silk_2019_ADHD}{bgms}
-#' Participants are a subsample from a community cohort, the Children's Attention
-#' Project (CAP); 355 children, aged 6-8 years, of which 146 were diagnosed with
-#' ADHD and 209 were not. ADHD symptoms were assessed during structured
-#' face-to-face interviews with the children's parents. The NIMH Diagnostic
-#' Interview Schedule for Children IV-DISC-iV \insertCite{Shaffer_2000_nimh}{bgms}
-#' contains a total of 18 symptoms, of which 9 Inattentive and 9
-#' Hyperactive/Impulsive. Each symptom was scored as either present (1) or
-#' absent (0), based on the parents' statements.
+#' This dataset includes ADHD symptom ratings for 355 children aged 6 to 8 years from the
+#' Children’s Attention Project (CAP) cohort \insertCite{Silk_2019_ADHD}{bgms}. The sample
+#' consists of 146 children diagnosed with ADHD and 209 without a diagnosis. Symptoms were
+#' assessed through structured interviews with parents using the NIMH Diagnostic Interview
+#' Schedule for Children IV (DISC-IV) \insertCite{Shaffer_2000_nimh}{bgms}. The checklist
+#' includes 18 items: 9 Inattentive (I) and 9 Hyperactive/Impulsive (HI). Each item is binary
+#' (1 = present, 0 = absent).
 #'
-#' @format A matrix with 355 rows and 19 columns. (I) and (HI) indicate Inattentive
-#' and Hyperactive/Impulsive symptoms, respectively.
+#' @format A matrix with 355 rows and 19 columns.
 #' \describe{
-#'   \item{group}{1 = ADHD diagnosis, 0 = no ADHD diagnosis}
+#'   \item{group}{ADHD diagnosis: 1 = diagnosed, 0 = not diagnosed}
 #'   \item{avoid}{Often avoids, dislikes, or is reluctant to engage in tasks
 #'   that require sustained mental effort (I)}
 #'   \item{closeatt}{Often fails to give close attention to details or makes
@@ -104,35 +92,29 @@ NULL
 #'   \item{turn}{Often has difficulty awaiting turn (HI)}
 #' }
 #'
-#' @source \insertCite{Silk_2019_ADHD;textual}{bgms}. Data retrieved from \url{https://doi.org/10.1371/journal.pone.0211053.s004}.
-#' Licensed under the Creative Commons Attribution 4.0 International License (CC-BY 4.0). https://creativecommons.org/licenses/by/4.0/
+#' @source \insertCite{Silk_2019_ADHD;textual}{bgms}.
+#' Data retrieved from \url{https://doi.org/10.1371/journal.pone.0211053.s004}.
+#' Licensed under the CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
 #'
 #' @docType data
-#'
 #' @keywords datasets
-#'
 #' @name ADHD
-#'
 #' @usage data("ADHD")
-#'
 #' @references
-#'
 #' \insertAllCited{}
-#'
 NULL
 
-#' Items measuring boredom proneness
+#' Short Boredom Proneness Scale Responses
 #'
-#' A dataset containing items measuring proneness to boredom. The dataset is a
-#' subset of the data from \insertCite{Martarelli_2023_Boredom;textual}{bgms},
-#' and contains the 8 items from the Short Boredom Proneness Scale (SBPS). Each
-#' item was scored on a 7-point Likert scale ranging from 1 ("strongly disagree")
-#' to 7 ("strongly agree"). The SBPS was administered either in English (the
-#' language of the original scale, by \insertCite{Struk_2015_boredom;textual}{bgms})
-#' or French (as translated by \insertCite{Martarelli_2023_Boredom;textual}{bgms}).
+#' This dataset includes responses to the 8-item Short Boredom Proneness Scale (SBPS),
+#' a self-report measure of an individual's susceptibility to boredom
+#' \insertCite{Martarelli_2023_Boredom}{bgms}. Items were rated on a 7-point Likert scale
+#' ranging from 1 ("strongly disagree") to 7 ("strongly agree"). The scale was administered
+#' in either English \insertCite{Struk_2015_boredom}{bgms} or French (translated by \insertCite{Martarelli_2023_Boredom}{bgms}).
 #'
-#' @format A matrix with 986 rows and 9 columns:
+#' @format A matrix with 986 rows and 9 columns. Each row corresponds to a respondent.
 #' \describe{
+#'   \item{language}{Language in which the SBPS was administered: "en" = English, "fr" = French}
 #'   \item{loose_ends}{I often find myself at “loose ends,” not knowing what to
 #'   do.}
 #'   \item{entertain}{I find it hard to entertain myself.}
@@ -147,20 +129,15 @@ NULL
 #'   I feel half-dead and dull.}
 #' }
 #'
-#' @source \insertCite{Martarelli_2023_Boredom;textual}{bgms}. Data retrieved from \url{https://osf.io/qhux8}.
-#' Licensed under the Creative Commons Attribution 4.0 International License (CC-BY 4.0). https://creativecommons.org/licenses/by/4.0/
+#' @source \insertCite{Martarelli_2023_Boredom;textual}{bgms}.
+#' Data retrieved from \url{https://osf.io/qhux8}.
+#' Licensed under the CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
 #'
 #'
 #' @docType data
-#'
 #' @keywords datasets
-#'
 #' @name Boredom
-#'
 #' @usage data("Boredom")
-#'
 #' @references
-#'
 #' \insertAllCited{}
-#'
 NULL

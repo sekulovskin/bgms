@@ -3,12 +3,11 @@
 \docType{data}
 \name{ADHD}
 \alias{ADHD}
-\title{ADHD symptoms of children aged 6-8 years}
+\title{ADHD Symptom Checklist for Children Aged 6–8 Years}
 \format{
-A matrix with 355 rows and 19 columns. (I) and (HI) indicate Inattentive
-and Hyperactive/Impulsive symptoms, respectively.
+A matrix with 355 rows and 19 columns.
 \describe{
-  \item{group}{1 = ADHD diagnosis, 0 = no ADHD diagnosis}
+  \item{group}{ADHD diagnosis: 1 = diagnosed, 0 = not diagnosed}
   \item{avoid}{Often avoids, dislikes, or is reluctant to engage in tasks
   that require sustained mental effort (I)}
   \item{closeatt}{Often fails to give close attention to details or makes
@@ -41,23 +40,21 @@ and Hyperactive/Impulsive symptoms, respectively.
 }
 }
 \source{
-\insertCite{Silk_2019_ADHD;textual}{bgms}. Data retrieved from \url{https://doi.org/10.1371/journal.pone.0211053.s004}.
-Licensed under the Creative Commons Attribution 4.0 International License (CC-BY 4.0). https://creativecommons.org/licenses/by/4.0/
+\insertCite{Silk_2019_ADHD;textual}{bgms}.
+Data retrieved from \url{https://doi.org/10.1371/journal.pone.0211053.s004}.
+Licensed under the CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
 }
 \usage{
 data("ADHD")
 }
 \description{
-A data set containing items measuring symptoms of attention deficit
-hyperactivity disorder (ADHD) \insertCite{Silk_2019_ADHD}{bgms}
-Participants are a subsample from a community cohort, the Children's Attention
-Project (CAP); 355 children, aged 6-8 years, of which 146 were diagnosed with
-ADHD and 209 were not. ADHD symptoms were assessed during structured
-face-to-face interviews with the children's parents. The NIMH Diagnostic
-Interview Schedule for Children IV-DISC-iV \insertCite{Shaffer_2000_nimh}{bgms}
-contains a total of 18 symptoms, of which 9 Inattentive and 9
-Hyperactive/Impulsive. Each symptom was scored as either present (1) or
-absent (0), based on the parents' statements.
+This dataset includes ADHD symptom ratings for 355 children aged 6 to 8 years from the
+Children’s Attention Project (CAP) cohort \insertCite{Silk_2019_ADHD}{bgms}. The sample
+consists of 146 children diagnosed with ADHD and 209 without a diagnosis. Symptoms were
+assessed through structured interviews with parents using the NIMH Diagnostic Interview
+Schedule for Children IV (DISC-IV) \insertCite{Shaffer_2000_nimh}{bgms}. The checklist
+includes 18 items: 9 Inattentive (I) and 9 Hyperactive/Impulsive (HI). Each item is binary
+(1 = present, 0 = absent).
 }
 \references{
 \insertAllCited{}
