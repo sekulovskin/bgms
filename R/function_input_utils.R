@@ -262,7 +262,7 @@ check_compare_model = function(x,
       stop(paste0("The bgmCompare function expects at least two groups, but the input g contains\n",
                   "only unique group values."))
 
-    group = g
+    group = vector("integer", length = length(g))
     for(u in unique_g) {
       group[g == u] = which(unique_g == u)
     }
