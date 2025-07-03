@@ -58,8 +58,8 @@ the MRF:
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://maartenmarsman.github.io/bgms/}
-  \item Report bugs at \url{https://github.com/MaartenMarsman/bgms/issues}
+  \item \url{https://Bayesian-Graphical-Modelling-Lab.github.io/bgms/}
+  \item Report bugs at \url{https://github.com/Bayesian-Graphical-Modelling-Lab/bgms/issues}
 }
 
 }
