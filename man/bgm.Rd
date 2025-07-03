@@ -2,8 +2,7 @@
 % Please edit documentation in R/bgm.R
 \name{bgm}
 \alias{bgm}
-\title{Bayesian edge selection or Bayesian estimation for a Markov random field
-model for binary and/or ordinal variables.}
+\title{Bayesian Estimation or Edge Selection for Markov Random Fields}
 \usage{
 bgm(
   x,
@@ -27,225 +26,146 @@ bgm(
 )
 }
 \arguments{
-\item{x}{A data frame or matrix with \code{n} rows and \code{p} columns
-containing binary and ordinal variables for \code{n} independent observations
-and \code{p} variables in the network. Regular binary and ordinal variables
-are recoded as non-negative integers \code{(0, 1, ..., m)} if not already
-done. Unobserved categories are collapsed into other categories after
-recoding (i.e., if category 1 is unobserved, the data are recoded from
-(0, 2) to (0, 1)). Blume-Capel ordinal variables are also coded as
-non-negative integers if not already done. However, since ``distance'' to the
-reference category plays an important role in this model, unobserved
-categories are not collapsed after recoding.}
+\item{x}{A data frame or matrix with \code{n} rows and \code{p} columns containing binary and ordinal responses. Binary and ordinal variables are automatically recoded to non-negative integers (\code{0, 1, ..., m}). For regular ordinal variables, unobserved categories are collapsed; for Blume-Capel variables, all categories are retained.}
 
-\item{variable_type}{What kind of variables are there in \code{x}? Can be a
-single character string specifying the variable type of all \code{p}
-variables at once or a vector of character strings of length \code{p}
-specifying the type for each variable in \code{x} separately. Currently, bgm
-supports ``ordinal'' and ``blume-capel''. Binary variables are automatically
-treated as ``ordinal’’. Defaults to \code{variable_type = "ordinal"}.}
+\item{variable_type}{Character or character vector. Specifies the type of each variable in \code{x}. Allowed values: \code{"ordinal"} or \code{"blume-capel"}. Binary variables are automatically treated as \code{"ordinal"}. Default: \code{"ordinal"}.}
 
-\item{reference_category}{The reference category in the Blume-Capel model.
-Should be an integer within the range of integer scores observed for the
-``blume-capel'' variable. Can be a single number specifying the reference
-category for all Blume-Capel variables at once, or a vector of length
-\code{p} where the \code{i}-th element contains the reference category for
-variable \code{i} if it is Blume-Capel, and bgm ignores its elements for
-other variable types. The value of the reference category is also recoded
-when bgm recodes the corresponding observations. Only required if there is at
-least one variable of type ``blume-capel''.}
+\item{reference_category}{Integer or vector. Reference category used in Blume-Capel variables. Can be a single integer (applied to all) or a vector of length \code{p}. Required if at least one variable is of type \code{"blume-capel"}.}
 
-\item{iter}{How many iterations should the Gibbs sampler run? The default of
-\code{1e4} is for illustrative purposes. For stable estimates, it is
-recommended to run the Gibbs sampler for at least \code{1e5} iterations.}
+\item{iter}{Integer. Number of Gibbs sampling iterations. Default: \code{1e4}. For stable estimates, consider using at least \code{1e5}.}
 
-\item{burnin}{The number of iterations of the Gibbs sampler before saving its
-output. Since it may take some time for the Gibbs sampler to converge to the
-posterior distribution, it is recommended not to set this number too low.
-When \code{edge_selection = TRUE}, the bgm function will perform
-\code{2 * burnin} iterations, first \code{burnin} iterations without edge
-selection, then \code{burnin} iterations with edge selection. This helps
-ensure that the Markov chain used for estimation starts with good parameter
-values and that the adaptive MH proposals are properly calibrated.}
+\item{burnin}{Integer. Number of burn-in iterations before saving samples. When \code{edge_selection = TRUE}, the function runs \code{2 * burnin} iterations: first half without edge selection, second half with edge selection. Default: \code{1e3}.}
 
-\item{interaction_scale}{The scale of the Cauchy distribution that is used as
-a prior for the pairwise interaction parameters. Defaults to \code{2.5}.}
+\item{interaction_scale}{Double. Scale of the Cauchy prior for pairwise interaction parameters. Default: \code{2.5}.}
 
-\item{threshold_alpha, threshold_beta}{The shape parameters of the beta-prime
-prior density for the threshold parameters. Must be positive values. If the
-two values are equal, the prior density is symmetric about zero. If
-\code{threshold_beta} is greater than \code{threshold_alpha}, the
-distribution is skewed to the left, and if \code{threshold_beta} is less than
-\code{threshold_alpha}, it is skewed to the right. Smaller values tend to
-lead to more diffuse prior distributions.}
+\item{threshold_alpha, threshold_beta}{Double. Shape parameters of the beta-prime prior for threshold parameters. Must be positive. If equal, the prior is symmetric. Defaults: \code{threshold_alpha = 0.5} and \code{threshold_beta = 0.5}.}
 
-\item{edge_selection}{Should the function perform Bayesian edge selection on
-the edges of the MRF in addition to estimating its parameters
-(\code{edge_selection = TRUE}), or should it just estimate the parameters
-(\code{edge_selection = FALSE})? The default is \code{edge_selection = TRUE}.}
+\item{edge_selection}{Logical. Whether to perform Bayesian edge selection. If \code{FALSE}, the model estimates all edges. Default: \code{TRUE}.}
 
-\item{edge_prior}{The inclusion or exclusion of individual edges in the
-network is modeled with binary indicator variables that capture the structure
-of the network. The argument \code{edge_prior} is used to set a prior
-distribution for the edge indicator variables, i.e., the structure of the
-network. Currently, three options are implemented: The Bernoulli model
-\code{edge_prior = "Bernoulli"} assumes that the probability that an edge
-between two variables is included is equal to \code{inclusion_probability}
-and independent of other edges or variables. When
-\code{inclusion_probability = 0.5}, this means that each possible network
-structure is given the same prior weight. The Beta-Bernoulli model
-\code{edge_prior = "Beta-Bernoulli"} assumes a beta prior for the unknown
-inclusion probability with shape parameters \code{beta_bernoulli_alpha} and
-\code{beta_bernoulli_beta}. If \code{beta_bernoulli_alpha = 1} and
-\code{beta_bernoulli_beta = 1}, this means that networks with the same
-complexity (number of edges) get the same prior weight. The Stochastic Block
-model \code{edge_prior = "Stochastic-Block"} assumes that nodes can be
-organized into blocks or clusters. In principle, the assignment of nodes to
-such clusters is unknown, and the model as implemented here considers all
-possible options \insertCite{@i.e., specifies a Dirichlet prior on the probability
-of allocations as described by @GengEtAl_2019}{bgms}. This model is advantageous
-when nodes are expected to fall into distinct clusters. The inclusion
-probabilities for the edges are defined at the level of the clusters, with a
-beta prior for the unknown inclusion probability with shape parameters
-\code{beta_bernoulli_alpha} and \code{beta_bernoulli_beta}, and a Dirichlet
-prior on the cluster assignment probabilities with a common concentration
-parameter \code{dirichlet_alpha} and a zero-truncated Poisson prior on the
-number of clusters with a rate parameter \code{lambda}, indicating the
-expected number of clusters.
-The default is
-\code{edge_prior = "Bernoulli"}.}
+\item{edge_prior}{Character. Specifies the prior for edge inclusion. Options:
+\code{"Bernoulli"}, \code{"Beta-Bernoulli"}, or \code{"Stochastic-Block"}. Default: \code{"Bernoulli"}.}
 
-\item{inclusion_probability}{The prior edge inclusion probability for the
-Bernoulli model. Can be a single probability, or a matrix of \code{p} rows
-and \code{p} columns specifying an inclusion probability for each edge pair.
-The default is \code{inclusion_probability = 0.5}.}
+\item{inclusion_probability}{Numeric scalar or matrix. Prior inclusion probability of each edge (used with the Bernoulli prior). A single value applies to all edges; a matrix allows edge-specific probabilities. Default: \code{0.5}.}
 
-\item{beta_bernoulli_alpha, beta_bernoulli_beta}{The two shape parameters of
-the Beta prior density for the Bernoulli inclusion probability. Must be
-positive numbers. Defaults to \code{beta_bernoulli_alpha = 1} and
-\code{beta_bernoulli_beta = 1}.}
+\item{beta_bernoulli_alpha, beta_bernoulli_beta}{Double. Shape parameters for the beta distribution in the Beta-Bernoulli prior. Must be positive. Defaults: \code{beta_bernoulli_alpha = 1} and \code{beta_bernoulli_beta = 1}.}
 
-\item{dirichlet_alpha}{The shape of the Dirichlet prior on the node-to-block
-allocation probabilities for the Stochastic Block model.}
+\item{dirichlet_alpha}{Double. Concentration parameter of the Dirichlet prior on block assignments (used with the Stochastic Block Model). Default: \code{1}.}
 
-\item{lambda}{The rate parameter of the zero-truncated Poisson prior on the
-number of cluster for the Stochastic Block model.}
+\item{lambda}{Double. Rate of the zero-truncated Poisson prior on the number of clusters in the Stochastic Block Model. Default: \code{1}.}
 
-\item{na_action}{How do you want the function to handle missing data? If
-\code{na_action = "listwise"}, listwise deletion is used. If
-\code{na_action = "impute"}, missing data are imputed iteratively during the
-MCMC procedure. Since imputation of missing data can have a negative impact
-on the convergence speed of the MCMC procedure, it is recommended to run the
-MCMC for more iterations. Also, since the numerical routines that search for
-the mode of the posterior do not have an imputation option, the bgm function
-will automatically switch to \code{interaction_prior = "Cauchy"} and
-\code{adaptive = TRUE}.}
+\item{na_action}{Character. Specifies missing data handling. \code{"listwise"} deletes rows with missing values. \code{"impute"} imputes missing values during MCMC. Default: \code{"listwise"}.}
 
-\item{save}{Should the function collect and return all samples from the Gibbs
-sampler (\code{save = TRUE})? Or should it only return the (model-averaged)
-posterior means (\code{save = FALSE})? Defaults to \code{FALSE}.}
+\item{save}{Logical; \strong{deprecated}. Whether to return all sampled states from the Gibbs sampler. If \code{FALSE}, only posterior means are returned. Default: \code{FALSE}.}
 
-\item{display_progress}{Should the function show a progress bar
-(\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
-The default is \code{TRUE}.}
+\item{display_progress}{Logical. Whether to show a progress bar during sampling. Default: \code{TRUE}.}
 }
 \value{
-If \code{save = FALSE} (the default), the result is a list of class
-``bgms'' containing the following matrices with model-averaged quantities:
-\itemize{
-\item \code{indicator}: A matrix with \code{p} rows and \code{p} columns,
-containing the posterior inclusion probabilities of individual edges.
-\item \code{interactions}: A matrix with \code{p} rows and \code{p} columns,
-containing model-averaged posterior means of the pairwise associations.
-\item \code{thresholds}: A matrix with \code{p} rows and \code{max(m)}
-columns, containing model-averaged category thresholds. In the case of
-``blume-capel'' variables, the first entry is the parameter for the linear
-effect and the second entry is the parameter for the quadratic effect, which
-models the offset to the reference category.
-\item In the case of \code{edge_prior = "Stochastic-Block"}, two additional
-elements are returned:
-  \itemize{
-    \item A vector \code{allocations} with the estimated cluster assignments
-    of the nodes, calculated using a method proposed by \insertCite{@Dahl2009}{bgms} and
-    also used by \insertCite{@GengEtAl_2019}{bgms}.
-    \item A matrix \code{components} with the estimated posterior probability
-    of the number of components (clusters) in the network. These probabilities
-    are calculated based on Equation 3.7 in \insertCite{@miller2018mixture}{bgms}, which computes
-    the conditional probability of the number of components given the
-    number of clusters. The number of clusters is derived from the
-    cardinality of the sampled \code{allocations} vector for each iteration of
-    the MCMC sampler (see \code{save = TRUE}).
-  }
-}
-If \code{save = TRUE}, the result is a list of class ``bgms'' containing:
-\itemize{
-\item \code{indicator}: A matrix with \code{iter} rows and
-\code{p * (p - 1) / 2} columns, containing the edge inclusion indicators from
-every iteration of the Gibbs sampler.
-\item \code{interactions}: A matrix with \code{iter} rows and
-\code{p * (p - 1) / 2} columns, containing parameter states from every
-iteration of the Gibbs sampler for the pairwise associations.
-\item \code{thresholds}: A matrix with \code{iter} rows and
-\code{sum(m)} columns, containing parameter states from every iteration of
-the Gibbs sampler for the category thresholds.
-\item In the case of
-\code{edge_prior = "Stochastic-Block"} a matrix \code{allocations} with the
-cluster assignments of the nodes from each iteration is returned. This matrix
-can be used to calculate the posterior probability of the number of clusters
-by utilizing the \code{summarySBM} function.
-}
-Column averages of these matrices provide the model-averaged posterior means.
-Except for the \code{allocations} matrix, for which the \code{summary_SBM}
-needs to be utilized.
+A list of class \code{"bgms"} containing posterior summaries or sampled states, depending on the \code{save} option:
 
-In addition to the analysis results, the bgm output lists some of the
-arguments of its call. This is useful for post-processing the results.
+\strong{If \code{save = FALSE}} (default), the list contains model-averaged posterior summaries:
+\itemize{
+  \item \code{indicator}: A \code{p × p} matrix of posterior inclusion probabilities for each edge.
+  \item \code{interactions}: A \code{p × p} matrix of posterior means for pairwise interactions.
+  \item \code{thresholds}: A \code{p × max(m)} matrix of posterior means for threshold parameters. For Blume-Capel variables, the first entry corresponds to the linear term and the second to the quadratic term.
+}
+
+\strong{If \code{save = TRUE}}, the list also includes raw MCMC samples:
+\itemize{
+  \item \code{indicator}: A matrix with \code{iter} rows and \code{p × (p - 1) / 2} columns; sampled edge inclusion indicators.
+  \item \code{interactions}: A matrix with \code{iter} rows and \code{p × (p - 1) / 2} columns; sampled interaction parameters.
+  \item \code{thresholds}: A matrix with \code{iter} rows and \code{sum(m)} columns; sampled threshold parameters.
+}
+
+\strong{If \code{edge_prior = "Stochastic-Block"}}, two additional components may be returned:
+\itemize{
+  \item \code{allocations}: A vector (or matrix if \code{save = TRUE}) with posterior cluster assignments for each node.
+  \item \code{components}: A matrix of posterior probabilities for the number of clusters, based on sampled allocations.
+}
+
+Column-wise averages of the sampled matrices yield posterior means, except for \code{allocations}, which should be summarized using \code{summarySBM()}.
+
+The returned list also includes some of the function call arguments, useful for post-processing.
 }
 \description{
-The function \code{bgm} explores the joint pseudoposterior distribution of
-parameters and possibly edge indicators for a Markov Random Field model for
-mixed binary and ordinal variables.
+The \code{bgm} function estimates the pseudoposterior distribution of threshold and
+pairwise interaction parameters in a Markov Random Field (MRF) model for binary and/or
+ordinal variables. Optionally, it performs Bayesian edge selection using spike-and-slab
+priors to infer the network structure.
 }
 \details{
-Currently, \code{bgm} supports two types of ordinal variables. The regular, default,
-ordinal variable type has no restrictions on its distribution. Every response
-category except the first receives its own threshold parameter. The
-Blume-Capel ordinal variable assumes that there is a specific reference
-category, such as the ``neutral'' in a Likert scale, and responses are scored
-in terms of their distance to this reference category. Specifically, the
-Blume-Capel model specifies the following quadratic model for the threshold
-parameters:
-\deqn{\mu_{\text{c}} = \alpha \times \text{c} + \beta \times (\text{c} - \text{r})^2,}{{\mu_{\text{c}} = \alpha \times \text{c} + \beta \times (\text{c} - \text{r})^2,}}
-where \eqn{\mu_{\text{c}}}{\mu_{\text{c}}} is the threshold for category c.
-The parameter \eqn{\alpha}{\alpha} models a linear trend across categories,
-such that \eqn{\alpha > 0}{\alpha > 0} leads to an increasing number of
-observations in higher response categories and \eqn{\alpha <0}{\alpha <0}
-leads to a decreasing number of observations in higher response categories.
-The parameter \eqn{\beta}{\beta} models the response style in terms of an
-offset with respect to the reference category \eqn{r}{r}; if \eqn{\beta<0}{\beta<0}
-there is a preference to respond in the reference category (i.e., the model
-introduces a penalty for responding in a category further away from the
-reference_category category \code{r}), while if \eqn{\beta > 0}{\beta > 0}
-there is preference to score in the extreme categories further away from the
-reference_category category.
-
-The Bayesian estimation procedure (\code{edge_selection = FALSE}) simply
-estimates the threshold and pairwise interaction parameters of the ordinal
-MRF, while the Bayesian edge selection procedure
-(\code{edge_selection = TRUE}) also models the probability that individual
-edges should be included or excluded from the model. Bayesian edge selection
-imposes a discrete spike and slab prior distribution on the pairwise
-interactions. By formulating it as a mixture of mutually singular
-distributions, the function can use a combination of Metropolis-Hastings and
-Gibbs sampling to create a Markov chain that has the joint posterior
-distribution as an invariant. The current option for the slab distribution is
-a Cauchy with an optional scaling parameter. The slab distribution is also used
-as the prior for the interaction parameters for Bayesian estimation. A
-beta-prime distribution is used for the exponent of the category parameters.
-For Bayesian edge selection, two prior distributions are implemented for the
-edge inclusion variables (i.e., the prior probability that an edge is
-included); the Bernoulli prior and the Beta-Bernoulli prior.
+This function models the joint distribution of binary and ordinal variables
+using a Markov Random Field, with support for edge selection through Bayesian
+variable selection. Key components of the model are described in the sections below.
 }
+\section{Ordinal Variables}{
+
+The function supports two types of ordinal variables:
+
+\strong{Regular ordinal variables}:
+Assign a threshold parameter to each response category except the lowest. The model imposes no additional constraints on the distribution of category responses.
+
+\strong{Blume-Capel ordinal variables}:
+Assume a reference category (e.g., a “neutral” response) and score responses by distance from this reference. Thresholds are modeled quadratically:
+
+\deqn{\mu_{c} = \alpha \cdot c + \beta \cdot (c - r)^2}
+
+where:
+\itemize{
+  \item \eqn{\mu_{c}}: threshold for category \eqn{c}
+  \item \eqn{\alpha}: linear trend across categories
+  \item \eqn{\beta}: preference toward or away from the reference
+   \itemize{
+     \item If \eqn{\beta < 0}, the model favors responses near the reference category;
+     \item if \eqn{\beta > 0}, it favors responses farther away (i.e., extremes).
+   }
+  \item \eqn{r}: reference category
+}
+}
+
+\section{Edge Selection}{
+
+When \code{edge_selection = TRUE}, the function performs Bayesian variable selection
+on the pairwise interactions (edges) in the MRF using spike-and-slab priors.
+
+Supported priors for edge inclusion:
+\itemize{
+  \item \strong{Bernoulli}: Fixed inclusion probability across edges.
+  \item \strong{Beta-Bernoulli}: Inclusion probability is assigned a Beta prior distribution.
+  \item \strong{Stochastic Block Model}: Cluster-based edge priors with Beta, Dirichlet, and Poisson hyperpriors.
+}
+
+All priors operate via binary indicator variables controlling the inclusion or exclusion of each edge.
+}
+
+\section{Prior Distributions}{
+
+
+\itemize{
+  \item \strong{Interaction parameters}: Modeled with a Cauchy slab prior.
+  \item \strong{Threshold parameters}: Modeled using a beta-prime distribution.
+  \item \strong{Edge indicators}: Use either a Bernoulli, Beta-Bernoulli, or SBM prior (as above).
+}
+}
+
+\section{Gibbs Sampling}{
+
+
+Parameters are estimated using a Metropolis-within-Gibbs sampling scheme.
+When \code{edge_selection = TRUE}, the algorithm runs \code{2 * burnin} warmup iterations:
+\itemize{
+  \item First half without edge selection.
+  \item Second half with edge selection enabled.
+}
+This warmup strategy improves stability of adaptive Metropolis-Hastings proposals and starting values.
+}
+
+\section{Missing Data}{
+
+
+If \code{na_action = "listwise"}, observations with missing values are removed.
+If \code{na_action = "impute"}, missing values are imputed during MCMC.
+}
+
 \examples{
 \donttest{
  #Store user par() settings

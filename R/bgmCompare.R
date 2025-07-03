@@ -54,6 +54,16 @@
 #'  \item \strong{Beta-Bernoulli Model}: Incorporates a beta prior to model inclusion probabilities.
 #' }
 #'
+#' @section Gibbs Sampling:
+#'
+#' Parameters are estimated using a Metropolis-within-Gibbs sampling scheme.
+#' When \code{difference_selection = TRUE}, the algorithm runs \code{2 * burnin} warmup iterations:
+#' \itemize{
+#'   \item First half without difference selection.
+#'   \item Second half with edge selection enabled.
+#' }
+#' This warmup strategy improves stability of adaptive Metropolis-Hastings proposals and starting values.
+#'
 #' @section Saving Options:
 #' Users can store sampled states for parameters (\code{main_effects}, \code{pairwise_effects}, \code{indicator}) during Gibbs sampling. Enabling these options (\code{save_main}, \code{save_pairwise}, \code{save_indicator}) increases output size and memory usage, so use them judiciously.
 #'
