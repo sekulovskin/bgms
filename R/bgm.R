@@ -138,86 +138,65 @@
 #'
 #' @examples
 #' \donttest{
-#'  #Store user par() settings
-#'  op <- par(no.readonly = TRUE)
+#' # Store user par() settings
+#' op <- par(no.readonly = TRUE)
 #'
-#'  ##Analyse the Wenchuan dataset
+#' # Run bgm on the Wenchuan dataset
+#' # For reliable results, consider using at least 1e5 iterations
+#' fit <- bgm(x = Wenchuan, iter = 1e4)
 #'
-#'  # Here, we use 1e4 iterations, for an actual analysis please use at least
-#'  # 1e5 iterations.
-#'  fit = bgm(x = Wenchuan)
+#' #--- INCLUSION VS EDGE WEIGHT ----------------------------------------------
+#' edge_weights <- fit$interactions[lower.tri(fit$interactions)]
+#' incl_probs   <- fit$indicator[lower.tri(fit$indicator)]
 #'
+#' par(mar = c(5, 5, 1, 1) + 0.1, cex = 1.7)
+#' plot(edge_weights, incl_probs,
+#'      pch = 21, bg = "gray", cex = 1.3,
+#'      ylim = c(0, 1), axes = FALSE,
+#'      xlab = "", ylab = "")
+#' abline(h = c(0, 0.5, 1), lty = 2, col = "gray")
+#' axis(1); axis(2, las = 1)
+#' mtext("Posterior Mean Edge Weight", side = 1, line = 3, cex = 1.7)
+#' mtext("Posterior Inclusion Probability", side = 2, line = 3, cex = 1.7)
 #'
-#'  #------------------------------------------------------------------------------|
-#'  # INCLUSION - EDGE WEIGHT PLOT
-#'  #------------------------------------------------------------------------------|
+#' #--- EVIDENCE PLOT ----------------------------------------------------------
+#' prior_odds <- 1
+#' post_odds <- incl_probs / (1 - incl_probs)
+#' log_bf <- log(post_odds / prior_odds)
+#' log_bf <- pmin(log_bf, 5)  # cap extreme values
 #'
-#'  par(mar = c(6, 5, 1, 1))
-#'  plot(x = fit$interactions[lower.tri(fit$interactions)],
-#'       y = fit$indicator[lower.tri(fit$indicator)], ylim = c(0, 1),
-#'       xlab = "", ylab = "", axes = FALSE, pch = 21, bg = "gray", cex = 1.3)
-#'  abline(h = 0, lty = 2, col = "gray")
-#'  abline(h = 1, lty = 2, col = "gray")
-#'  abline(h = .5, lty = 2, col = "gray")
-#'  mtext("Posterior Mode Edge Weight", side = 1, line = 3, cex = 1.7)
-#'  mtext("Posterior Inclusion Probability", side = 2, line = 3, cex = 1.7)
-#'  axis(1)
-#'  axis(2, las = 1)
+#' plot(edge_weights, log_bf,
+#'      pch = 21, bg = "#bfbfbf", cex = 1.3,
+#'      axes = FALSE, xlab = "", ylab = "",
+#'      ylim = c(-5, 5.5), xlim = c(-0.5, 1.5))
+#' axis(1); axis(2, las = 1)
+#' abline(h = log(c(1/10, 10)), lwd = 2, col = "#bfbfbf")
+#' text(1, log(1 / 10), "Evidence for Exclusion", pos = 1, cex = 1.1)
+#' text(1, log(10),     "Evidence for Inclusion", pos = 3, cex = 1.1)
+#' text(1, 0,           "Absence of Evidence", cex = 1.1)
+#' mtext("Log-Inclusion Bayes Factor", side = 2, line = 3, cex = 1.7)
+#' mtext("Posterior Mean Interactions", side = 1, line = 3.7, cex = 1.7)
 #'
+#' #--- MEDIAN PROBABILITY NETWORK --------------------------------------------
+#' median_edges <- ifelse(incl_probs >= 0.5, edge_weights, 0)
+#' n <- ncol(Wenchuan)
+#' net <- matrix(0, n, n)
+#' net[lower.tri(net)] <- median_edges
+#' net <- net + t(net)
+#' dimnames(net) <- list(colnames(Wenchuan), colnames(Wenchuan))
 #'
-#'  #------------------------------------------------------------------------------|
-#'  # EVIDENCE - EDGE WEIGHT PLOT
-#'  #------------------------------------------------------------------------------|
+#' par(cex = 1)
+#' if (requireNamespace("qgraph", quietly = TRUE)) {
+#'   qgraph::qgraph(net,
+#'     theme = "TeamFortress", maximum = 0.5, fade = FALSE,
+#'     color = "#f0ae0e", vsize = 10, repulsion = 0.9,
+#'     label.cex = 1.1, label.scale = FALSE,
+#'     labels = colnames(Wenchuan)
+#'   )
+#' }
 #'
-#'  #For the default choice of the structure prior, the prior odds equal one:
-#'  prior.odds = 1
-#'  posterior.inclusion = fit$indicator[lower.tri(fit$indicator)]
-#'  posterior.odds = posterior.inclusion / (1 - posterior.inclusion)
-#'  log.bayesfactor = log(posterior.odds / prior.odds)
-#'  log.bayesfactor[log.bayesfactor > 5] = 5
-#'
-#'  par(mar = c(5, 5, 1, 1) + 0.1)
-#'  plot(fit$interactions[lower.tri(fit$interactions)], log.bayesfactor, pch = 21, bg = "#bfbfbf",
-#'       cex = 1.3, axes = FALSE, xlab = "", ylab = "", ylim = c(-5, 5.5),
-#'       xlim = c(-0.5, 1.5))
-#'  axis(1)
-#'  axis(2, las = 1)
-#'  abline(h = log(1/10), lwd = 2, col = "#bfbfbf")
-#'  abline(h = log(10), lwd = 2, col = "#bfbfbf")
-#'
-#'  text(x = 1, y = log(1 / 10), labels = "Evidence for Exclusion", pos = 1,
-#'       cex = 1.7)
-#'  text(x = 1, y = log(10), labels = "Evidence for Inclusion", pos = 3, cex = 1.7)
-#'  text(x = 1, y = 0, labels = "Absence of Evidence", cex = 1.7)
-#'  mtext("Log-Inclusion Bayes Factor", side = 2, line = 3, cex = 1.5, las = 0)
-#'  mtext("Posterior Mean Interactions ", side = 1, line = 3.7, cex = 1.5, las = 0)
-#'
-#'
-#'  #------------------------------------------------------------------------------|
-#'  # THE MEDIAN PROBABILITY NETWORK
-#'  #------------------------------------------------------------------------------|
-#'
-#'  tmp = fit$interactions[lower.tri(fit$interactions)]
-#'  tmp[posterior.inclusion < 0.5] = 0
-#'
-#'  median.prob.model = matrix(0, nrow = ncol(Wenchuan), ncol = ncol(Wenchuan))
-#'  median.prob.model[lower.tri(median.prob.model)] = tmp
-#'  median.prob.model = median.prob.model + t(median.prob.model)
-#'
-#'  rownames(median.prob.model) = colnames(Wenchuan)
-#'  colnames(median.prob.model) = colnames(Wenchuan)
-#'
-#'  library(qgraph)
-#'  qgraph(median.prob.model,
-#'         theme = "TeamFortress",
-#'         maximum = .5,
-#'         fade = FALSE,
-#'         color = c("#f0ae0e"), vsize = 10, repulsion = .9,
-#'         label.cex = 1.1, label.scale = "FALSE",
-#'         labels = colnames(Wenchuan))
-#'
-#'  #Restore user par() settings
-#'  par(op)
+#' # Restore user par() settings
+#' par(op)
 #' }
 #'
 #' @importFrom utils packageVersion

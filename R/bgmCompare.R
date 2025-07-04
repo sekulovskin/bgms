@@ -102,6 +102,71 @@
 #' In addition to the results of the analysis, the output lists some of the
 #' arguments of its call. This is useful for post-processing the results.
 #'
+#' @examples
+#' \donttest{
+#' # Store user par() settings
+#' op <- par(no.readonly = TRUE)
+#'
+#' # Run bgmCompare on the Boredom dataset
+#' # For publication-quality results, consider using at least 1e5 iterations
+#' fit <- bgmCompare(x = Boredom[, -1], g = Boredom[, 1], iter = 1e4)
+#'
+#' #--- INCLUSION VS EDGE DIFFERENCE PLOT -------------------------------------
+#' incl_probs <- fit$posterior_mean_indicator[lower.tri(fit$posterior_mean_indicator)]
+#' edge_diffs <- 2 * fit$posterior_mean_pairwise[, 3]
+#'
+#' par(mar = c(5, 5, 1, 1) + 0.1, cex = 1.7)
+#' plot(edge_diffs, incl_probs,
+#'      pch = 21, bg = "gray", cex = 1.3,
+#'      ylim = c(0, 1), axes = FALSE,
+#'      xlab = "", ylab = "")
+#' abline(h = c(0, 0.5, 1), lty = 2, col = "gray")
+#' axis(1); axis(2, las = 1)
+#' mtext("Posterior Mean Edge Difference", side = 1, line = 3, cex = 1.7)
+#' mtext("Posterior Inclusion Probability", side = 2, line = 3, cex = 1.7)
+#'
+#' #--- EVIDENCE PLOT ----------------------------------------------------------
+#' prior_odds <- 1
+#' post_odds <- incl_probs / (1 - incl_probs)
+#' log_bf <- log(post_odds / prior_odds)
+#' log_bf <- pmin(log_bf, 5)  # cap extreme values
+#'
+#' plot(edge_diffs, log_bf,
+#'      pch = 21, bg = "#bfbfbf", cex = 1.3,
+#'      axes = FALSE, xlab = "", ylab = "",
+#'      ylim = c(-5, 5.5), xlim = c(-0.3, 0.6))
+#' axis(1); axis(2, las = 1)
+#' abline(h = log(c(1/10, 10)), lwd = 2, col = "#bfbfbf")
+#' text(0.4, log(1/10), "Evidence for Exclusion", pos = 1, cex = 1.1)
+#' text(0.4, log(10),   "Evidence for Inclusion", pos = 3, cex = 1.1)
+#' text(0.4, 0,         "Absence of Evidence", cex = 1.1)
+#' mtext("Log-Inclusion Bayes Factor", side = 2, line = 3, cex = 1.7)
+#' mtext("Posterior Mean Interaction Difference", side = 1, line = 3, cex = 1.7)
+#'
+#' #--- MEDIAN PROBABILITY DIFFERENCE NETWORK ----------------------------------
+#' median_edges <- ifelse(incl_probs >= 0.5, edge_diffs, 0)
+#' p <- ncol(Boredom) - 1
+#' median_net <- matrix(0, nrow = p, ncol = p)
+#' median_net[lower.tri(median_net)] <- median_edges
+#' median_net <- median_net + t(median_net)
+#'
+#' node_labels <- colnames(Boredom[, -1])
+#' dimnames(median_net) <- list(node_labels, node_labels)
+#'
+#' par(cex = 1)
+#' if (requireNamespace("qgraph", quietly = TRUE)) {
+#'   qgraph::qgraph(median_net,
+#'     theme = "TeamFortress", maximum = 0.5, fade = FALSE,
+#'     color = "#f0ae0e", vsize = 10, repulsion = 0.9,
+#'     label.cex = 0.9, label.scale = FALSE,
+#'     labels = node_labels
+#'   )
+#' }
+#'
+#' # Restore user par() settings
+#' par(op)
+#' }
+#'
 #' @importFrom methods hasArg
 #' @importFrom Rcpp evalCpp
 #' @importFrom Rdpack reprompt
