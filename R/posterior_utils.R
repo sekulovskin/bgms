@@ -121,10 +121,10 @@ summarySBM = function(
   if(arguments$save == FALSE && internal_call == FALSE)
     stop('The bgm function must be run with save = TRUE.')
 
-  cluster_allocations = bgm_object$allocations
+  cluster_allocations = arguments$allocations
   dirichlet_alpha = arguments$dirichlet_alpha
   lambda = arguments$lambda
-
+cat("here\n")
   # Pre-compute log_Vn for computing the cluster probabilities
   num_variables = ncol(cluster_allocations)
   log_Vn = compute_Vn_mfm_sbm(
