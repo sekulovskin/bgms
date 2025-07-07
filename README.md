@@ -1,4 +1,12 @@
 
+<!-- badges: start -->
+
+[![CRAN
+Version](https://www.r-pkg.org/badges/version/bgms)](https://cran.r-project.org/package=bgms)
+[![Downloads](https://cranlogs.r-pkg.org/badges/bgms)](https://cran.r-project.org/package=bgms)
+[![Total](https://cranlogs.r-pkg.org/badges/grand-total/bgms)](https://cran.r-project.org/package=bgms)
+<!-- badges: end -->
+
 # bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables
 
 The `R` package <strong>bgms</strong> provides tools for Bayesian
