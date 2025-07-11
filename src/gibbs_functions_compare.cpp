@@ -140,6 +140,7 @@ List impute_missing_data_for_anova_model(
     const arma::ivec& baseline_category,
     bool independent_thresholds
 ) {
+
   const int num_variables = observations.n_cols;
   const int num_missings = missing_data_indices.n_rows;
   const int max_num_categories = arma::max(arma::vectorise(num_categories));
@@ -147,6 +148,7 @@ List impute_missing_data_for_anova_model(
   arma::vec category_response_probabilities(max_num_categories + 1);
   double exponent, rest_score, cumsum, u, GroupInteraction;
   int score, person, variable, new_observation, old_observation, gr, int_index;
+
 
   //Impute missing data
   for(int missing = 0; missing < num_missings; missing++) {
@@ -203,9 +205,9 @@ List impute_missing_data_for_anova_model(
       if(is_ordinal_variable[variable] == true) {
         arma::imat num_obs_categories_gr = num_obs_categories[gr];
         if(old_observation > 0)
-          num_obs_categories_gr(old_observation, variable)--;
+          num_obs_categories_gr(old_observation-1, variable)--;                 //The zero category is omitted from this matrix
         if(new_observation > 0)
-        num_obs_categories_gr(new_observation, variable)++;
+          num_obs_categories_gr(new_observation-1, variable)++;                 //The zero category is omitted from this matrix
         num_obs_categories[gr] = num_obs_categories_gr;
       } else {
         arma::imat sufficient_blume_capel_gr = sufficient_blume_capel[gr];
@@ -222,13 +224,15 @@ List impute_missing_data_for_anova_model(
 
       // Update rest scores
       for(int vertex = 0; vertex < num_variables; vertex++) {
-        int_index = pairwise_effect_indices(vertex, variable);
-        GroupInteraction = pairwise_effects(int_index, 0);
-        for(int h = 0; h < num_groups - 1; h++) {
-          GroupInteraction += projection(gr, h) * pairwise_effects(int_index, h + 1);
+        if(vertex != variable) {
+          int_index = pairwise_effect_indices(vertex, variable);
+          GroupInteraction = pairwise_effects(int_index, 0);
+          for(int h = 0; h < num_groups - 1; h++) {
+            GroupInteraction += projection(gr, h) * pairwise_effects(int_index, h + 1);
+          }
+          residual_matrix(person, vertex) -= old_observation * GroupInteraction;
+          residual_matrix(person, vertex) += new_observation * GroupInteraction;
         }
-        residual_matrix(person, vertex) -= old_observation * GroupInteraction;
-        residual_matrix(person, vertex) += new_observation * GroupInteraction;
       }
     }
   }
