@@ -1476,10 +1476,6 @@ double log_pseudoposterior_interactions (
 
 
 
-
-
-
-
 /**
  * Function: find_reasonable_initial_step_size_interactions
  *
@@ -1916,6 +1912,183 @@ double log_pseudolikelihood_ratio_interaction (
 }
 
 
+double find_reasonable_initial_step_size_single_interaction(
+    int var1, int var2,
+    arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    double interaction_scale
+) {
+  const double target_acceptance = 0.574;
+  const double initial_step_size = 0.1;
+  double log_step_size = std::log (initial_step_size);
+  const int max_attempts = 20;
+
+  int direction = 0;
+  double accept_prob = 0.0;
+
+  // --- Step 1: Extract current interaction state
+  double current_state = pairwise_effects(var1, var2);
+
+  // --- Step 2: Evaluate gradient and posterior at current state
+  double grad = gradient_log_pseudoposterior_interaction_single(
+    var1, var2, pairwise_effects, main_effects, observations,
+    num_categories, is_ordinal_variable, reference_category, interaction_scale
+  );
+  double log_post_current = log_pseudoposterior_interactions (
+    pairwise_effects, main_effects, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale
+  );
+
+
+  // --- Step 3: Exponential step-size search loop
+  for (int attempt = 0; attempt < max_attempts; attempt++) {
+    double step_size = std::exp (log_step_size);
+
+    // Generate Langevin proposal
+    double noise = R::rnorm(0.0, 1.0);
+    double proposal = current_state + 0.5 * step_size * grad +
+      std::sqrt(step_size) * noise;
+
+
+    // Compute reverse proposal terms
+    pairwise_effects(var1, var2) = proposal;
+    pairwise_effects(var2, var1) = proposal;
+
+    // Evaluate posterior and gradient at proposed state
+    double log_post_prop = log_pseudoposterior_interactions (
+      pairwise_effects, main_effects, observations, num_categories,
+      inclusion_indicator, is_ordinal_variable, reference_category,
+      interaction_scale
+    );
+
+    double grad_prop = gradient_log_pseudoposterior_interaction_single(
+      var1, var2, pairwise_effects, main_effects, observations,
+      num_categories, is_ordinal_variable, reference_category, interaction_scale
+    );
+
+    pairwise_effects(var1, var2) = current_state;
+    pairwise_effects(var2, var1) = current_state;
+
+    // Compute log proposal densities
+    double forward_mean = current_state + 0.5 * step_size * grad;
+    double backward_mean = proposal + 0.5 * step_size * grad_prop;
+
+    double log_q_forward = -0.5 / step_size * std::pow(proposal - forward_mean, 2);
+    double log_q_reverse = -0.5 / step_size * std::pow(current_state - backward_mean, 2);
+
+    double log_accept = log_post_prop + log_q_reverse - log_post_current - log_q_forward;
+
+    accept_prob = std::min(1.0, std::exp(log_accept));
+
+    // --- Step 4: Decide direction based on first attempt
+    if (attempt == 0) {
+      direction = (accept_prob > target_acceptance) ? 1 : -1;
+    } else {
+      if ((direction == 1 && accept_prob < target_acceptance) ||
+          (direction == -1 && accept_prob > target_acceptance)) {
+        break;
+      }
+    }
+
+    log_step_size += direction;
+  }
+
+  return std::exp (log_step_size);
+}
+
+
+
+void update_interactions_with_componentwise_mala (
+    const arma::imat& pairwise_effect_indices,
+    arma::mat& pairwise_effects,
+    arma::mat& residual_matrix,
+    const arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    arma::vec& component_wise_interactions_step_sizes,
+    arma::mat& componentwise_dual_averaging_state,
+    const double initial_step_size,
+    const int iteration,
+    const int total_burnin
+) {
+  const int num_variables = pairwise_effects.n_rows;
+
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      if (inclusion_indicator(var1, var2) == 0) continue;
+
+      const int interaction_id = pairwise_effect_indices(var1, var2);
+
+      double& beta = pairwise_effects(var1, var2);
+      double grad = gradient_log_pseudoposterior_interaction_single(
+        var1, var2, pairwise_effects, main_effects, observations,
+        num_categories, is_ordinal_variable, reference_category,
+        interaction_scale
+      );
+
+      double& step_size = component_wise_interactions_step_sizes(interaction_id);
+      double sqrt_step = std::sqrt(step_size);
+      double noise = R::rnorm(0.0, 1.0);
+
+      double proposal = beta + 0.5 * step_size * grad + sqrt_step * noise;
+
+      double log_post_diff = log_pseudolikelihood_ratio_interaction(
+        pairwise_effects, main_effects, observations, num_categories,
+        observations.n_rows, var1, var2, proposal, beta, residual_matrix,
+        is_ordinal_variable, reference_category
+      );
+
+      double grad_prop = gradient_log_pseudoposterior_interaction_single(
+        var1, var2, pairwise_effects, main_effects, observations,
+        num_categories, is_ordinal_variable, reference_category,
+        interaction_scale
+      );
+
+      double forward = beta + 0.5 * step_size * grad;
+      double backward = proposal + 0.5 * step_size * grad_prop;
+      double log_q_forward = -0.5 / step_size * std::pow(proposal - forward, 2);
+      double log_q_reverse = -0.5 / step_size * std::pow(beta - backward, 2);
+      double log_accept = log_post_diff + log_q_reverse - log_q_forward;
+
+      if (std::log(R::unif_rand()) < log_accept) {
+        double delta = proposal - beta;
+        beta = proposal;
+        pairwise_effects(var2, var1) = proposal;
+
+        // Update residuals
+        residual_matrix.col(var1) += arma::conv_to<arma::vec>::from(observations.col(var2)) * delta;
+        residual_matrix.col(var2) += arma::conv_to<arma::vec>::from(observations.col(var1)) * delta;
+      }
+
+      double accept_prob = std::min(1.0, std::exp(log_accept));
+
+      if (iteration < total_burnin) {
+        arma::rowvec state = componentwise_dual_averaging_state.row(interaction_id);
+        arma::vec state_vec = state.t();  // Convert to column vec for dual averaging
+
+        update_step_size_with_dual_averaging(initial_step_size, accept_prob, iteration + 1, state_vec);
+
+        step_size = std::exp(state_vec[1]);
+        componentwise_dual_averaging_state.row(interaction_id) = state_vec.t();  // Store back as row
+      } else {
+        update_step_size_with_robbins_monro(accept_prob, iteration - total_burnin + 1, step_size);
+      }
+
+    }
+  }
+}
+
+
 
 /**
  * Function: update_interactions_with_adaptive_metropolis
@@ -2139,11 +2312,18 @@ void update_indicator_interaction_pair_with_mala (
     arma::mat& residual_matrix,
     const arma::mat& inclusion_probability,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category
+    const arma::ivec& reference_category,
+    const arma::vec& component_wise_interactions_step_sizes,
+    const std::string& update_method_interactions,
+    const arma::imat& pairwise_effect_indices
 ) {
   for (int cntr = 0; cntr < num_interactions; cntr++) {
     const int variable1 = index(cntr, 1);
     const int variable2 = index(cntr, 2);
+
+    double step_size = (update_method_interactions == "adaptive-mala")
+      ? step_size_pairwise
+      : component_wise_interactions_step_sizes(pairwise_effect_indices(variable1, variable2));
 
     // Determine if we are proposing to add (if currently absent)
     const bool proposing_addition = (indicator(variable1, variable2) == 0);
@@ -2161,9 +2341,9 @@ void update_indicator_interaction_pair_with_mala (
       );
 
       // MALA proposal: Langevin step forward
-      double proposal_sd = std::sqrt(step_size_pairwise);
+      double proposal_sd = std::sqrt(step_size);
       double noise = R::rnorm(0.0, proposal_sd);
-      double forward_mean = current_state + 0.5 * step_size_pairwise * grad;
+      double forward_mean = current_state + 0.5 * step_size * grad;
       proposed_state = forward_mean + noise;
       log_accept -= R::dnorm(proposed_state, forward_mean, proposal_sd, true);
 
@@ -2183,8 +2363,8 @@ void update_indicator_interaction_pair_with_mala (
         num_categories, is_ordinal_variable, reference_category,
         interaction_scale
       );
-      double proposal_sd = std::sqrt(step_size_pairwise);
-      double backward_mean = proposed_state + 0.5 * step_size_pairwise * grad;
+      double proposal_sd = std::sqrt(step_size);
+      double backward_mean = proposed_state + 0.5 * step_size * grad;
       log_accept += R::dnorm(current_state, backward_mean, proposal_sd, true);
 
       // Cauchy prior on interaction effect
@@ -2653,7 +2833,11 @@ void gibbs_update_step_for_graphical_model_parameters (
     arma::vec& dual_averaging_pairwise,
     const double initial_step_size_pairwise,
     arma::mat& sqrt_inv_fisher_pairwise,
-    const std::string& update_method
+    const std::string& update_method_interactions,
+    const std::string& update_method_thresholds,
+    arma::vec& component_wise_interactions_step_sizes,
+    arma::mat& componentwise_dual_averaging_state,
+    const arma::imat& pairwise_effect_indices
 ) {
   // --- Robbins-Monro weight for adaptive Metropolis updates
   const double exp_neg_log_t_rm_adaptation_rate =
@@ -2661,7 +2845,7 @@ void gibbs_update_step_for_graphical_model_parameters (
 
   // Step 1: Edge selection via MH indicator updates (if enabled)
   if (edge_selection) {
-    if (update_method == "fisher-mala") {
+    if (update_method_interactions == "fisher-mala") {
       // Use Fisher-preconditioned MALA for inclusion indicators
       update_indicator_interaction_pair_with_fisher_mala (
           pairwise_effects, main_effects, inclusion_indicator, observations,
@@ -2670,13 +2854,25 @@ void gibbs_update_step_for_graphical_model_parameters (
           reference_category, sqrt_inv_fisher_pairwise, num_pairwise,
           iteration, total_burnin
       );
-    } else if (update_method == "adaptive-mala") {
+    } else if (update_method_interactions == "adaptive-mala") {
       // Use standard MALA for indicator updates
       update_indicator_interaction_pair_with_mala (
           pairwise_effects, main_effects, inclusion_indicator, observations,
           num_categories, step_size_pairwise, interaction_scale,
           index, num_pairwise, num_persons, residual_matrix,
-          inclusion_probability, is_ordinal_variable, reference_category
+          inclusion_probability, is_ordinal_variable, reference_category,
+          component_wise_interactions_step_sizes, update_method_interactions,
+          pairwise_effect_indices
+      );
+    } else if (update_method_interactions == "adaptive-componentwise-mala") {
+      // Use standard MALA for indicator updates
+      update_indicator_interaction_pair_with_mala (
+          pairwise_effects, main_effects, inclusion_indicator, observations,
+          num_categories, step_size_pairwise, interaction_scale,
+          index, num_pairwise, num_persons, residual_matrix,
+          inclusion_probability, is_ordinal_variable, reference_category,
+          component_wise_interactions_step_sizes, update_method_interactions,
+          pairwise_effect_indices
       );
     } else {
       // Use standard Metropolis-Hastings for indicator updates
@@ -2690,7 +2886,7 @@ void gibbs_update_step_for_graphical_model_parameters (
   }
 
   // Step 2: Update interaction weights for active edges
-  if (update_method == "fisher-mala") {
+  if (update_method_interactions == "fisher-mala") {
     update_interactions_with_fisher_mala (
         pairwise_effects, residual_matrix, main_effects, observations,
         num_categories, inclusion_indicator, is_ordinal_variable,
@@ -2698,13 +2894,22 @@ void gibbs_update_step_for_graphical_model_parameters (
         initial_step_size_pairwise, iteration, total_burnin,
         dual_averaging_pairwise, sqrt_inv_fisher_pairwise
     );
-  } else if (update_method == "adaptive-mala") {
+  } else if (update_method_interactions == "adaptive-mala") {
     update_interactions_with_mala (
         pairwise_effects, residual_matrix, main_effects, observations,
         num_categories, inclusion_indicator, is_ordinal_variable,
         reference_category, interaction_scale,
         step_size_pairwise, initial_step_size_pairwise,
         iteration, total_burnin, dual_averaging_pairwise
+    );
+  } else if (update_method_interactions == "adaptive-componentwise-mala") {
+    update_interactions_with_componentwise_mala (
+        pairwise_effect_indices, pairwise_effects, residual_matrix,
+        main_effects, observations, num_categories, inclusion_indicator,
+        is_ordinal_variable, reference_category, interaction_scale,
+        component_wise_interactions_step_sizes,
+        componentwise_dual_averaging_state, initial_step_size_pairwise,
+        iteration, total_burnin
     );
   } else {
     update_interactions_with_adaptive_metropolis (
@@ -2717,7 +2922,7 @@ void gibbs_update_step_for_graphical_model_parameters (
   }
 
   // Step 3: Update main effect (threshold) parameters
-  if (update_method != "adaptive-metropolis") {
+  if (update_method_thresholds != "metropolis") {
     // Update using Fisher-preconditioned MALA
     update_thresholds_with_fisher_mala (
         main_effects, step_size_main, residual_matrix, num_categories,
@@ -2816,12 +3021,14 @@ List run_gibbs_sampler_for_bgm (
     const arma::imat& missing_index,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const bool save_main = false,
-    const bool save_pairwise = false,
-    const bool save_indicator = false,
-    const bool display_progress = false,
-    bool edge_selection = true,
-    const std::string& update_method = "adaptive-metropolis"
+    const bool save_main,
+    const bool save_pairwise,
+    const bool save_indicator,
+    const bool display_progress,
+    bool edge_selection,
+    const std::string& update_method_interactions,
+    const std::string& update_method_thresholds,
+    const arma::imat pairwise_effect_indices
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -2902,15 +3109,37 @@ List run_gibbs_sampler_for_bgm (
   // --- Optional MALA warmup stage (step size tuning only)
   arma::mat sqrt_inv_fisher_main(num_main, num_main, arma::fill::eye);  // Identity at start
   arma::mat sqrt_inv_fisher_pairwise(num_pairwise, num_pairwise, arma::fill::eye);
-  if (update_method != "adaptive-metropolis") {
-    if (na_impute) {
-      impute_missing_values_for_graphical_model (
-          pairwise_effects, main_effects, observations, num_obs_categories,
-          sufficient_blume_capel, num_categories, residual_matrix,
-          missing_index, is_ordinal_variable, reference_category
-      );
-    }
+  arma::vec component_wise_interactions_step_sizes;
+  arma::mat componentwise_dual_averaging_state;
+  if (update_method_interactions != "adaptive-metropolis") {
+    if(update_method_interactions == "adaptive-componentwise-mala") {
+      component_wise_interactions_step_sizes = arma::vec(num_pairwise);
+      componentwise_dual_averaging_state = arma::mat(num_pairwise, 3, arma::fill::zeros);
+      for (int i = 0; i < num_pairwise; ++i) {
+        const int var1 = interaction_index_matrix(i, 1);
+        const int var2 = interaction_index_matrix(i, 2);
 
+        double step_size = find_reasonable_initial_step_size_single_interaction(
+          var1, var2, pairwise_effects, main_effects, observations, num_categories,
+          inclusion_indicator, is_ordinal_variable, reference_category, interaction_scale
+        );
+
+        component_wise_interactions_step_sizes(i) = step_size;
+        componentwise_dual_averaging_state(i, 0) = std::log(step_size);
+      }
+    } else {
+      // Warmup phase for MALA: find initial step size (per Hoffman & Gelman, 2014)
+      // Uses one MALA step to tune the log step size before dual averaging.
+      initial_step_size_pairwise = find_reasonable_initial_step_size_interactions (
+        pairwise_effects, main_effects, observations, num_categories,
+        inclusion_indicator, is_ordinal_variable, reference_category,
+        interaction_scale
+      );
+      step_size_pairwise = initial_step_size_pairwise;
+      dual_averaging_pairwise[0] = std::log (step_size_pairwise);
+    }
+  }
+  if (update_method_thresholds != "metropolis") {
     // Warmup phase for MALA: find initial step size (per Hoffman & Gelman, 2014)
     // Uses one MALA step to tune the log step size before dual averaging.
     initial_step_size_main = find_reasonable_initial_step_size_thresholds (
@@ -2918,19 +3147,10 @@ List run_gibbs_sampler_for_bgm (
       sufficient_blume_capel, reference_category, is_ordinal_variable,
       threshold_alpha, threshold_beta
     );
-
-    initial_step_size_pairwise = find_reasonable_initial_step_size_interactions (
-      pairwise_effects, main_effects, observations, num_categories,
-      inclusion_indicator, is_ordinal_variable, reference_category,
-      interaction_scale
-    );
-
     step_size_main = initial_step_size_main;
-    step_size_pairwise = initial_step_size_pairwise;
-
     dual_averaging_main[0] = std::log (step_size_main);
-    dual_averaging_pairwise[0] = std::log (step_size_pairwise);
   }
+
   arma::vec posterior_prob(num_pairwise);
 
   // --- Set up total number of iterations (burn-in + sampling)
@@ -2980,7 +3200,10 @@ List run_gibbs_sampler_for_bgm (
         reference_category, edge_selection, step_size_main, iteration,
         dual_averaging_main, total_burnin, initial_step_size_main,
         sqrt_inv_fisher_main, step_size_pairwise, dual_averaging_pairwise,
-        initial_step_size_pairwise, sqrt_inv_fisher_pairwise, update_method
+        initial_step_size_pairwise, sqrt_inv_fisher_pairwise,
+        update_method_interactions, update_method_thresholds,
+        component_wise_interactions_step_sizes, componentwise_dual_averaging_state,
+        pairwise_effect_indices
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)

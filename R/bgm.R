@@ -152,14 +152,22 @@
 #' @param display_progress Should the function show a progress bar
 #' (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 #' The default is \code{TRUE}.
-#' @param update_method Character. Specifies how the MCMC sampler updates the threshold
-#' and interaction parameters:
+#' @param update_method_interactions Character. Specifies how the MCMC sampler updates the
+#' interaction parameters:
 #' \describe{
-#'   \item{"adaptive-metropolis"}{Uses adaptive Metropolis-Hastings for both thresholds and interactions.}
-#'   \item{"adaptive-mala"}{Uses Fisher-preconditioned MALA for thresholds and standard MALA for interactions and indicators.}
-#'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA for both thresholds and interactions.}
+#'   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
+#'   \item{"adaptive-mala"}{Uses Fisher-preconditioned MALA for thresholds and standard MALA.}
+#'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
+#'   \item{"adaptive-componentwise-mala"}{Uses componentwise adaptive MALA.}
 #' }
 #' Defaults to \code{"adaptive-metropolis"}.
+#' @param update_method_threshold Character. Specifies how the MCMC sampler updates the threshold
+#' parameters:
+#' \describe{
+#'   \item{"metropolis"}{Uses componentwise independence chain Metropolis-Hastings for regular ordinal variables and adaptive Metropolis-Hastings for Blume-Capel variables.}
+#'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
+#' }
+#' Defaults to \code{"metropolis"}.
 #'
 #' @return If \code{save = FALSE} (the default), the result is a list of class
 #' ``bgms'' containing the following matrices with model-averaged quantities:
@@ -325,7 +333,8 @@ bgm = function(x,
                save_pairwise = FALSE,
                save_indicator = FALSE,
                display_progress = TRUE,
-               update_method = c("adaptive-metropolis", "adaptive-mala", "fisher-mala")
+               update_method_interactions = c("adaptive-metropolis", "adaptive-mala", "fisher-mala", "adaptive-componentwise-mala"),
+               update_method_thresholds = c("metropolis", "fisher-mala")
 ) {
 
   # Deprecation warning for save parameter
@@ -342,8 +351,10 @@ bgm = function(x,
   save_indicator = check_logical(save_indicator, "save_indicator")
 
   # Check update method
-  update_method_input = update_method
-  update_method = match.arg(update_method)
+  update_thresholds_method_input = update_method_thresholds
+  update_method_thresholds = match.arg(update_method_thresholds)
+  update_interactions_method_input = update_method_interactions
+  update_method_interactions = match.arg(update_method_interactions)
 
   #Check data input ------------------------------------------------------------
   if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame"))
@@ -472,6 +483,17 @@ bgm = function(x,
     }
   }
 
+  pairwise_effect_indices = matrix(NA, nrow = num_variables, ncol = num_variables)
+  tel = 0
+  for (v1 in seq_len(num_variables - 1)) {
+    for (v2 in seq((v1 + 1), num_variables)) {
+      pairwise_effect_indices[v1, v2] = tel
+      pairwise_effect_indices[v2, v1] = tel
+      tel = tel + 1  # C++ starts at zero
+    }
+  }
+
+
   # Call the Rcpp function
   out = run_gibbs_sampler_for_bgm (
     observations = x, num_categories = num_categories,
@@ -488,7 +510,9 @@ bgm = function(x,
     reference_category = reference_category, save_main = save_main,
     save_pairwise = save_pairwise, save_indicator = save_indicator,
     display_progress = display_progress, edge_selection = edge_selection,
-    update_method = update_method
+    update_method_interactions = update_method_interactions,
+    update_method_thresholds = update_method_thresholds,
+    pairwise_effect_indices = pairwise_effect_indices
   )
 
   # Main output handler in the wrapper function
