@@ -60,10 +60,9 @@ arma::vec compute_Vn_mfm_sbm(arma::uword no_variables,
                                  double lambda) {
   arma::vec log_Vn(t_max);
   double r;
-  double tmp;
 
   for(arma::uword t = 0; t < t_max; t++) {
-    r = -INFINITY; // initialize log-coefficient at -Inf 
+    r = -INFINITY; // initialize log-coefficient at -Inf
     for(arma::uword k = t; k <= 500; k++){
       arma::vec b_linspace_1 = arma::linspace(k-t+1,k+1,t+1); // numerator = b*(b-1)*...*(b-|C|+1)
       arma::vec b_linspace_2 = arma::linspace((k+1)*dirichlet_alpha,(k+1)*dirichlet_alpha+no_variables-1, no_variables); // denominator b*e*(b*e+1)*...*(b*e+p-1)
@@ -116,7 +115,7 @@ double log_marginal_mfm_sbm(arma::uvec cluster_assign,
                             double beta_bernoulli_beta) {
 
   arma::uvec indices = arma::regspace<arma::uvec>(0, no_variables-1); // vector of variables indices [0, 1, ..., no_variables-1]
-  arma::uvec select_variables = indices(arma::find(indices != node)); // vector of variables indices excluding 'node'        
+  arma::uvec select_variables = indices(arma::find(indices != node)); // vector of variables indices excluding 'node'
   arma::uvec cluster_assign_wo_node = cluster_assign(select_variables); // vector of cluster labels for all variables but excluding 'node'
   arma::uvec indicator_node = indicator.col(node); // column of indicator matrix corresponding to 'node'
   arma::vec gamma_node = arma::conv_to<arma::vec>::from(indicator_node(select_variables)); // selecting only indicators between 'node' and the remaining variables (thus excluding indicator of node with itself -- that is indicator[node,node])
@@ -187,10 +186,10 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
   double logmarg;
 
   // Generate a randomized order using Rcpp's sample function
-  arma::uvec indices = arma::randperm(no_variables); //arma::randperm() Generate a vector with a random permutation of integers from 0 to no_variables-1 
+  arma::uvec indices = arma::randperm(no_variables); //arma::randperm() Generate a vector with a random permutation of integers from 0 to no_variables-1
 
   for (arma::uword idx = 0; idx < no_variables; idx++) {
-    arma::uword node = indices(idx); 
+    arma::uword node = indices(idx);
     old = cluster_assign(node);
 
     arma::uvec cluster_size = table_cpp(cluster_assign);
@@ -203,12 +202,12 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
       arma::uvec cluster_size_node = cluster_size;
 
       // Compute probabilities for sampling process
-      arma::vec cluster_prob(no_clusters + 1); 
-      for (arma::uword c = 0; c <= no_clusters; c++) { 
+      arma::vec cluster_prob(no_clusters + 1);
+      for (arma::uword c = 0; c <= no_clusters; c++) {
         arma::uvec cluster_assign_tmp = cluster_assign;
         cluster_assign_tmp(node) = c;
 
-        if (c < no_clusters) { 
+        if (c < no_clusters) {
           if(c != old){
           loglike = log_likelihood_mfm_sbm(cluster_assign_tmp,
                                            block_probs,
@@ -222,7 +221,7 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
           else{ // if old group, the probability is set to 0.0
             prob = 0.0;
           }
-          
+
         } else {
           logmarg = log_marginal_mfm_sbm(cluster_assign_tmp,
                                          indicator,
@@ -242,7 +241,7 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
       //Choose the cluster number for node
       cluster = sample_cluster(cluster_prob);
 
-      //if the sampled cluster is the new added cluster or the old one 
+      //if the sampled cluster is the new added cluster or the old one
       if (cluster == no_clusters) {
         cluster_assign(node) = old; // new cluster takes the place of the older singleton but doesn't update probabilities, they are kept the same as the old ones
       } else { // otherwise remove old (singleton) empty cluster, redefine cluster_assign and block_probs
@@ -254,7 +253,7 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
         }
         // removing row and col index 'old' from block_probs
         block_probs.shed_row(old);
-        block_probs.shed_col(old); 
+        block_probs.shed_col(old);
       }
     } else {
       // Cluster sizes without node
