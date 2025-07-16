@@ -609,7 +609,7 @@ arma::vec gradient_log_pseudoposterior_thresholds (
 
       // Vectorized computation of expected category counts
       //
-      // For each person, we compute softmax-like probabilities over categories:
+      // For each person, we compute probabilities over categories:
       //   probs[p, c] = exp (θ_c + (c+1) * rest_score_p - bound_p)
       // where:
       //   - θ_c is the threshold for category c
@@ -618,7 +618,8 @@ arma::vec gradient_log_pseudoposterior_thresholds (
 
       arma::vec rest_score = residual_matrix.col(variable);                     // rest scores per person
       arma::vec threshold_param = main_effects.row(variable).cols(0, num_cats - 1).t();   // thresholds for current variable
-      arma::vec bound = threshold_param.max() + num_cats * rest_score;                    // vector of bounds per person
+      arma::vec bound = threshold_param.max() + num_cats * rest_score;          // vector of bounds per person
+      bound = arma::clamp(bound, 0.0, arma::datum::inf); //only positive bounds
 
       arma::mat exponents(num_persons, num_cats);                               // log unnormalized probabilities
       for (int cat = 0; cat < num_cats; cat++) {
@@ -661,7 +662,7 @@ arma::vec gradient_log_pseudoposterior_thresholds (
       // This replaces the nested loop with vectorized accumulation over categories.
       arma::vec rest_score = residual_matrix.col(variable);                     // Residuals per person
       arma::vec bound = num_cats * rest_score;                                  // Stabilization bound
-      arma::vec denom = arma::exp (quadratic_threshold * ref * ref - bound);              // Initial term at score = 0
+      arma::vec denom = arma::exp (quadratic_threshold * ref * ref - bound);    // Initial term at score = 0
 
       arma::vec sum_lin(num_persons, arma::fill::zeros);                        // E[score]
       arma::vec sum_quad = ref * ref * denom;                                   // E[(score - ref)^2], starts at score = 0
@@ -1283,7 +1284,7 @@ arma::vec gradient_log_pseudoposterior_interactions (
     }
   }
 
-  for(int var1 = 0; var1 < num_variables; var1++) {
+  for(int var1 = 0; var1 < num_variables - 1; var1++) {
     for (int var2 = var1 + 1; var2 < num_variables; var2++) {
       if (inclusion_indicator (var1, var2) == 0)
         continue;
