@@ -5,7 +5,7 @@ prepare_output_bgm = function (
     save_options, burnin, interaction_scale, threshold_alpha, threshold_beta,
     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
-    variable_type) {
+    variable_type, target_accept_thresholds, target_accept_interactions) {
 
   save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
 
@@ -18,7 +18,9 @@ prepare_output_bgm = function (
     inclusion_probability = inclusion_probability, beta_bernoulli_alpha = beta_bernoulli_alpha,
     beta_bernoulli_beta =  beta_bernoulli_beta,
     dirichlet_alpha = dirichlet_alpha, lambda = lambda, na_action = na_action,
-    save = save, version = packageVersion("bgms")
+    save = save, version = packageVersion("bgms"),
+    target_accept_thresholds = target_accept_thresholds,
+    target_accept_interactions = target_accept_interactions
   )
 
   num_variables = ncol(x)
@@ -101,12 +103,12 @@ prepare_output_bgm = function (
 
   results$arguments = arguments
   class(results) = "bgms"
-  
+
   # SBM postprocessing
   if (edge_selection && edge_prior == "Stochastic-Block" && "allocations" %in% names(out)) {
     results$arguments$allocations = out$allocations
     # Requires that summarySBM() is available in namespace
-    sbm_summary = summarySBM(results, internal_call = TRUE) 
+    sbm_summary = summarySBM(results, internal_call = TRUE)
     results$components = sbm_summary$components
     results$allocations = sbm_summary$allocations
   }

@@ -168,6 +168,9 @@
 #'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
 #' }
 #' Defaults to \code{"adaptive-metropolis"}.
+#' @param target_accept_interactions,target_accept_tresholds Target acceptance
+#' rate for the methods used for updating the interactions, and thresholds.
+#' Default: 0.234 for Adaptive Metropolis, .574 otherwise.
 #'
 #' @return If \code{save = FALSE} (the default), the result is a list of class
 #' ``bgms'' containing the following matrices with model-averaged quantities:
@@ -334,9 +337,10 @@ bgm = function(x,
                save_indicator = FALSE,
                display_progress = TRUE,
                update_method_interactions = c("adaptive-metropolis", "adaptive-mala", "fisher-mala", "adaptive-componentwise-mala"),
-               update_method_thresholds = c("adaptive-metropolis", "fisher-mala")
+               update_method_thresholds = c("adaptive-metropolis", "fisher-mala"),
+               target_accept_interactions,
+               target_accept_thresholds
 ) {
-
   # Deprecation warning for save parameter
   if(hasArg(save)) {
     warning("`save` is deprecated. Use `save_main`, `save_pairwise`, or `save_indicator` instead.")
@@ -355,6 +359,29 @@ bgm = function(x,
   update_method_thresholds = match.arg(update_method_thresholds)
   update_interactions_method_input = update_method_interactions
   update_method_interactions = match.arg(update_method_interactions)
+
+  # Check target acceptance rate
+  if(hasArg(target_accept_interactions)) {
+    target_accept_interactions = min(target_accept_interactions, 1 - sqrt(.Machine$double.eps))
+    target_accept_interactions = max(target_accept_interactions, 0 + sqrt(.Machine$double.eps))
+  } else {
+    if(update_method_interactions == "adaptive-metropolis") {
+      target_accept_interactions = 0.234
+    } else {
+      target_accept_interactions = 0.574
+    }
+  }
+
+  if(hasArg(target_accept_thresholds)) {
+    target_accept_thresholds = min(target_accept_thresholds, 1 - sqrt(.Machine$double.eps))
+    target_accept_thresholds = max(target_accept_thresholds, 0 + sqrt(.Machine$double.eps))
+  } else {
+    if(update_method_thresholds == "adaptive-metropolis") {
+      target_accept_thresholds = 0.234
+    } else {
+      target_accept_thresholds = 0.574
+    }
+  }
 
   #Check data input ------------------------------------------------------------
   if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame"))
@@ -512,7 +539,9 @@ bgm = function(x,
     display_progress = display_progress, edge_selection = edge_selection,
     update_method_interactions = update_method_interactions,
     update_method_thresholds = update_method_thresholds,
-    pairwise_effect_indices = pairwise_effect_indices
+    pairwise_effect_indices = pairwise_effect_indices,
+    target_accept_thresholds = target_accept_thresholds,
+    target_accept_interactions = target_accept_interactions
   )
 
   # Main output handler in the wrapper function
@@ -529,7 +558,9 @@ bgm = function(x,
     beta_bernoulli_alpha = beta_bernoulli_alpha,
     beta_bernoulli_beta = beta_bernoulli_beta,
     dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-    variable_type = variable_type
+    variable_type = variable_type,
+    target_accept_thresholds = target_accept_thresholds,
+    target_accept_interactions = target_accept_interactions
   )
 
   return(output)

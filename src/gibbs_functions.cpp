@@ -28,7 +28,8 @@ inline void update_step_size_with_dual_averaging (
     const double initial_step_size,
     const double acceptance_probability,
     const int iteration,
-    arma::vec& state
+    arma::vec& state,
+    const double target_acceptance
 ) {
   const double target_log_step_size = std::log (10.0 * initial_step_size);
   constexpr int stabilization_offset = 10;
@@ -38,7 +39,7 @@ inline void update_step_size_with_dual_averaging (
   double& acceptance_error_avg = state[2];
 
   const double adjusted_iter = iteration + stabilization_offset;
-  const double error = 0.574 - acceptance_probability;
+  const double error = target_acceptance - acceptance_probability;
 
   acceptance_error_avg = (1.0 - 1.0 / adjusted_iter) * acceptance_error_avg +
     (1.0 / adjusted_iter) * error;
@@ -63,15 +64,14 @@ inline void update_step_size_with_dual_averaging (
  *  - step_size_mala: Step size to update (in-place).
  *
  * Notes:
- *  - Uses a fixed target acceptance of 0.574 (optimal for MALA).
  *  - Decay rate is 0.75 for stable adaptation.
  */
 inline void update_step_size_with_robbins_monro (
     const double acceptance_probability,
     const int iteration,
-    double& step_size_mala
+    double& step_size_mala,
+    const double target_acceptance
 ) {
-  constexpr double target_acceptance = 0.574;
   constexpr double decay_rate = 0.75;
 
   const double error = acceptance_probability - target_acceptance;
@@ -99,9 +99,9 @@ inline void update_step_size_with_robbins_monro (
 inline double update_proposal_sd_with_robbins_monro (
     const double current_sd,
     const double observed_log_acceptance_probability,
-    const double rm_weight
+    const double rm_weight,
+    const double target_acceptance
 ) {
-  constexpr double target_acceptance = 0.234;
   constexpr double rm_lower_bound = 0.001;
   constexpr double rm_upper_bound = 2.0;
 
@@ -738,10 +738,10 @@ double find_reasonable_initial_step_size_thresholds (
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
     const double threshold_alpha,
-    const double threshold_beta
+    const double threshold_beta,
+    const double target_acceptance
 ) {
   constexpr double initial_step_size = 0.1;
-  constexpr double target_acceptance = 0.574;
   constexpr int max_attempts = 20;
   constexpr double max_log_step = 10.0;
 
@@ -960,7 +960,8 @@ void update_thresholds_with_fisher_mala (
     arma::mat& sqrt_inv_fisher,
     const double threshold_alpha,
     const double threshold_beta,
-    const double initial_step_size
+    const double initial_step_size,
+    const double target_accept_thresholds
 ) {
   // --- Compute current parameter vector and its gradient ---
   const arma::vec current_state = vectorize_thresholds (
@@ -1045,13 +1046,15 @@ void update_thresholds_with_fisher_mala (
   if (iteration < total_burnin) {
     // During warm-up: dual averaging adaptation
     update_step_size_with_dual_averaging (
-        initial_step_size, accept_prob, iteration + 1, dual_averaging_state
+        initial_step_size, accept_prob, iteration + 1, dual_averaging_state,
+        target_accept_thresholds
     );
     step_size = std::exp (dual_averaging_state[1]);
   } else {
     // After warm-up: Robbins-Monro + Fisher preconditioner update
     update_step_size_with_robbins_monro (
-        accept_prob, iteration - total_burnin + 1, step_size
+        accept_prob, iteration - total_burnin + 1, step_size,
+        target_accept_thresholds
     );
 
     const arma::vec score_diff =
@@ -1099,7 +1102,8 @@ void update_thresholds_with_adaptive_metropolis (
     const double threshold_beta,
     const arma::mat& residual_matrix,
     arma::mat& proposal_sd_main,
-    const double exp_neg_log_t_rm_adaptation_rate
+    const double exp_neg_log_t_rm_adaptation_rate,
+    const double target_accept_thresholds
 ) {
   const int num_vars = observations.n_cols;
 
@@ -1134,7 +1138,8 @@ void update_thresholds_with_adaptive_metropolis (
         }
 
         double updated_proposal_sd = update_proposal_sd_with_robbins_monro (
-          proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate
+          proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate,
+          target_accept_thresholds
         );
 
         proposal_sd_main(variable, category) = updated_proposal_sd;
@@ -1168,7 +1173,8 @@ void update_thresholds_with_adaptive_metropolis (
         }
 
         double updated_proposal_sd = update_proposal_sd_with_robbins_monro (
-          proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate
+          proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate,
+          target_accept_thresholds
         );
 
         proposal_sd_main(variable, parameter) = updated_proposal_sd;
@@ -1519,9 +1525,9 @@ double find_reasonable_initial_step_size_interactions (
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const double interaction_scale
+    const double interaction_scale,
+    const double target_acceptance
 ) {
-  const double target_acceptance = 0.574;
   const double initial_step_size = 0.1;
   const int max_attempts = 20;
 
@@ -1665,7 +1671,8 @@ void update_interactions_with_mala (
     const double initial_step_size_interactions,
     const int iteration,
     const int total_burnin,
-    arma::vec& dual_averaging_state
+    arma::vec& dual_averaging_state,
+    const double target_accept_interactions
 ) {
   const int num_variables = pairwise_effects.n_rows;
   const int num_interactions = (num_variables * (num_variables - 1)) / 2;
@@ -1742,14 +1749,16 @@ void update_interactions_with_mala (
         initial_step_size_interactions,
         acceptance_prob,
         iteration + 1,
-        dual_averaging_state
+        dual_averaging_state,
+        target_accept_interactions
     );
     step_size_interactions = std::exp (dual_averaging_state (1));
   } else {
     update_step_size_with_robbins_monro (
         acceptance_prob,
         iteration - total_burnin + 1,
-        step_size_interactions
+        step_size_interactions,
+        target_accept_interactions
     );
   }
 
@@ -1937,9 +1946,10 @@ double find_reasonable_initial_step_size_single_interaction(
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    double interaction_scale
+    double interaction_scale,
+    const double target_acceptance
 ) {
-  const double target_acceptance = 0.574;
+
   const double initial_step_size = 0.1;
   double log_step_size = std::log (initial_step_size);
   const int max_attempts = 20;
@@ -2035,7 +2045,8 @@ void update_interactions_with_componentwise_mala (
     arma::mat& componentwise_dual_averaging_state,
     const double initial_step_size,
     const int iteration,
-    const int total_burnin
+    const int total_burnin,
+    const double target_accept_interactions
 ) {
   const int num_variables = pairwise_effects.n_rows;
 
@@ -2092,12 +2103,16 @@ void update_interactions_with_componentwise_mala (
         arma::rowvec state = componentwise_dual_averaging_state.row(interaction_id);
         arma::vec state_vec = state.t();  // Convert to column vec for dual averaging
 
-        update_step_size_with_dual_averaging(initial_step_size, accept_prob, iteration + 1, state_vec);
+        update_step_size_with_dual_averaging(
+          initial_step_size, accept_prob, iteration + 1, state_vec,
+          target_accept_interactions);
 
         step_size = std::exp(state_vec[1]);
         componentwise_dual_averaging_state.row(interaction_id) = state_vec.t();  // Store back as row
       } else {
-        update_step_size_with_robbins_monro(accept_prob, iteration - total_burnin + 1, step_size);
+        update_step_size_with_robbins_monro(
+          accept_prob, iteration - total_burnin + 1, step_size,
+          target_accept_interactions);
       }
 
     }
@@ -2147,7 +2162,8 @@ void update_interactions_with_adaptive_metropolis (
     arma::mat& residual_matrix,
     const double exp_neg_log_t_rm_adaptation_rate,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category
+    const arma::ivec& reference_category,
+    const double target_accept_interactions
 ) {
   for (int variable1 = 0; variable1 < num_variables - 1; variable1++) {
     for (int variable2 = variable1 + 1; variable2 < num_variables; variable2++) {
@@ -2184,7 +2200,8 @@ void update_interactions_with_adaptive_metropolis (
         proposal_sd_pairwise_effects(variable1, variable2) =
           update_proposal_sd_with_robbins_monro (
               proposal_sd_pairwise_effects(variable1, variable2), log_acceptance,
-              exp_neg_log_t_rm_adaptation_rate
+              exp_neg_log_t_rm_adaptation_rate,
+              target_accept_interactions
           );
       }
     }
@@ -2467,7 +2484,8 @@ void update_interactions_with_fisher_mala (
     const int iteration,
     const int total_burnin,
     arma::vec& dual_averaging_state,
-    arma::mat& sqrt_inv_fisher_pairwise
+    arma::mat& sqrt_inv_fisher_pairwise,
+    const double target_accept_interactions
 ) {
   const int num_variables = pairwise_effects.n_rows;
   const int num_interactions = (num_variables * (num_variables - 1)) / 2;
@@ -2580,13 +2598,15 @@ void update_interactions_with_fisher_mala (
   if (iteration < total_burnin) {
     // Use dual averaging during warm-up
     update_step_size_with_dual_averaging (
-        initial_step_size_pairwise, accept_prob, iteration, dual_averaging_state
+        initial_step_size_pairwise, accept_prob, iteration,
+        dual_averaging_state, target_accept_interactions
     );
     step_size_pairwise = std::exp (dual_averaging_state[0]);
   } else {
     // Robbins-Monro and Fisher update post-burn-in
     update_step_size_with_robbins_monro (
-        accept_prob, iteration - total_burnin + 1, step_size_pairwise
+        accept_prob, iteration - total_burnin + 1, step_size_pairwise,
+        target_accept_interactions
     );
 
     // Scaled score difference for rank-1 Fisher update
@@ -2853,7 +2873,9 @@ void gibbs_update_step_for_graphical_model_parameters (
     const std::string& update_method_thresholds,
     arma::vec& component_wise_interactions_step_sizes,
     arma::mat& componentwise_dual_averaging_state,
-    const arma::imat& pairwise_effect_indices
+    const arma::imat& pairwise_effect_indices,
+    const double target_accept_interactions,
+    const double target_accept_thresholds
 ) {
   // --- Robbins-Monro weight for adaptive Metropolis updates
   const double exp_neg_log_t_rm_adaptation_rate =
@@ -2908,7 +2930,8 @@ void gibbs_update_step_for_graphical_model_parameters (
         num_categories, inclusion_indicator, is_ordinal_variable,
         reference_category, interaction_scale, step_size_pairwise,
         initial_step_size_pairwise, iteration, total_burnin,
-        dual_averaging_pairwise, sqrt_inv_fisher_pairwise
+        dual_averaging_pairwise, sqrt_inv_fisher_pairwise,
+        target_accept_interactions
     );
   } else if (update_method_interactions == "adaptive-mala") {
     update_interactions_with_mala (
@@ -2916,7 +2939,8 @@ void gibbs_update_step_for_graphical_model_parameters (
         num_categories, inclusion_indicator, is_ordinal_variable,
         reference_category, interaction_scale,
         step_size_pairwise, initial_step_size_pairwise,
-        iteration, total_burnin, dual_averaging_pairwise
+        iteration, total_burnin, dual_averaging_pairwise,
+        target_accept_interactions
     );
   } else if (update_method_interactions == "adaptive-componentwise-mala") {
     update_interactions_with_componentwise_mala (
@@ -2925,7 +2949,7 @@ void gibbs_update_step_for_graphical_model_parameters (
         is_ordinal_variable, reference_category, interaction_scale,
         component_wise_interactions_step_sizes,
         componentwise_dual_averaging_state, initial_step_size_pairwise,
-        iteration, total_burnin
+        iteration, total_burnin, target_accept_interactions
     );
   } else {
     update_interactions_with_adaptive_metropolis (
@@ -2933,7 +2957,7 @@ void gibbs_update_step_for_graphical_model_parameters (
         num_categories, proposal_sd_pairwise, interaction_scale,
         num_persons, num_variables, residual_matrix,
         exp_neg_log_t_rm_adaptation_rate, is_ordinal_variable,
-        reference_category
+        reference_category, target_accept_interactions
     );
   }
 
@@ -2944,7 +2968,8 @@ void gibbs_update_step_for_graphical_model_parameters (
         main_effects, observations, num_categories, num_obs_categories,
         sufficient_blume_capel, reference_category, is_ordinal_variable,
         num_persons, threshold_alpha, threshold_beta, residual_matrix,
-        proposal_sd_main, exp_neg_log_t_rm_adaptation_rate
+        proposal_sd_main, exp_neg_log_t_rm_adaptation_rate,
+        target_accept_thresholds
     );
   } else {
     // Update using Fisher-preconditioned MALA
@@ -2953,7 +2978,7 @@ void gibbs_update_step_for_graphical_model_parameters (
         num_obs_categories, sufficient_blume_capel, reference_category,
         is_ordinal_variable, iteration, total_burnin, dual_averaging_main,
         sqrt_inv_fisher_main, threshold_alpha, threshold_beta,
-        initial_step_size_main
+        initial_step_size_main, target_accept_thresholds
     );
   }
 }
@@ -3034,7 +3059,9 @@ List run_gibbs_sampler_for_bgm (
     bool edge_selection,
     const std::string& update_method_interactions,
     const std::string& update_method_thresholds,
-    const arma::imat pairwise_effect_indices
+    const arma::imat pairwise_effect_indices,
+    const double target_accept_thresholds,
+    const double target_accept_interactions
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -3126,8 +3153,9 @@ List run_gibbs_sampler_for_bgm (
         const int var2 = interaction_index_matrix(i, 2);
 
         double step_size = find_reasonable_initial_step_size_single_interaction(
-          var1, var2, pairwise_effects, main_effects, observations, num_categories,
-          inclusion_indicator, is_ordinal_variable, reference_category, interaction_scale
+          var1, var2, pairwise_effects, main_effects, observations,
+          num_categories, inclusion_indicator, is_ordinal_variable,
+          reference_category, interaction_scale, target_accept_interactions
         );
 
         component_wise_interactions_step_sizes(i) = step_size;
@@ -3139,19 +3167,19 @@ List run_gibbs_sampler_for_bgm (
       initial_step_size_pairwise = find_reasonable_initial_step_size_interactions (
         pairwise_effects, main_effects, observations, num_categories,
         inclusion_indicator, is_ordinal_variable, reference_category,
-        interaction_scale
+        interaction_scale, target_accept_interactions
       );
       step_size_pairwise = initial_step_size_pairwise;
       dual_averaging_pairwise[0] = std::log (step_size_pairwise);
     }
   }
-  if (update_method_thresholds != "metropolis") {
+  if (update_method_thresholds == "fisher-mala") {
     // Warmup phase for MALA: find initial step size (per Hoffman & Gelman, 2014)
     // Uses one MALA step to tune the log step size before dual averaging.
     initial_step_size_main = find_reasonable_initial_step_size_thresholds (
       main_effects, residual_matrix, num_categories, num_obs_categories,
       sufficient_blume_capel, reference_category, is_ordinal_variable,
-      threshold_alpha, threshold_beta
+      threshold_alpha, threshold_beta, target_accept_thresholds
     );
     step_size_main = initial_step_size_main;
     dual_averaging_main[0] = std::log (step_size_main);
@@ -3209,7 +3237,8 @@ List run_gibbs_sampler_for_bgm (
         initial_step_size_pairwise, sqrt_inv_fisher_pairwise,
         update_method_interactions, update_method_thresholds,
         component_wise_interactions_step_sizes, componentwise_dual_averaging_state,
-        pairwise_effect_indices
+        pairwise_effect_indices, target_accept_interactions,
+        target_accept_thresholds
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)

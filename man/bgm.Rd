@@ -27,7 +27,11 @@ bgm(
   save_pairwise = FALSE,
   save_indicator = FALSE,
   display_progress = TRUE,
-  update_method = c("adaptive-metropolis", "adaptive-mala", "fisher-mala")
+  update_method_interactions = c("adaptive-metropolis", "adaptive-mala", "fisher-mala",
+    "adaptive-componentwise-mala"),
+  update_method_thresholds = c("adaptive-metropolis", "fisher-mala"),
+  target_accept_interactions,
+  target_accept_thresholds
 )
 }
 \arguments{
@@ -156,12 +160,25 @@ Default: `FALSE`.}
 (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 The default is \code{TRUE}.}
 
-\item{update_method}{Character. Specifies how the MCMC sampler updates the threshold
-and interaction parameters:
+\item{update_method_interactions}{Character. Specifies how the MCMC sampler updates the
+interaction parameters:
 \describe{
-  \item{"adaptive-metropolis"}{Uses adaptive Metropolis-Hastings for both thresholds and interactions.}
-  \item{"adaptive-mala"}{Uses Fisher-preconditioned MALA for thresholds and standard MALA for interactions and indicators.}
-  \item{"fisher-mala"}{Uses Fisher-preconditioned MALA for both thresholds and interactions.}
+  \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
+  \item{"adaptive-mala"}{Uses Fisher-preconditioned MALA for thresholds and standard MALA.}
+  \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
+  \item{"adaptive-componentwise-mala"}{Uses componentwise adaptive MALA.}
+}
+Defaults to \code{"adaptive-metropolis"}.}
+
+\item{target_accept_interactions, target_accept_tresholds}{Target acceptance
+rate for the methods used for updating the interactions, and thresholds.
+Default: 0.234 for Adaptive Metropolis, .574 otherwise.}
+
+\item{update_method_threshold}{Character. Specifies how the MCMC sampler updates the threshold
+parameters:
+\describe{
+  \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
+  \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
 }
 Defaults to \code{"adaptive-metropolis"}.}
 }
