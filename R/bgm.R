@@ -164,10 +164,10 @@
 #' @param update_method_threshold Character. Specifies how the MCMC sampler updates the threshold
 #' parameters:
 #' \describe{
-#'   \item{"metropolis"}{Uses componentwise independence chain Metropolis-Hastings for regular ordinal variables and adaptive Metropolis-Hastings for Blume-Capel variables.}
+#'   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
 #'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
 #' }
-#' Defaults to \code{"metropolis"}.
+#' Defaults to \code{"adaptive-metropolis"}.
 #'
 #' @return If \code{save = FALSE} (the default), the result is a list of class
 #' ``bgms'' containing the following matrices with model-averaged quantities:
@@ -334,7 +334,7 @@ bgm = function(x,
                save_indicator = FALSE,
                display_progress = TRUE,
                update_method_interactions = c("adaptive-metropolis", "adaptive-mala", "fisher-mala", "adaptive-componentwise-mala"),
-               update_method_thresholds = c("metropolis", "fisher-mala")
+               update_method_thresholds = c("adaptive-metropolis", "fisher-mala")
 ) {
 
   # Deprecation warning for save parameter

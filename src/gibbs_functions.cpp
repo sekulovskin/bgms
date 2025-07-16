@@ -370,8 +370,8 @@ double log_pseudoposterior_thresholds (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha = 1.0,
-    const double threshold_beta = 1.0
+    const double threshold_alpha,
+    const double threshold_beta
 ) {
   const int num_variables = residual_matrix.n_cols;
   const int num_persons = residual_matrix.n_rows;
@@ -446,6 +446,115 @@ double log_pseudoposterior_thresholds (
       //   log_posterior -= bound + log (denom), summed over all persons
       log_posterior -= arma::accu (bound + arma::log (denom));                    // total contribution
     }
+  }
+
+  return log_posterior;
+}
+
+
+
+/**
+ * Function: log_pseudoposterior_thresholds_component
+ *
+ * Computes the log pseudo-posterior for one of the main effect parameters.
+ *
+ * Inputs:
+ *  - main_effects: Matrix of threshold parameters.
+ *  - residual_matrix: Residual scores for each observation and variable.
+ *  - num_categories: Number of categories per variable.
+ *  - num_obs_categories: Observed category count matrix.
+ *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
+ *  - reference_category: Reference category per variable (for Blume-Capel).
+ *  - is_ordinal_variable: Logical vector (1 = ordinal, 0 = Blume-Capel).
+ *  - threshold_alpha, threshold_beta: Prior hyperparameters.
+ *  - variable: Which variable to compute the log pseudo-posterior for
+ *  - category: If ordinal, which category to compute the log pseudo-posterior for
+ *  - parameter: If Blume-Capel, which parameter to compute the log pseudo-posterior for (0 = linear, 1 = quadratic)
+ *
+ * Returns:
+ *  - Scalar log pseudo-posterior.
+ */
+double log_pseudoposterior_thresholds_component (
+    const arma::mat& main_effects,
+    const arma::mat& residual_matrix,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const int variable,
+    const int category,
+    const int parameter
+) {
+  const int num_persons = residual_matrix.n_rows;
+  double log_posterior = 0.0;
+
+  auto log_beta_prior = [&](double threshold_param) {
+    return threshold_param * threshold_alpha - std::log1p (std::exp (threshold_param)) * (threshold_alpha + threshold_beta);
+  };
+
+  const int num_cats = num_categories(variable);
+
+  if (is_ordinal_variable(variable)) {
+    // Prior contribution + sufficient statistic
+    const double value = main_effects(variable, category);
+    log_posterior += value * num_obs_categories(category + 1, variable);
+    log_posterior += log_beta_prior (value);
+
+    // Vectorized likelihood contribution
+    // For each person, we compute the unnormalized log-likelihood denominator:
+    //   denom = exp (-bound) + sum_c exp (threshold_param_c + (c+1) * rest_score - bound)
+    // Where:
+    //   - rest_score is the summed interaction score excluding the variable itself
+    //   - bound = num_cats * rest_score (for numerical stability)
+    //   - threshold_param_c is the threshold parameter for category c (0-based)
+    arma::vec rest_score = residual_matrix.col (variable);                     // rest scores for all persons
+    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
+    arma::vec denom = arma::exp (-bound);                                      // initialize with base term
+    arma::vec threshold_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // threshold parameters
+
+    for (int cat = 0; cat < num_cats; cat++) {
+      arma::vec exponent = threshold_param(cat) + (cat + 1) * rest_score - bound;       // exponent per person
+      denom += arma::exp (exponent);                                           // accumulate exp terms
+    }
+
+    // We then compute the total log-likelihood contribution as:
+    //   log_posterior -= bound + log (denom), summed over all persons
+    log_posterior -= arma::accu (bound + arma::log (denom));                    // total contribution
+  } else {
+    const double value = main_effects(variable, parameter);
+    const double linear_threshold = main_effects(variable, 0);
+    const double quadratic_threshold = main_effects(variable, 1);
+    const int ref = reference_category(variable);
+
+    // Prior contribution + sufficient statistic
+    log_posterior += value * sufficient_blume_capel(parameter, variable);
+    log_posterior += log_beta_prior(value);
+
+    // Vectorized likelihood contribution
+    // For each person, we compute the unnormalized log-likelihood denominator:
+    //   denom = sum_c exp (θ_lin * c + θ_quad * (c - ref)^2 + c * rest_score - bound)
+    // Where:
+    //   - θ_lin, θ_quad are linear and quadratic thresholds
+    //   - ref is the reference category (used for centering)
+    //   - bound = num_cats * rest_score (stabilizes exponentials)
+    arma::vec rest_score = residual_matrix.col(variable);                     // rest scores for all persons
+    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
+    arma::vec denom(num_persons, arma::fill::zeros);                          // initialize denominator
+    for (int cat = 0; cat <= num_cats; cat++) {
+      int centered = cat - ref;                                               // centered category
+      double quad_term = quadratic_threshold * centered * centered;                    // precompute quadratic term
+      double lin_term = linear_threshold * cat;                                      // precompute linear term
+
+      arma::vec exponent = lin_term + quad_term + cat * rest_score - bound;
+      denom += arma::exp (exponent);                                           // accumulate over categories
+    }
+
+    // The final log-likelihood contribution is then:
+    //   log_posterior -= bound + log (denom), summed over all persons
+    log_posterior -= arma::accu (bound + arma::log (denom));                    // total contribution
   }
 
   return log_posterior;
@@ -955,211 +1064,118 @@ void update_thresholds_with_fisher_mala (
 
 
 /**
- * Function: update_regular_thresholds_with_metropolis
+ * Function: update_thresholds_with_adaptive_metropolis
  *
- * Performs a Metropolis-Hastings update for each threshold of an ordinal variable.
- * Uses a generalized beta-prime proposal and logistic-Beta prior.
- *
- * Inputs:
- *  - main_effects: Matrix of thresholds (updated in-place).
- *  - observations: Matrix of category scores.
- *  - num_categories: Vector of number of categories per variable.
- *  - num_obs_categories: Count matrix of observed scores.
- *  - num_persons: Number of individuals.
- *  - variable: Index of the variable being updated.
- *  - threshold_alpha, threshold_beta: Prior hyperparameters.
- *  - residual_matrix: Residual scores for each observation and variable.
- *
- * Modifies:
- *  - main_effects (only for the specified variable)
- */
-void update_regular_thresholds_with_metropolis (
-    arma::mat& main_effects,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const int num_persons,
-    const int variable,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const arma::mat& residual_matrix
-) {
-  arma::vec g(num_persons);
-  arma::vec q(num_persons);
-  const int num_cats = num_categories(variable);
-
-  for (int category = 0; category < num_cats; category++) {
-    double current = main_effects(variable, category);
-    double exp_current = std::exp (current);
-    double c = (threshold_alpha + threshold_beta) / (1.0 + exp_current);
-
-    for (int person = 0; person < num_persons; person++) {
-      double rest_score = residual_matrix(person, variable);
-      double denom = 1.0;
-      double numer = std::exp ((category + 1) * rest_score);
-
-      for (int cat = 0; cat < num_cats; cat++) {
-        if (cat != category) {
-          denom += std::exp (main_effects(variable, cat) + (cat + 1) * rest_score);
-        }
-      }
-
-      g(person) = denom;
-      q(person) = numer;
-      c += numer / (denom + numer * exp_current);
-    }
-
-    c /= (num_persons + threshold_alpha + threshold_beta - exp_current * c);
-
-    // Sample from generalized beta-prime proposal
-    double a = num_obs_categories(category + 1, variable) + threshold_alpha;
-    double b = num_persons + threshold_beta - num_obs_categories(category + 1, variable);
-    double tmp = R::rbeta(a, b);
-    double proposed = std::log (tmp / (1.0 - tmp) / c);
-    double exp_proposed = std::exp (proposed);
-
-    // Compute MH acceptance probability
-    double log_acceptance_probability = 0.0;
-    for (int person = 0; person < num_persons; person++) {
-      log_acceptance_probability += std::log (g(person) + q(person) * exp_current);
-      log_acceptance_probability -= std::log (g(person) + q(person) * exp_proposed);
-    }
-
-    log_acceptance_probability -= (threshold_alpha + threshold_beta) * std::log1p(exp_proposed);
-    log_acceptance_probability += (threshold_alpha + threshold_beta) * std::log1p(exp_current);
-    log_acceptance_probability -= (a + b) * std::log1p(c * exp_current);
-    log_acceptance_probability += (a + b) * std::log1p(c * exp_proposed);
-
-    if (std::log (R::unif_rand()) < log_acceptance_probability) {
-      main_effects(variable, category) = proposed;
-    }
-  }
-}
-
-
-
-/**
- * Function: update_blumecapel_thresholds_with_adaptive_metropolis
- *
- * Performs an adaptive Metropolis update of the Blume-Capel threshold parameters
- * (linear and quadratic) for a single variable, with Robbins-Monro tuning.
+ * Performs an adaptive Metropolis update of all threshold parameters, with
+ * Robbins-Monro tuning.
  *
  * Inputs:
  *  - main_effects: Matrix of threshold parameters (updated in-place).
  *  - observations: Matrix of categorical scores.
  *  - num_categories: Number of categories per variable.
  *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
- *  - num_persons: Number of observations.
- *  - variable: Index of the variable being updated.
  *  - reference_category: Reference category per variable.
+ *  - is_ordinal_variable: Logical vector (1 = ordinal, 0 = Blume-Capel).
+ *  - num_persons: Number of observations.
  *  - threshold_alpha, threshold_beta: Prior hyperparameters.
  *  - residual_matrix: Residual scores.
- *  - proposal_sd_blumecapel: Matrix of proposal SDs for each variable (updated in-place).
+ *  - proposal_sd_main: Matrix of proposal SDs for each variable (updated in-place).
  *  - exp_neg_log_t_rm_adaptation_rate: Robbins-Monro adaptation weight.
  *
  * Modifies:
  *  - main_effects (for the given variable)
- *  - proposal_sd_blumecapel
+ *  - proposal_sd_main
  */
-void update_blumecapel_thresholds_with_adaptive_metropolis (
+void update_thresholds_with_adaptive_metropolis (
     arma::mat& main_effects,
     const arma::imat& observations,
     const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
     const arma::imat& sufficient_blume_capel,
-    const int num_persons,
-    const int variable,
     const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const int num_persons,
     const double threshold_alpha,
     const double threshold_beta,
     const arma::mat& residual_matrix,
-    arma::mat& proposal_sd_blumecapel,
+    arma::mat& proposal_sd_main,
     const double exp_neg_log_t_rm_adaptation_rate
 ) {
-  const int num_cats = num_categories(variable);
-  const int ref = reference_category(variable);
+  const int num_vars = observations.n_cols;
 
-  // --- Define helper for prior contribution
-  auto log_beta_prior_diff = [&](double curr, double prop) {
-    return (threshold_alpha + threshold_beta) *
-      (std::log1p(std::exp (curr)) - std::log1p(std::exp (prop)));
-  };
+  for(int variable = 0; variable < num_vars; variable++) {
+    const int num_cats = num_categories(variable);
+    if(is_ordinal_variable[variable] == true) {
+      const int parameter = -1;                                                 /* unused */
+      for (int category = 0; category < num_cats; category++) {
 
-  // --- Update each threshold parameter: 0 = linear, 1 = quadratic
-  for (int param = 0; param < 2; param++) {
-    double& proposal_sd = proposal_sd_blumecapel(variable, param);
-    double current = main_effects(variable, param);
-    double proposed = R::rnorm(current, proposal_sd);
-    double diff = proposed - current;
+        double proposal_sd = proposal_sd_main(variable, category);
+        double current = main_effects(variable, category);
+        double proposed = R::rnorm(current, proposal_sd);
 
-    arma::vec numer_current(num_cats + 1);
-    arma::vec numer_proposed(num_cats + 1);
+        // Compute log posterior at proposed state
+        main_effects(variable, category) = proposed;
+        double log_accept = log_pseudoposterior_thresholds_component (
+          main_effects, residual_matrix, num_categories, num_obs_categories,
+          sufficient_blume_capel, reference_category, is_ordinal_variable,
+          threshold_alpha, threshold_beta, variable, category, parameter
+        );
 
-    // --- Step 1: Construct numerators for softmax (for all categories)
-    for (int cat = 0; cat <= num_cats; cat++) {
-      int centered = cat - ref;
-      if (param == 0) {
-        // Linear update
-        double quad = main_effects(variable, 1) * centered * centered;
-        numer_current(cat) = current * cat + quad;
-        numer_proposed(cat) = proposed * cat + quad;
-      } else {
-        // Quadratic update
-        double lin = main_effects(variable, 0) * cat;
-        numer_current(cat) = current * centered * centered + lin;
-        numer_proposed(cat) = proposed * centered * centered + lin;
+        // Compute log posterior at current state
+        main_effects(variable, category) = current;
+        log_accept -= log_pseudoposterior_thresholds_component (
+          main_effects, residual_matrix, num_categories, num_obs_categories,
+          sufficient_blume_capel, reference_category, is_ordinal_variable,
+          threshold_alpha, threshold_beta, variable, category, parameter
+        );
+
+        if (std::log (R::unif_rand()) < log_accept) {
+          main_effects(variable, category) = proposed;
+        }
+
+        double updated_proposal_sd = update_proposal_sd_with_robbins_monro (
+          proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate
+        );
+
+        proposal_sd_main(variable, category) = updated_proposal_sd;
+      }
+    } else {
+      const int category = -1;                                                  /* unused */
+      for (int parameter = 0; parameter < 2; parameter++) {
+
+        double proposal_sd = proposal_sd_main(variable, parameter);
+        double current = main_effects(variable, parameter);
+        double proposed = R::rnorm(current, proposal_sd);
+
+        // Compute log posterior at proposed state
+        main_effects(variable, parameter) = proposed;
+        double log_accept = log_pseudoposterior_thresholds_component (
+          main_effects, residual_matrix, num_categories, num_obs_categories,
+          sufficient_blume_capel, reference_category, is_ordinal_variable,
+          threshold_alpha, threshold_beta, variable, category, parameter
+        );
+
+        // Compute log posterior at current state
+        main_effects(variable, category) = current;
+        log_accept -= log_pseudoposterior_thresholds_component (
+          main_effects, residual_matrix, num_categories, num_obs_categories,
+          sufficient_blume_capel, reference_category, is_ordinal_variable,
+          threshold_alpha, threshold_beta, variable, category, parameter
+        );
+
+        if (std::log (R::unif_rand()) < log_accept) {
+          main_effects(variable, parameter) = proposed;
+        }
+
+        double updated_proposal_sd = update_proposal_sd_with_robbins_monro (
+          proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate
+        );
+
+        proposal_sd_main(variable, parameter) = updated_proposal_sd;
       }
     }
-
-    // --- Step 2: Compute lbound for numerical stability
-    double max_curr = numer_current.max();
-    double max_prop = numer_proposed.max();
-    double lbound = (max_curr > 0.0 || max_prop > 0.0) ? std::max(max_curr, max_prop) : 0.0;
-
-    // --- Step 3: Likelihood ratio
-    // Accumulate log acceptance probability based on change in pseudo-likelihood
-
-    // Contribution from sufficient statistics and prior
-    double log_accept = diff * (threshold_alpha + sufficient_blume_capel(param, variable));
-
-    // Vectorized likelihood ratio for all persons:
-    //
-    // For each person, compute:
-    //   log p(y_i | proposed) - log p(y_i | current)
-    //   using softmax-style normalization for categorical probabilities.
-    //
-    // The bound stabilizes exponentials across categories and persons.
-    arma::vec rest_score = residual_matrix.col(variable);                       // Person-wise residuals
-    arma::vec bound = arma::max(rest_score, arma::zeros<arma::vec>(num_persons)) * num_cats + lbound;
-
-    arma::vec denom_curr = arma::exp (numer_current(0) - bound);                 // Score = 0 contribution
-    arma::vec denom_prop = arma::exp (numer_proposed(0) - bound);
-
-    for (int cat = 0; cat < num_cats; cat++) {
-      arma::vec score_term = (cat + 1) * rest_score - bound;
-
-      // Compute exponentials for each category and add to denominator
-      denom_curr += arma::exp (numer_current(cat + 1) + score_term);
-      denom_prop += arma::exp (numer_proposed(cat + 1) + score_term);
-    }
-
-    // Accumulate the person-wise log ratio contributions
-    log_accept += arma::accu (arma::log (denom_curr) - arma::log (denom_prop));
-
-    // --- Step 4: Add prior ratio
-    log_accept += log_beta_prior_diff(current, proposed);
-
-    // --- Step 5: Metropolis accept/reject
-    if (std::log (R::unif_rand()) < log_accept) {
-      main_effects(variable, param) = proposed;
-    }
-
-    // --- Step 6: Robbins-Monro proposal adaptation
-    proposal_sd = update_proposal_sd_with_robbins_monro (
-      proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate
-    );
   }
 }
-
 
 
 /**
@@ -2922,7 +2938,15 @@ void gibbs_update_step_for_graphical_model_parameters (
   }
 
   // Step 3: Update main effect (threshold) parameters
-  if (update_method_thresholds != "metropolis") {
+  if (update_method_thresholds == "adaptive-metropolis") {
+    // Update using adaptive Metropolis
+    update_thresholds_with_adaptive_metropolis (
+        main_effects, observations, num_categories, num_obs_categories,
+        sufficient_blume_capel, reference_category, is_ordinal_variable,
+        num_persons, threshold_alpha, threshold_beta, residual_matrix,
+        proposal_sd_main, exp_neg_log_t_rm_adaptation_rate
+    );
+  } else {
     // Update using Fisher-preconditioned MALA
     update_thresholds_with_fisher_mala (
         main_effects, step_size_main, residual_matrix, num_categories,
@@ -2931,24 +2955,6 @@ void gibbs_update_step_for_graphical_model_parameters (
         sqrt_inv_fisher_main, threshold_alpha, threshold_beta,
         initial_step_size_main
     );
-  } else {
-    // Metropolis updates (Blume-Capel or ordinal)
-    for (int variable = 0; variable < num_variables; variable++) {
-      if (is_ordinal_variable(variable)) {
-        update_regular_thresholds_with_metropolis (
-            main_effects, observations, num_categories, num_obs_categories,
-            num_persons, variable, threshold_alpha, threshold_beta,
-            residual_matrix
-        );
-      } else {
-        update_blumecapel_thresholds_with_adaptive_metropolis (
-            main_effects, observations, num_categories, sufficient_blume_capel,
-            num_persons, variable, reference_category, threshold_alpha,
-            threshold_beta, residual_matrix, proposal_sd_main,
-            exp_neg_log_t_rm_adaptation_rate
-        );
-      }
-    }
   }
 }
 
@@ -3060,7 +3066,7 @@ List run_gibbs_sampler_for_bgm (
   if (save_indicator) indicator_samples = new arma::imat(iter, num_pairwise);
 
   // Initialize proposal SDs and MALA tracking
-  arma::mat proposal_sd_main(num_main, 2, arma::fill::ones);
+  arma::mat proposal_sd_main(num_main, max_num_categories, arma::fill::ones);
   arma::mat proposal_sd_pairwise(num_variables, num_variables, arma::fill::ones);
 
   double step_size_main = 0.01;

@@ -1,3 +1,216 @@
+// Deprecated: Former function to update main effect parameters of ordinal variables.
+// Retained for reference and archival purposes only. Not included in build.
+/**
+ * Function: update_regular_thresholds_with_metropolis
+ *
+ * Performs a Metropolis-Hastings update for each threshold of an ordinal variable.
+ * Uses a generalized beta-prime proposal and logistic-Beta prior.
+ *
+ * Inputs:
+ *  - main_effects: Matrix of thresholds (updated in-place).
+ *  - observations: Matrix of category scores.
+ *  - num_categories: Vector of number of categories per variable.
+ *  - num_obs_categories: Count matrix of observed scores.
+ *  - num_persons: Number of individuals.
+ *  - variable: Index of the variable being updated.
+ *  - threshold_alpha, threshold_beta: Prior hyperparameters.
+ *  - residual_matrix: Residual scores for each observation and variable.
+ *
+ * Modifies:
+ *  - main_effects (only for the specified variable)
+ */
+void update_regular_thresholds_with_metropolis (
+    arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const int num_persons,
+    const int variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const arma::mat& residual_matrix
+) {
+  arma::vec g(num_persons);
+  arma::vec q(num_persons);
+  const int num_cats = num_categories(variable);
+
+  for (int category = 0; category < num_cats; category++) {
+    double current = main_effects(variable, category);
+    double exp_current = std::exp (current);
+    double c = (threshold_alpha + threshold_beta) / (1.0 + exp_current);
+
+    for (int person = 0; person < num_persons; person++) {
+      double rest_score = residual_matrix(person, variable);
+      double denom = 1.0;
+      double numer = std::exp ((category + 1) * rest_score);
+
+      for (int cat = 0; cat < num_cats; cat++) {
+        if (cat != category) {
+          denom += std::exp (main_effects(variable, cat) + (cat + 1) * rest_score);
+        }
+      }
+
+      g(person) = denom;
+      q(person) = numer;
+      c += numer / (denom + numer * exp_current);
+    }
+
+    c /= (num_persons + threshold_alpha + threshold_beta - exp_current * c);
+
+    // Sample from generalized beta-prime proposal
+    double a = num_obs_categories(category + 1, variable) + threshold_alpha;
+    double b = num_persons + threshold_beta - num_obs_categories(category + 1, variable);
+    double tmp = R::rbeta(a, b);
+    double proposed = std::log (tmp / (1.0 - tmp) / c);
+    double exp_proposed = std::exp (proposed);
+
+    // Compute MH acceptance probability
+    double log_acceptance_probability = 0.0;
+    for (int person = 0; person < num_persons; person++) {
+      log_acceptance_probability += std::log (g(person) + q(person) * exp_current);
+      log_acceptance_probability -= std::log (g(person) + q(person) * exp_proposed);
+    }
+
+    log_acceptance_probability -= (threshold_alpha + threshold_beta) * std::log1p(exp_proposed);
+    log_acceptance_probability += (threshold_alpha + threshold_beta) * std::log1p(exp_current);
+    log_acceptance_probability -= (a + b) * std::log1p(c * exp_current);
+    log_acceptance_probability += (a + b) * std::log1p(c * exp_proposed);
+
+    if (std::log (R::unif_rand()) < log_acceptance_probability) {
+      main_effects(variable, category) = proposed;
+    }
+  }
+}
+
+
+
+// Deprecated: Former function to update main effect parameters of Blume-Capel variables.
+// Retained for reference and archival purposes only. Not included in build.
+
+/**
+ * Function: update_blumecapel_thresholds_with_adaptive_metropolis
+ *
+ * Performs an adaptive Metropolis update of the Blume-Capel threshold parameters
+ * (linear and quadratic) for a single variable, with Robbins-Monro tuning.
+ *
+ * Inputs:
+ *  - main_effects: Matrix of threshold parameters (updated in-place).
+ *  - observations: Matrix of categorical scores.
+ *  - num_categories: Number of categories per variable.
+ *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
+ *  - num_persons: Number of observations.
+ *  - variable: Index of the variable being updated.
+ *  - reference_category: Reference category per variable.
+ *  - threshold_alpha, threshold_beta: Prior hyperparameters.
+ *  - residual_matrix: Residual scores.
+ *  - proposal_sd_blumecapel: Matrix of proposal SDs for each variable (updated in-place).
+ *  - exp_neg_log_t_rm_adaptation_rate: Robbins-Monro adaptation weight.
+ *
+ * Modifies:
+ *  - main_effects (for the given variable)
+ *  - proposal_sd_blumecapel
+ */
+void update_blumecapel_thresholds_with_adaptive_metropolis (
+    arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& sufficient_blume_capel,
+    const int num_persons,
+    const int variable,
+    const arma::ivec& reference_category,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const arma::mat& residual_matrix,
+    arma::mat& proposal_sd_blumecapel,
+    const double exp_neg_log_t_rm_adaptation_rate
+) {
+  const int num_cats = num_categories(variable);
+  const int ref = reference_category(variable);
+
+  // --- Define helper for prior contribution
+  auto log_beta_prior_diff = [&](double curr, double prop) {
+    return (threshold_alpha + threshold_beta) *
+      (std::log1p(std::exp (curr)) - std::log1p(std::exp (prop)));
+  };
+
+  // --- Update each threshold parameter: 0 = linear, 1 = quadratic
+  for (int param = 0; param < 2; param++) {
+    double& proposal_sd = proposal_sd_blumecapel(variable, param);
+    double current = main_effects(variable, param);
+    double proposed = R::rnorm(current, proposal_sd);
+    double diff = proposed - current;
+
+    arma::vec numer_current(num_cats + 1);
+    arma::vec numer_proposed(num_cats + 1);
+
+    // --- Step 1: Construct numerators for softmax (for all categories)
+    for (int cat = 0; cat <= num_cats; cat++) {
+      int centered = cat - ref;
+      if (param == 0) {
+        // Linear update
+        double quad = main_effects(variable, 1) * centered * centered;
+        numer_current(cat) = current * cat + quad;
+        numer_proposed(cat) = proposed * cat + quad;
+      } else {
+        // Quadratic update
+        double lin = main_effects(variable, 0) * cat;
+        numer_current(cat) = current * centered * centered + lin;
+        numer_proposed(cat) = proposed * centered * centered + lin;
+      }
+    }
+
+    // --- Step 2: Compute lbound for numerical stability
+    double max_curr = numer_current.max();
+    double max_prop = numer_proposed.max();
+    double lbound = (max_curr > 0.0 || max_prop > 0.0) ? std::max(max_curr, max_prop) : 0.0;
+
+    // --- Step 3: Likelihood ratio
+    // Accumulate log acceptance probability based on change in pseudo-likelihood
+
+    // Contribution from sufficient statistics and prior
+    double log_accept = diff * (threshold_alpha + sufficient_blume_capel(param, variable));
+
+    // Vectorized likelihood ratio for all persons:
+    //
+    // For each person, compute:
+    //   log p(y_i | proposed) - log p(y_i | current)
+    //   using softmax-style normalization for categorical probabilities.
+    //
+    // The bound stabilizes exponentials across categories and persons.
+    arma::vec rest_score = residual_matrix.col(variable);                       // Person-wise residuals
+    arma::vec bound = arma::max(rest_score, arma::zeros<arma::vec>(num_persons)) * num_cats + lbound;
+
+    arma::vec denom_curr = arma::exp (numer_current(0) - bound);                 // Score = 0 contribution
+    arma::vec denom_prop = arma::exp (numer_proposed(0) - bound);
+
+    for (int cat = 0; cat < num_cats; cat++) {
+      arma::vec score_term = (cat + 1) * rest_score - bound;
+
+      // Compute exponentials for each category and add to denominator
+      denom_curr += arma::exp (numer_current(cat + 1) + score_term);
+      denom_prop += arma::exp (numer_proposed(cat + 1) + score_term);
+    }
+
+    // Accumulate the person-wise log ratio contributions
+    log_accept += arma::accu (arma::log (denom_curr) - arma::log (denom_prop));
+
+    // --- Step 4: Add prior ratio
+    log_accept += log_beta_prior_diff(current, proposed);
+
+    // --- Step 5: Metropolis accept/reject
+    if (std::log (R::unif_rand()) < log_accept) {
+      main_effects(variable, param) = proposed;
+    }
+
+    // --- Step 6: Robbins-Monro proposal adaptation
+    proposal_sd = update_proposal_sd_with_robbins_monro (
+      proposal_sd, log_accept, exp_neg_log_t_rm_adaptation_rate
+    );
+  }
+}
+
+
+
 // Deprecated: Former function to compute gradient vector for the interactions.
 // Retained for reference and archival purposes only. Not included in build.
 
@@ -121,7 +334,6 @@ arma::vec gradient_log_pseudoposterior_interactions (
 
   return gradient;
 }
-
 
 
 
