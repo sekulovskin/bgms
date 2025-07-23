@@ -75,6 +75,7 @@
 #' @param burnin The number of iterations of the Gibbs sampler before saving its
 #' output. Since it may take some time for the Gibbs sampler to converge to the
 #' posterior distribution, it is recommended not to set this number too low.
+#' Current minimum is 1000 iterations. The default is \code{burnin = 2e3}.
 #' When \code{edge_selection = TRUE}, the bgm function will perform
 #' \code{2 * burnin} iterations, first \code{burnin} iterations without edge
 #' selection, then \code{burnin} iterations with edge selection. This helps
@@ -152,26 +153,19 @@
 #' @param display_progress Should the function show a progress bar
 #' (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 #' The default is \code{TRUE}.
-#' @param update_method_interactions Character. Specifies how the MCMC sampler updates the
-#' interaction parameters:
+#' @param update_method Character. Specifies how the MCMC sampler updates the
+#' model parameters:
 #' \describe{
 #'   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
-#'   \item{"adaptive-mala"}{Uses Fisher-preconditioned MALA for thresholds and standard MALA.}
-#'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
-#'   \item{"adaptive-componentwise-mala"}{Uses componentwise adaptive MALA.}
+#'   \item{"fisher-mala-block"}{Uses Fisher-preconditioned MALA to each of the threshold and interaction parameter blocks.}
+#'   \item{"fisher-mala-joint"}{Uses Fisher-preconditioned MALA.}
+#'   \item{"hamiltonian-mc"}{Uses Hamiltonian Monte Carlo with fixed path length.}
+#'   \item{"nuts"}{Uses NUTS - HMC.}
 #' }
 #' Defaults to \code{"adaptive-metropolis"}.
-#' @param update_method_threshold Character. Specifies how the MCMC sampler updates the threshold
-#' parameters:
-#' \describe{
-#'   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
-#'   \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
-#' }
-#' Defaults to \code{"adaptive-metropolis"}.
-#' @param target_accept_interactions,target_accept_tresholds Target acceptance
-#' rate for the methods used for updating the interactions, and thresholds.
-#' Default: 0.234 for Adaptive Metropolis, .574 otherwise.
-#'
+#' @param target_accept Target acceptance rate for the methods used for updating
+#' the model parameters. Default: 0.44 for Adaptive Metropolis, .574 otherwise.
+#'  @param L Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.
 #' @return If \code{save = FALSE} (the default), the result is a list of class
 #' ``bgms'' containing the following matrices with model-averaged quantities:
 #' \itemize{
@@ -318,8 +312,8 @@
 bgm = function(x,
                variable_type = "ordinal",
                reference_category,
-               iter = 1e4,
-               burnin = 5e2,
+               iter = 2e4,
+               burnin = 2e3,
                interaction_scale = 2.5,
                threshold_alpha = 0.5,
                threshold_beta = 0.5,
@@ -336,10 +330,9 @@ bgm = function(x,
                save_pairwise = FALSE,
                save_indicator = FALSE,
                display_progress = TRUE,
-               update_method_interactions = c("adaptive-metropolis", "adaptive-mala", "fisher-mala", "adaptive-componentwise-mala"),
-               update_method_thresholds = c("adaptive-metropolis", "fisher-mala"),
-               target_accept_interactions,
-               target_accept_thresholds
+               update_method = c("adaptive-metropolis", "fisher-mala-block", "fisher-mala-joint", "hamiltonian-mc", "nuts"),
+               target_accept,
+               L = 20
 ) {
   # Deprecation warning for save parameter
   if(hasArg(save)) {
@@ -355,31 +348,20 @@ bgm = function(x,
   save_indicator = check_logical(save_indicator, "save_indicator")
 
   # Check update method
-  update_thresholds_method_input = update_method_thresholds
-  update_method_thresholds = match.arg(update_method_thresholds)
-  update_interactions_method_input = update_method_interactions
-  update_method_interactions = match.arg(update_method_interactions)
+  update_method_input = update_method
+  update_method = match.arg(update_method)
 
   # Check target acceptance rate
-  if(hasArg(target_accept_interactions)) {
-    target_accept_interactions = min(target_accept_interactions, 1 - sqrt(.Machine$double.eps))
-    target_accept_interactions = max(target_accept_interactions, 0 + sqrt(.Machine$double.eps))
+  if(hasArg(target_accept)) {
+    target_accept = min(target_accept, 1 - sqrt(.Machine$double.eps))
+    target_accept = max(target_accept, 0 + sqrt(.Machine$double.eps))
   } else {
-    if(update_method_interactions == "adaptive-metropolis") {
-      target_accept_interactions = 0.234
+    if(update_method == "adaptive-metropolis") {
+      target_accept = 0.44
+    } else if(update_method == "hamiltonian-mc") {
+        target_accept = 0.65
     } else {
-      target_accept_interactions = 0.574
-    }
-  }
-
-  if(hasArg(target_accept_thresholds)) {
-    target_accept_thresholds = min(target_accept_thresholds, 1 - sqrt(.Machine$double.eps))
-    target_accept_thresholds = max(target_accept_thresholds, 0 + sqrt(.Machine$double.eps))
-  } else {
-    if(update_method_thresholds == "adaptive-metropolis") {
-      target_accept_thresholds = 0.234
-    } else {
-      target_accept_thresholds = 0.574
+      target_accept = 0.574
     }
   }
 
@@ -429,6 +411,13 @@ bgm = function(x,
     stop("Parameter ``burnin'' needs to be a non-negative integer.")
   if(burnin <= 0)
     stop("Parameter ``burnin'' needs to be a positive integer.")
+  if(burnin < 1e3)
+    warning("The burnin parameter is set to a low value. This may lead to unreliable results. Reset to a minimum of 1000 iterations.")
+  #burnin = max(burnin, 1e3) # Set minimum burnin to 1000 iterations
+  if(abs(L - round(L)) > .Machine$double.eps)
+    stop("Parameter ``L'' needs to be a positive integer.")
+  L = max(L, 1) # Set minimum L to 1
+
 
   #Check na_action -------------------------------------------------------------
   na_action_input = na_action
@@ -495,6 +484,7 @@ bgm = function(x,
       sufficient_blume_capel[2, i] = sum((x[, i] - reference_category[i]) ^ 2)
     }
   }
+  sufficient_pairwise = t(x) %*% x
 
   # Index matrix used in the c++ functions  ------------------------------------
   interaction_index_matrix = matrix(0,
@@ -520,7 +510,6 @@ bgm = function(x,
     }
   }
 
-
   # Call the Rcpp function
   out = run_gibbs_sampler_for_bgm (
     observations = x, num_categories = num_categories,
@@ -537,11 +526,11 @@ bgm = function(x,
     reference_category = reference_category, save_main = save_main,
     save_pairwise = save_pairwise, save_indicator = save_indicator,
     display_progress = display_progress, edge_selection = edge_selection,
-    update_method_interactions = update_method_interactions,
-    update_method_thresholds = update_method_thresholds,
+    update_method = update_method,
     pairwise_effect_indices = pairwise_effect_indices,
-    target_accept_thresholds = target_accept_thresholds,
-    target_accept_interactions = target_accept_interactions
+    target_accept = target_accept,
+    sufficient_pairwise = sufficient_pairwise,
+    L = L
   )
 
   # Main output handler in the wrapper function
@@ -559,8 +548,9 @@ bgm = function(x,
     beta_bernoulli_beta = beta_bernoulli_beta,
     dirichlet_alpha = dirichlet_alpha, lambda = lambda,
     variable_type = variable_type,
-    target_accept_thresholds = target_accept_thresholds,
-    target_accept_interactions = target_accept_interactions
+    update_method = update_method,
+    target_accept = target_accept,
+    L = L
   )
 
   return(output)

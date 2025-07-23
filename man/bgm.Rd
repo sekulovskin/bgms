@@ -9,8 +9,8 @@ bgm(
   x,
   variable_type = "ordinal",
   reference_category,
-  iter = 10000,
-  burnin = 500,
+  iter = 20000,
+  burnin = 2000,
   interaction_scale = 2.5,
   threshold_alpha = 0.5,
   threshold_beta = 0.5,
@@ -27,11 +27,10 @@ bgm(
   save_pairwise = FALSE,
   save_indicator = FALSE,
   display_progress = TRUE,
-  update_method_interactions = c("adaptive-metropolis", "adaptive-mala", "fisher-mala",
-    "adaptive-componentwise-mala"),
-  update_method_thresholds = c("adaptive-metropolis", "fisher-mala"),
-  target_accept_interactions,
-  target_accept_thresholds
+  update_method = c("adaptive-metropolis", "fisher-mala-block", "fisher-mala-joint",
+    "hamiltonian-mc", "nuts"),
+  target_accept,
+  L = 20
 )
 }
 \arguments{
@@ -70,6 +69,7 @@ recommended to run the Gibbs sampler for at least \code{1e5} iterations.}
 \item{burnin}{The number of iterations of the Gibbs sampler before saving its
 output. Since it may take some time for the Gibbs sampler to converge to the
 posterior distribution, it is recommended not to set this number too low.
+Current minimum is 1000 iterations. The default is \code{burnin = 2e3}.
 When \code{edge_selection = TRUE}, the bgm function will perform
 \code{2 * burnin} iterations, first \code{burnin} iterations without edge
 selection, then \code{burnin} iterations with edge selection. This helps
@@ -160,27 +160,20 @@ Default: `FALSE`.}
 (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 The default is \code{TRUE}.}
 
-\item{update_method_interactions}{Character. Specifies how the MCMC sampler updates the
-interaction parameters:
+\item{update_method}{Character. Specifies how the MCMC sampler updates the
+model parameters:
 \describe{
   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
-  \item{"adaptive-mala"}{Uses Fisher-preconditioned MALA for thresholds and standard MALA.}
-  \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
-  \item{"adaptive-componentwise-mala"}{Uses componentwise adaptive MALA.}
+  \item{"fisher-mala-block"}{Uses Fisher-preconditioned MALA to each of the threshold and interaction parameter blocks.}
+  \item{"fisher-mala-joint"}{Uses Fisher-preconditioned MALA.}
+  \item{"hamiltonian-mc"}{Uses Hamiltonian Monte Carlo with fixed path length.}
+  \item{"nuts"}{Uses NUTS - HMC.}
 }
 Defaults to \code{"adaptive-metropolis"}.}
 
-\item{target_accept_interactions, target_accept_tresholds}{Target acceptance
-rate for the methods used for updating the interactions, and thresholds.
-Default: 0.234 for Adaptive Metropolis, .574 otherwise.}
-
-\item{update_method_threshold}{Character. Specifies how the MCMC sampler updates the threshold
-parameters:
-\describe{
-  \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
-  \item{"fisher-mala"}{Uses Fisher-preconditioned MALA.}
-}
-Defaults to \code{"adaptive-metropolis"}.}
+\item{target_accept}{Target acceptance rate for the methods used for updating
+the model parameters. Default: 0.44 for Adaptive Metropolis, .574 otherwise.
+ @param L Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.}
 }
 \value{
 If \code{save = FALSE} (the default), the result is a list of class

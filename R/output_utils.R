@@ -5,7 +5,7 @@ prepare_output_bgm = function (
     save_options, burnin, interaction_scale, threshold_alpha, threshold_beta,
     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
-    variable_type, target_accept_thresholds, target_accept_interactions) {
+    variable_type, update_method, target_accept, L) {
 
   save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
 
@@ -19,8 +19,9 @@ prepare_output_bgm = function (
     beta_bernoulli_beta =  beta_bernoulli_beta,
     dirichlet_alpha = dirichlet_alpha, lambda = lambda, na_action = na_action,
     save = save, version = packageVersion("bgms"),
-    target_accept_thresholds = target_accept_thresholds,
-    target_accept_interactions = target_accept_interactions
+    update_method = update_method,
+    target_accept = target_accept,
+    L = L
   )
 
   num_variables = ncol(x)
