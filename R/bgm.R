@@ -164,8 +164,9 @@
 #' }
 #' Defaults to \code{"adaptive-metropolis"}.
 #' @param target_accept Target acceptance rate for the methods used for updating
-#' the model parameters. Default: 0.44 for Adaptive Metropolis, .574 otherwise.
-#'  @param L Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.
+#' the model parameters. Default: 0.44 for Adaptive Metropolis, .574 for MALA, and .65 for HMC
+#' @param hmc_num_leapfrogs Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.
+#' @param nuts_max_depth Integer. The maximum tree depth in NUTS.
 #' @return If \code{save = FALSE} (the default), the result is a list of class
 #' ``bgms'' containing the following matrices with model-averaged quantities:
 #' \itemize{
@@ -332,7 +333,8 @@ bgm = function(x,
                display_progress = TRUE,
                update_method = c("adaptive-metropolis", "fisher-mala-block", "fisher-mala-joint", "hamiltonian-mc", "nuts"),
                target_accept,
-               L = 20
+               hmc_num_leapfrogs = 20,
+               nuts_max_depth = 5
 ) {
   # Deprecation warning for save parameter
   if(hasArg(save)) {
@@ -414,10 +416,13 @@ bgm = function(x,
   if(burnin < 1e3)
     warning("The burnin parameter is set to a low value. This may lead to unreliable results. Reset to a minimum of 1000 iterations.")
   #burnin = max(burnin, 1e3) # Set minimum burnin to 1000 iterations
-  if(abs(L - round(L)) > .Machine$double.eps)
-    stop("Parameter ``L'' needs to be a positive integer.")
-  L = max(L, 1) # Set minimum L to 1
+  if(abs(hmc_num_leapfrogs - round(hmc_num_leapfrogs)) > .Machine$double.eps)
+    stop("Parameter ``hmc_num_leapfrogs'' needs to be a positive integer.")
+  hmc_num_leapfrogs = max(hmc_num_leapfrogs, 1) # Set minimum hmc_num_leapfrogs to 1
 
+  if(abs(nuts_max_depth - round(nuts_max_depth)) > .Machine$double.eps)
+    stop("Parameter ``nuts_max_depth'' needs to be a positive integer.")
+  nuts_max_depth = max(nuts_max_depth, 1) # Set minimum nuts_max_depth to 1
 
   #Check na_action -------------------------------------------------------------
   na_action_input = na_action
@@ -530,7 +535,8 @@ bgm = function(x,
     pairwise_effect_indices = pairwise_effect_indices,
     target_accept = target_accept,
     sufficient_pairwise = sufficient_pairwise,
-    L = L
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    nuts_max_depth = nuts_max_depth
   )
 
   # Main output handler in the wrapper function
@@ -550,7 +556,8 @@ bgm = function(x,
     variable_type = variable_type,
     update_method = update_method,
     target_accept = target_accept,
-    L = L
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    nuts_max_depth = nuts_max_depth
   )
 
   return(output)

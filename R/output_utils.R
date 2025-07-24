@@ -5,7 +5,8 @@ prepare_output_bgm = function (
     save_options, burnin, interaction_scale, threshold_alpha, threshold_beta,
     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
-    variable_type, update_method, target_accept, L) {
+    variable_type, update_method, target_accept, hmc_num_leapfrogs,
+    nuts_max_depth) {
 
   save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
 
@@ -21,7 +22,8 @@ prepare_output_bgm = function (
     save = save, version = packageVersion("bgms"),
     update_method = update_method,
     target_accept = target_accept,
-    L = L
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    nuts_max_depth = nuts_max_depth
   )
 
   num_variables = ncol(x)

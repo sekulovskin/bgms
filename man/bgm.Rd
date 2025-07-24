@@ -30,7 +30,8 @@ bgm(
   update_method = c("adaptive-metropolis", "fisher-mala-block", "fisher-mala-joint",
     "hamiltonian-mc", "nuts"),
   target_accept,
-  L = 20
+  hum_num_leapfrogs = 20,
+  nuts_max_depth = 5
 )
 }
 \arguments{
@@ -172,8 +173,11 @@ model parameters:
 Defaults to \code{"adaptive-metropolis"}.}
 
 \item{target_accept}{Target acceptance rate for the methods used for updating
-the model parameters. Default: 0.44 for Adaptive Metropolis, .574 otherwise.
- @param L Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.}
+the model parameters. Default: 0.44 for Adaptive Metropolis, .574 for MALA, and .65 for HMC}
+
+\item{nuts_max_depth}{Integer. The maximum tree depth in NUTS.}
+
+\item{hmc_num_leapfrogs}{Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.}
 }
 \value{
 If \code{save = FALSE} (the default), the result is a list of class

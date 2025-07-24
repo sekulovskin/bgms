@@ -28,13 +28,14 @@ std::pair<arma::vec, arma::vec> leapfrog(
     const arma::vec& theta,
     const arma::vec& r,
     double eps,
-    const std::function<std::pair<double, arma::vec>(const arma::vec&)>& logp_and_grad
+    const std::function<arma::vec(const arma::vec&)>& grad
 );
 
 // NUTS sampler interface
 SamplerResult nuts_sampler(const arma::vec& init_theta,
                            double step_size,
-                           std::function<std::pair<double, arma::vec>(const arma::vec&)> logp_and_grad,
+                           const std::function<double(const arma::vec&)>& log_post,
+                           const std::function<arma::vec(const arma::vec&)>& grad,
                            int max_depth = 10);
 
 #endif

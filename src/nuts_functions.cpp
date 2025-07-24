@@ -14,15 +14,15 @@ std::pair<arma::vec, arma::vec> leapfrog(
     const arma::vec& theta,
     const arma::vec& r,
     double eps,
-    const std::function<std::pair<double, arma::vec>(const arma::vec&)>& logp_and_grad
+    const std::function<arma::vec(const arma::vec&)>& grad
 ) {
   arma::vec r_half = r;
   arma::vec theta_new = theta;
 
-  auto [_, grad1] = logp_and_grad(theta_new);
+  auto grad1 = grad(theta_new);
   r_half += 0.5 * eps * grad1;
   theta_new += eps * r_half;
-  auto [__, grad2] = logp_and_grad(theta_new);
+  auto grad2 = grad(theta_new);
   r_half += 0.5 * eps * grad2;
 
   return {theta_new, r_half};
@@ -50,7 +50,8 @@ BuildTreeResult build_tree(
     const arma::vec& r0,
     const double logp0,
     const double kin0,
-    const std::function<std::pair<double, arma::vec>(const arma::vec&)>& logp_and_grad
+    const std::function<double(const arma::vec&)>& log_post,
+    const std::function<arma::vec(const arma::vec&)>& grad
 ) {
   constexpr double Delta_max = 1000.0;                                          // ~p. 1601
   if (j == 0) {
@@ -58,9 +59,9 @@ BuildTreeResult build_tree(
 
     // Base case: perform a single leapfrog step in direction v
     arma::vec theta_new, r_new;
-    std::tie(theta_new, r_new) = leapfrog(theta, r, v * step_size, logp_and_grad);
+    std::tie(theta_new, r_new) = leapfrog(theta, r, v * step_size, grad);
 
-    auto [logp, _] = logp_and_grad(theta_new);
+    auto logp = log_post(theta_new);
     double kin = kinetic_energy(r_new);
     int n_new = 1 * (log_u <= logp - kin);
     int s_new = 1 * (log_u <= Delta_max + logp - kin);
@@ -70,12 +71,10 @@ BuildTreeResult build_tree(
       theta_new, r_new, theta_new, r_new, theta_new, n_new, s_new, alpha, 1
     };
   } else {
-
-
     // Recursive case: build left and right subtrees
     BuildTreeResult result = build_tree (
       theta, r, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0,
-      logp_and_grad
+      log_post, grad
     );
     arma::vec theta_min = result.theta_min;
     arma::vec r_min = result.r_min;
@@ -91,7 +90,7 @@ BuildTreeResult build_tree(
       if(v == -1) {
         result = build_tree (
           theta_min, r_min, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0,
-          logp_and_grad
+          log_post, grad
         );
 
         theta_min = result.theta_min;
@@ -99,7 +98,7 @@ BuildTreeResult build_tree(
       } else {
         result = build_tree (
           theta_plus, r_plus, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0,
-          logp_and_grad
+          log_post, grad
         );
         theta_plus = result.theta_plus;
         r_plus = result.r_plus;
@@ -121,10 +120,6 @@ BuildTreeResult build_tree(
       n_alpha_prime += n_alpha_double_prime;
       s_prime = s_double_prime * !is_uturn(theta_min, theta_plus, r_min, r_plus);
       n_prime += n_double_prime;
-
-      if (s_prime!=1) {
-        Rcpp::Rcout << "[build_tree] U-turn detected at depth j = " << j << std::endl;
-      }
     }
 
     return {
@@ -137,12 +132,12 @@ BuildTreeResult build_tree(
 SamplerResult nuts_sampler(
     const arma::vec& init_theta,
     double step_size,
-    std::function<std::pair<double, arma::vec>(const arma::vec&)> logp_and_grad,
+    const std::function<double(const arma::vec&)>& log_post,
+    const std::function<arma::vec(const arma::vec&)>& grad,
     int max_depth
 ) {
-
   arma::vec r0 = arma::randn(init_theta.n_elem);
-  auto [logp0, _] = logp_and_grad(init_theta);
+  auto logp0 = log_post(init_theta);
   double kin0 = kinetic_energy(r0);
   double joint0 = logp0 - kin0;
   double log_u = log(R::unif_rand()) + joint0;
@@ -164,7 +159,7 @@ SamplerResult nuts_sampler(
       // Sample from the left subtree
       result = build_tree (
         theta_min, r_min, log_u, v, j, step_size, init_theta, r0, logp0, kin0,
-        logp_and_grad
+        log_post, grad
       );
       theta_min = result.theta_min;
       r_min = result.r_min;
@@ -172,7 +167,7 @@ SamplerResult nuts_sampler(
       // Sample from the right subtree
       result = build_tree (
         theta_plus, r_plus, log_u, v, j, step_size, init_theta, r0, logp0, kin0,
-        logp_and_grad
+        log_post, grad
       );
       theta_plus = result.theta_plus;
       r_plus = result.r_plus;
@@ -189,13 +184,15 @@ SamplerResult nuts_sampler(
     }
 
     n += result.n_prime;
-    s = result.s_prime * !is_uturn(theta_min, theta_plus, r_min, r_plus);
+    if(result.s_prime == 1) {
+      s = 1 * !is_uturn(theta_min, theta_plus, r_min, r_plus);
+    } else {
+      s = 0;
+    }
     j++;
   }
 
-  Rcpp::Rcout << "[nuts_sampler] alpha = " << alpha / n_alpha << std::endl;
-  Rcpp::Rcout << "[nuts_sampler] total leapfrog steps = " << leapfrog_counter
-              << ", max tree depth = " << j << std::endl;
+
   leapfrog_counter = 0;  // reset for next iteration
 
   return {
@@ -204,5 +201,3 @@ SamplerResult nuts_sampler(
     n_alpha
   };
 }
-
-
