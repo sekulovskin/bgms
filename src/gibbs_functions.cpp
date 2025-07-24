@@ -3591,7 +3591,7 @@ double find_reasonable_initial_step_size_nuts(
                                                   num_categories, num_obs_categories, sufficient_blume_capel,
                                                   reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
                                                   interaction_scale, sufficient_pairwise, rest);
-    return std::make_pair(logp, (-grad).eval());
+    return std::make_pair(logp, grad);
   };
 
 
@@ -3689,11 +3689,11 @@ void update_parameters_with_nuts(
                                                   threshold_alpha, threshold_beta, interaction_scale,
                                                   sufficient_pairwise, rmat);
 
-    return std::make_pair(logp, (-grad).eval());
+    return std::make_pair(logp, grad);
   };
 
   // --- Run NUTS
-  SamplerResult out = nuts_sampler(current_state, step_size, logp_and_grad, 5);
+  SamplerResult out = nuts_sampler(current_state, step_size, logp_and_grad, 10);
 
   // --- Update output effects
   current_state = out.theta;
@@ -3711,11 +3711,13 @@ void update_parameters_with_nuts(
       dual_averaging_state, target_acceptance
     );
     step_size = std::exp(dual_averaging_state[1]);
+    Rcout << "[dual averaging] step size = " << step_size << std::endl;
   } else if (iteration < warmup_stageIII_end) {
     update_step_size_with_robbins_monro(
       accept_prob, iteration - warmup_stageII_end + 1, step_size,
       target_acceptance
     );
+    Rcout << "[Robbins Monro] step size = " << step_size << std::endl;
   }
 }
 
@@ -3759,7 +3761,7 @@ void update_indicator_interaction_pair_with_nuts (
         interaction_scale, sufficient_pairwise
       );
 
-      double grad = -gradient_log_pseudoposterior_interaction_single(
+      double grad = gradient_log_pseudoposterior_interaction_single(
         var1, var2, tmp, main_effects, observations, rest,
         num_categories, is_ordinal_variable, reference_category,
         interaction_scale, sufficient_pairwise

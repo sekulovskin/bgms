@@ -2,6 +2,8 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
+static int leapfrog_counter = 0;
+
 // Kinetic energy
 double kinetic_energy(const arma::vec& r) {
   return 0.5 * arma::dot(r, r);
@@ -35,6 +37,7 @@ bool is_uturn(const arma::vec& theta_min,
   return arma::dot(delta, r_min) < 0 || arma::dot(delta, r_plus) < 0;
 }
 
+
 // Algorithm 6b in Hoffman & Gelman (2014)
 BuildTreeResult build_tree(
     const arma::vec& theta,
@@ -50,8 +53,9 @@ BuildTreeResult build_tree(
     const std::function<std::pair<double, arma::vec>(const arma::vec&)>& logp_and_grad
 ) {
   constexpr double Delta_max = 1000.0;                                          // ~p. 1601
-
   if (j == 0) {
+    leapfrog_counter++;
+
     // Base case: perform a single leapfrog step in direction v
     arma::vec theta_new, r_new;
     std::tie(theta_new, r_new) = leapfrog(theta, r, v * step_size, logp_and_grad);
@@ -66,6 +70,7 @@ BuildTreeResult build_tree(
       theta_new, r_new, theta_new, r_new, theta_new, n_new, s_new, alpha, 1
     };
   } else {
+
 
     // Recursive case: build left and right subtrees
     BuildTreeResult result = build_tree (
@@ -116,6 +121,10 @@ BuildTreeResult build_tree(
       n_alpha_prime += n_alpha_double_prime;
       s_prime = s_double_prime * !is_uturn(theta_min, theta_plus, r_min, r_plus);
       n_prime += n_double_prime;
+
+      if (s_prime!=1) {
+        Rcpp::Rcout << "[build_tree] U-turn detected at depth j = " << j << std::endl;
+      }
     }
 
     return {
@@ -183,6 +192,11 @@ SamplerResult nuts_sampler(
     s = result.s_prime * !is_uturn(theta_min, theta_plus, r_min, r_plus);
     j++;
   }
+
+  Rcpp::Rcout << "[nuts_sampler] alpha = " << alpha / n_alpha << std::endl;
+  Rcpp::Rcout << "[nuts_sampler] total leapfrog steps = " << leapfrog_counter
+              << ", max tree depth = " << j << std::endl;
+  leapfrog_counter = 0;  // reset for next iteration
 
   return {
     theta,
