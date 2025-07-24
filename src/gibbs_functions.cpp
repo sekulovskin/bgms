@@ -1,13 +1,14 @@
-//#define ARMA_NO_DEBUG
+#define ARMA_NO_DEBUG
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
 #include "bgm_helper.h"
 #include "bgm_logp_and_grad.h"
-#include "nuts_functions.h"
+#include "mcmc_nuts.h"
 #include "gibbs_functions_edge_prior.h"
 #include <progress.hpp>
 #include <progress_bar.hpp>
 using namespace Rcpp;
+
 
 
 /**

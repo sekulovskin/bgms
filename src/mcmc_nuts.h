@@ -1,8 +1,10 @@
-#ifndef NUTS_FUNCTIONS_H
-#define NUTS_FUNCTIONS_H
+#ifndef MCMC_NUTS_H
+#define MCMC_NUTS_H
 
 #include <RcppArmadillo.h>
 #include <functional>
+#include <utility>
+#include "mcmc_memoization.h"
 
 /**
  * Struct: BuildTreeResult
@@ -74,7 +76,6 @@ std::pair<arma::vec, arma::vec> leapfrog(
  *
  * Performs a leapfrog step using a memoization wrapper to avoid redundant gradient evaluations.
  */
-class Memoizer;
 std::pair<arma::vec, arma::vec> leapfrog_memo(
     const arma::vec& theta,
     const arma::vec& r,
