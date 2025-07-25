@@ -4,7 +4,11 @@
 #include <RcppArmadillo.h>
 #include <functional>
 #include <utility>
+#include "mcmc_leapfrog.h"
 #include "mcmc_memoization.h"
+#include "mcmc_utils.h"
+
+
 
 /**
  * Struct: BuildTreeResult
@@ -39,52 +43,6 @@ struct BuildTreeResult {
 
 
 /**
- * Struct: SamplerResult
- *
- * Represents the final outcome of one iteration of the NUTS sampler.
- *
- * Fields:
- *  - theta: Final accepted position (parameter vector).
- *  - alpha: Average Metropolis acceptance probability across proposals.
- *  - n_alpha: Number of proposal steps contributing to alpha.
- */
-struct SamplerResult {
-  arma::vec theta;
-  double alpha;
-  int n_alpha;
-};
-
-
-
-/**
- * Function: leapfrog
- *
- * Performs a standard leapfrog integration step using the given gradient function.
- * This is a core component of Hamiltonian Monte Carlo.
- */
-std::pair<arma::vec, arma::vec> leapfrog(
-    const arma::vec& theta,
-    const arma::vec& r,
-    double eps,
-    const std::function<arma::vec(const arma::vec&)>& grad
-);
-
-
-
-/**
- * Function: leapfrog_memo
- *
- * Performs a leapfrog step using a memoization wrapper to avoid redundant gradient evaluations.
- */
-std::pair<arma::vec, arma::vec> leapfrog_memo(
-    const arma::vec& theta,
-    const arma::vec& r,
-    double eps,
-    Memoizer& memo
-);
-
-
-/**
  * Function: nuts_sampler
  *
  * Executes the No-U-Turn Sampler algorithm (NUTS).
@@ -95,4 +53,4 @@ SamplerResult nuts_sampler(const arma::vec& init_theta,
                            const std::function<arma::vec(const arma::vec&)>& grad,
                            int max_depth = 10);
 
-#endif
+#endif // MCMC_NUTS.H

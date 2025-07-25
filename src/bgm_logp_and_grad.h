@@ -45,6 +45,35 @@ arma::vec gradient_log_pseudoposterior_thresholds(
     const double threshold_beta
 );
 
+// Log posterior over all interactions
+double log_pseudoposterior_interactions(
+    const arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::mat& rest_matrix,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise
+);
+
+// Log posterior for a single component of interactions
+double log_pseudoposterior_interactions_component(
+    const arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    const int var1,
+    const int var2
+);
+
 // Gradient for all interactions
 arma::vec gradient_log_pseudoposterior_interactions(
     const arma::mat& pairwise_effects,
@@ -60,7 +89,7 @@ arma::vec gradient_log_pseudoposterior_interactions(
 );
 
 // Gradient for a single interaction parameter
-double gradient_log_pseudoposterior_interaction_single(
+double gradient_log_pseudoposterior_interactions_component(
     int var1,
     int var2,
     const arma::mat& pairwise_effects,
@@ -74,18 +103,40 @@ double gradient_log_pseudoposterior_interaction_single(
     const arma::imat& sufficient_pairwise
 );
 
-// Log posterior over all interactions
-double log_pseudoposterior_interactions(
-    const arma::mat& pairwise_effects,
+// Full log posterior
+double log_pseudoposterior(
     const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
+    const arma::mat& pairwise_effects,
+    const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& inclusion_indicator,
-    const arma::uvec& is_ordinal_variable,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise
+    const arma::imat& sufficient_pairwise,
+    const arma::mat& rest_matrix
+);
+
+// Full gradient
+arma::vec gradient_log_pseudoposterior(
+    const arma::mat& main_effects,
+    const arma::mat& pairwise_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    const arma::mat& rest_matrix
 );
 
 // Pseudolikelihood ratio for a single variable
@@ -117,42 +168,6 @@ double log_pseudolikelihood_ratio_interaction(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
     const arma::imat& sufficient_pairwise
-);
-
-// Full gradient
-arma::vec gradient_log_pseudoposterior(
-    const arma::mat& main_effects,
-    const arma::mat& pairwise_effects,
-    const arma::imat& inclusion_indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
-    const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
-);
-
-// Full log posterior
-double log_pseudoposterior(
-    const arma::mat& main_effects,
-    const arma::mat& pairwise_effects,
-    const arma::imat& inclusion_indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
-    const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
 );
 
 #endif // BGM_LOGP_AND_GRAD_H

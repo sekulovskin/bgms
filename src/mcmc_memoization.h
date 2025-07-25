@@ -1,7 +1,7 @@
 #ifndef MCMC_MEMOIZATION_H
 #define MCMC_MEMOIZATION_H
 
-#include <armadillo>         // for arma::vec
+#include <RcppArmadillo.h>
 #include <unordered_map>     // for std::unordered_map
 #include <functional>        // for std::function
 

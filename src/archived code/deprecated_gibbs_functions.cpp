@@ -1095,3 +1095,1008 @@ void gibbs_update_step_for_graphical_model_parameters (
     );
   }
 }
+
+
+
+/**
+ * Function: find_reasonable_initial_step_size_interactions
+ *
+ * Heuristically selects an initial step size for MALA updates of the interaction parameters
+ * by adapting the acceptance rate toward a target value (~0.574).
+ *
+ * Inputs:
+ *  - pairwise_effects: Matrix of pairwise interaction parameters.
+ *  - main_effects: Matrix of main effect (threshold) parameters.
+ *  - observations: Matrix of categorical scores.
+ *  - num_categories: Number of categories per variable.
+ *  - inclusion_indicator: Symmetric binary matrix of active interactions.
+ *  - is_ordinal_variable: Logical vector (1 = ordinal, 0 = Blume-Capel).
+ *  - reference_category: Vector of reference categories (for BC variables).
+ *  - interaction_scale: Prior scale for Cauchy prior on interactions.
+ *
+ * Returns:
+ *  - A positive step size value that gives roughly 0.574 acceptance rate.
+ */
+double find_reasonable_initial_step_size_interactions (
+    arma::mat pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const double target_acceptance,
+    const arma::imat& sufficient_pairwise,
+    const arma::mat& rest_matrix
+) {
+  const double initial_step_size = 0.1;
+  const int max_attempts = 20;
+
+  const int num_variables = pairwise_effects.n_rows;
+  const int num_interactions = (num_variables * (num_variables - 1)) / 2;
+
+  double log_step_size = std::log (initial_step_size);
+
+  // --- Step 1: Extract current interaction state as vector
+  arma::vec current_state (num_interactions, arma::fill::zeros);
+  int interaction_index = -1;
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      interaction_index++;
+      if (inclusion_indicator (var1, var2) == 1) {
+        current_state (interaction_index) = pairwise_effects (var1, var2);
+      }
+    }
+  }
+
+  // --- Step 2: Evaluate gradient and posterior at current state
+  arma::vec gradient = gradient_log_pseudoposterior_interactions (
+    pairwise_effects, main_effects, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  double log_post_current = log_pseudoposterior_interactions (
+    pairwise_effects, main_effects, rest_matrix, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale, sufficient_pairwise
+  );
+
+  int direction = 0;
+  double accept_prob = 0.0;
+
+  // --- Step 3: Exponential step-size search loop
+  for (int attempt = 0; attempt < max_attempts; attempt++) {
+    double step_size = std::exp (log_step_size);
+
+    // Generate Langevin proposal
+    arma::vec noise = arma::randn<arma::vec> (num_interactions);
+    arma::vec proposal = current_state +
+      0.5 * step_size * gradient + std::sqrt (step_size) * noise;
+
+    // Rebuild symmetric proposal matrix
+    arma::mat proposal_matrix = pairwise_effects;
+    interaction_index = -1;
+    for (int var1 = 0; var1 < num_variables - 1; var1++) {
+      for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+        interaction_index++;
+        if (inclusion_indicator (var1, var2) == 1) {
+          proposal_matrix (var1, var2) = proposal (interaction_index);
+          proposal_matrix (var2, var1) = proposal (interaction_index);
+        }
+      }
+    }
+
+    arma::mat proposal_rest = observations * proposal_matrix;
+
+    // Evaluate posterior and gradient at proposed state
+    double log_post_proposal = log_pseudoposterior_interactions (
+      proposal_matrix, main_effects, proposal_rest, observations, num_categories,
+      inclusion_indicator, is_ordinal_variable, reference_category,
+      interaction_scale, sufficient_pairwise
+    );
+
+    arma::vec gradient_prop = gradient_log_pseudoposterior_interactions (
+      proposal_matrix, main_effects, observations, num_categories,
+      inclusion_indicator, is_ordinal_variable, reference_category,
+      interaction_scale, sufficient_pairwise, proposal_rest
+    );
+
+    // Compute log proposal densities
+    arma::vec forward = current_state + 0.5 * step_size * gradient;
+    arma::vec backward = proposal + 0.5 * step_size * gradient_prop;
+
+    double log_q_forward = -0.5 / step_size * arma::accu (arma::square (proposal - forward));
+    double log_q_reverse = -0.5 / step_size * arma::accu (arma::square (current_state - backward));
+
+    double log_accept = log_post_proposal + log_q_reverse - log_post_current - log_q_forward;
+    accept_prob = std::min (1.0, std::exp (log_accept));
+
+    // --- Step 4: Decide direction based on first attempt
+    if (attempt == 0) {
+      direction = (accept_prob > target_acceptance) ? 1 : -1;
+    } else {
+      if ((direction == 1 && accept_prob < target_acceptance) ||
+          (direction == -1 && accept_prob > target_acceptance)) {
+        break;
+      }
+    }
+
+    // Adjust log step size in chosen direction
+    log_step_size += direction;
+  }
+
+  return std::exp (log_step_size);
+}
+
+
+
+/**
+ * Function: find_reasonable_initial_step_size_thresholds
+ *
+ * Heuristically selects an initial step size for MALA updates of the threshold parameters
+ * by adapting the acceptance rate toward a target value (~0.574). The procedure
+ * increases or decreases the log step size until the Metropolis-Hastings acceptance
+ * crosses the threshold, using a method adapted from Algorithm 4 in:
+ *
+ *   Hoffman, M.D. & Gelman, A. (2014).
+ *   The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo.
+ *   Journal of Machine Learning Research, 15, 1593–1623.
+ *
+ * Inputs:
+ *  - main_effects: Initial threshold matrix.
+ *  - rest_matrix: Current residual predictor matrix.
+ *  - num_categories, num_obs_categories: Category structure for each variable.
+ *  - sufficient_blume_capel, reference_category: Data model components.
+ *  - is_ordinal_variable: Logical vector indicating ordinal predictors.
+ *  - threshold_alpha, threshold_beta: Prior hyperparameters for thresholds.
+ *
+ * Returns:
+ *  - A positive scalar step size tuned for MALA with target acceptance ~0.574.
+ *
+ * Notes:
+ *  - Uses log-space doubling/halving; returns 0.01 if the search fails.
+ *  - Assumes Euclidean (identity) preconditioning.
+ */
+double find_reasonable_initial_step_size_thresholds (
+    arma::mat main_effects,
+    const arma::mat& rest_matrix,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double target_acceptance
+) {
+  constexpr double initial_step_size = 0.1;
+  constexpr int max_attempts = 20;
+  constexpr double max_log_step = 10.0;
+
+  double log_step_size = std::log (initial_step_size);
+
+  // Current state and log posterior
+  const arma::vec current_state = vectorize_thresholds(main_effects, num_categories, is_ordinal_variable);
+  const arma::vec current_grad = gradient_log_pseudoposterior_thresholds(
+    main_effects, rest_matrix, num_categories, num_obs_categories,
+    sufficient_blume_capel, reference_category, is_ordinal_variable,
+    threshold_alpha, threshold_beta
+  );
+  const double current_log_post = log_pseudoposterior_thresholds(
+    main_effects, rest_matrix, num_categories, num_obs_categories,
+    sufficient_blume_capel, reference_category, is_ordinal_variable,
+    threshold_alpha, threshold_beta
+  );
+
+  int direction = 0;
+  double accept_prob = 0.0;
+
+  // Propose initial MALA step: θ' = θ + ½ε ∇log p(θ) + √ε * N(0, I)
+  {
+    const double step_size = std::exp (log_step_size);
+    const double sqrt_step = std::sqrt(step_size);
+    const arma::vec proposed_state = current_state + 0.5 * step_size * current_grad +
+      sqrt_step * arma::randn(current_state.n_elem);
+    const arma::mat proposed_main_effects = unvectorize_thresholds(
+      proposed_state, num_categories, is_ordinal_variable
+    );
+
+    const double proposed_log_post = log_pseudoposterior_thresholds(
+      proposed_main_effects, rest_matrix, num_categories, num_obs_categories,
+      sufficient_blume_capel, reference_category, is_ordinal_variable,
+      threshold_alpha, threshold_beta
+    );
+    const arma::vec proposed_grad = gradient_log_pseudoposterior_thresholds(
+      proposed_main_effects, rest_matrix, num_categories, num_obs_categories,
+      sufficient_blume_capel, reference_category, is_ordinal_variable,
+      threshold_alpha, threshold_beta
+    );
+
+    const arma::vec forward = current_state + 0.5 * step_size * current_grad;
+    const arma::vec backward = proposed_state + 0.5 * step_size * proposed_grad;
+
+    const double log_fwd = -0.5 / step_size * arma::accu (arma::square(proposed_state - forward));
+    const double log_bwd = -0.5 / step_size * arma::accu (arma::square(current_state - backward));
+    const double log_accept = proposed_log_post + log_bwd - current_log_post - log_fwd;
+
+    accept_prob = std::min(1.0, std::exp (log_accept));
+    if (std::abs(accept_prob - target_acceptance) < 0.1) {
+      return std::exp (log_step_size);
+    }
+    direction = (accept_prob > target_acceptance) ? 1 : -1;
+  }
+
+  // Log-scale search for step size that brackets the target acceptance rate
+  for (int attempt = 0; attempt < max_attempts; attempt++) {
+    log_step_size += direction;
+    const double step_size = std::exp (log_step_size);
+    const double sqrt_step = std::sqrt(step_size);
+
+    const arma::vec proposed_state = current_state + 0.5 * step_size * current_grad +
+      sqrt_step * arma::randn(current_state.n_elem);
+    const arma::mat proposed_main_effects = unvectorize_thresholds(
+      proposed_state, num_categories, is_ordinal_variable
+    );
+
+    const double proposed_log_post = log_pseudoposterior_thresholds(
+      proposed_main_effects, rest_matrix, num_categories, num_obs_categories,
+      sufficient_blume_capel, reference_category, is_ordinal_variable,
+      threshold_alpha, threshold_beta
+    );
+    const arma::vec proposed_grad = gradient_log_pseudoposterior_thresholds(
+      proposed_main_effects, rest_matrix, num_categories, num_obs_categories,
+      sufficient_blume_capel, reference_category, is_ordinal_variable,
+      threshold_alpha, threshold_beta
+    );
+
+    const arma::vec forward = current_state + 0.5 * step_size * current_grad;
+    const arma::vec backward = proposed_state + 0.5 * step_size * proposed_grad;
+
+    const double log_fwd = -0.5 / step_size * arma::accu (arma::square(proposed_state - forward));
+    const double log_bwd = -0.5 / step_size * arma::accu (arma::square(current_state - backward));
+    const double log_accept = proposed_log_post + log_bwd - current_log_post - log_fwd;
+
+    const double new_accept_prob = std::min(1.0, std::exp (log_accept));
+
+    // Exit if acceptance flips across the target
+    if ((direction == 1 && new_accept_prob < target_acceptance) ||
+        (direction == -1 && new_accept_prob > target_acceptance)) {
+      break;
+    }
+
+    accept_prob = new_accept_prob;
+
+    if (std::abs(log_step_size) > max_log_step) {
+      Rcpp::Rcout << "Warning: Step size search failed. Falling back to default (0.01)." << std::endl;
+      return 0.01;
+    }
+  }
+
+  return std::exp (log_step_size);
+}
+
+
+
+/**
+ * Function: initialize_fisher_preconditioner
+ *
+ * Initializes the square root of the inverse Fisher information matrix,
+ * based on the outer product of the gradient. This serves as the starting
+ * preconditioner for Fisher-MALA after burn-in.
+ *
+ * Based on:
+ *   Titsias, M.K. (2023).
+ *   Gradient-Based MCMC Using Preconditioned Langevin Dynamics.
+ *   JMLR, 24(216):1–40.
+ *
+ * Inputs:
+ *  - grad: Gradient vector at the initial state.
+ *
+ * Returns:
+ *  - Square root of the inverse Fisher approximation (d × d matrix).
+ *
+ * Notes:
+ *  - A damping parameter is used to regularize the preconditioner.
+ */
+inline arma::mat initialize_fisher_preconditioner(
+    const arma::vec& grad
+) {
+  constexpr double damping_par = 10.0;
+
+  const int dim = grad.n_elem;
+  const double inner = arma::dot (grad, grad);
+  const arma::mat outer = grad * grad.t();
+
+  // Shrinkage ratio: balances curvature and damping
+  const double shrinkage = 1.0 / (1.0 + std::sqrt(damping_par / (damping_par + inner)));
+
+  // Fisher inverse root approximation (Titsias 2023, Eq. 12 form)
+  arma::mat sqrt_inv_fisher =
+    (1.0 / std::sqrt(damping_par)) *
+    (arma::eye(dim, dim) - shrinkage * outer / (damping_par + inner));
+
+  return sqrt_inv_fisher;
+}
+
+
+
+/**
+ * Function: update_fisher_preconditioner
+ *
+ * Performs a rank-1 update of the inverse Fisher matrix approximation,
+ * as described in:
+ *
+ *   Titsias, M.K. (2023).
+ *   Gradient-Based MCMC Using Preconditioned Langevin Dynamics.
+ *   JMLR, 24(216):1–40.
+ *
+ * Inputs:
+ *  - sqrt_inv_fisher: Current square root inverse Fisher matrix (updated in-place).
+ *  - score_diff: Rao-Blackwellized score difference vector (∝ proposed_grad - current_grad).
+ */
+inline void update_fisher_preconditioner (
+    arma::mat& sqrt_inv_fisher,
+    const arma::vec& score_diff
+) {
+  // Transform score difference into scaled preconditioned space
+  const arma::vec phi = sqrt_inv_fisher.t() * score_diff;
+  const double inner = arma::dot (phi, phi);
+  const arma::mat outer = phi * phi.t();
+
+  // Compute the Titsias update scaling factor
+  const double r = 1.0 / (1.0 + std::sqrt(1.0 / (1.0 + inner)));
+
+  // Apply rank-1 update to the inverse Fisher root
+  sqrt_inv_fisher -= r * sqrt_inv_fisher * outer / (1.0 + inner);
+}
+
+
+
+/**
+ * Function: update_thresholds_with_fisher_mala
+ *
+ * Performs a Fisher-preconditioned MALA update of the threshold parameters.
+ * The proposal uses the inverse Fisher matrix (either identity during burn-in or
+ * adapted afterward) to scale the Langevin drift and noise.
+ *
+ * During burn-in, the step size is adapted using dual averaging. After burn-in,
+ * the step size is adapted using Robbins-Monro, and the Fisher matrix is updated
+ * with a rank-1 outer product of the score difference between the proposed and
+ * current states (Titsias, 2023).
+ *
+ * The step size is trace-scaled to match the average proposal magnitude across
+ * dimensions, following Proposition 1 from Titsias (2023).
+ *
+ * Modifies:
+ *  - main_effects
+ *  - step_size
+ *  - dual_averaging_state
+ *  - sqrt_inv_fisher
+ */
+void update_thresholds_with_fisher_mala (
+    arma::mat& main_effects,
+    double& step_size,
+    const arma::mat& rest_matrix,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const int iteration,
+    arma::vec& dual_averaging_state,
+    arma::mat& sqrt_inv_fisher,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double initial_step_size,
+    const double target_accept_thresholds,
+    const int warmup_stageI_end,
+    const int warmup_stageII_end,
+    const int warmup_stageIII_end
+) {
+  // --- Compute current parameter vector and its gradient ---
+  const arma::vec current_state = vectorize_thresholds (
+    main_effects, num_categories, is_ordinal_variable
+  );
+
+  const arma::vec current_grad = gradient_log_pseudoposterior_thresholds (
+    main_effects, rest_matrix, num_categories, num_obs_categories,
+    sufficient_blume_capel, reference_category, is_ordinal_variable,
+    threshold_alpha, threshold_beta
+  );
+
+  const double log_post = log_pseudoposterior_thresholds (
+    main_effects, rest_matrix, num_categories, num_obs_categories,
+    sufficient_blume_capel, reference_category, is_ordinal_variable,
+    threshold_alpha, threshold_beta
+  );
+
+  const int dim = current_state.n_elem;
+
+  // --- If burn-in just ended, initialize Fisher matrix using gradient
+  if (iteration == warmup_stageI_end) {
+    sqrt_inv_fisher = initialize_fisher_preconditioner (current_grad);
+  }
+
+  // --- Set inverse Fisher matrix: identity during warm-up, adapted afterward
+  arma::mat inv_fisher;
+  if (iteration >= warmup_stageI_end) {
+    inv_fisher = sqrt_inv_fisher * sqrt_inv_fisher.t();
+  } else {
+    inv_fisher.eye(dim, dim);
+  }
+
+  // --- Construct Fisher-preconditioned MALA proposal ---
+  const double trace_inv_fisher = arma::trace(inv_fisher);
+  const double scaled_step_size = step_size / (trace_inv_fisher / dim);
+  const double sqrt_step = std::sqrt(scaled_step_size);
+
+  // Drift (mean shift) and stochastic noise
+  const arma::vec proposal_drift = 0.5 * scaled_step_size * inv_fisher * current_grad;
+  const arma::vec noise = sqrt_inv_fisher * arma::randn(dim);
+
+  const arma::vec proposed_state = current_state + proposal_drift + sqrt_step * noise;
+
+  // --- Map vector back to main_effects matrix
+  const arma::mat proposed_main_effects = unvectorize_thresholds (
+    proposed_state, num_categories, is_ordinal_variable
+  );
+  // --- Evaluate proposed log posterior and gradient
+  const arma::vec proposed_grad = gradient_log_pseudoposterior_thresholds (
+    proposed_main_effects, rest_matrix, num_categories, num_obs_categories,
+    sufficient_blume_capel, reference_category, is_ordinal_variable,
+    threshold_alpha, threshold_beta
+  );
+
+  const double log_post_prop = log_pseudoposterior_thresholds (
+    proposed_main_effects, rest_matrix, num_categories, num_obs_categories,
+    sufficient_blume_capel, reference_category, is_ordinal_variable,
+    threshold_alpha, threshold_beta
+  );
+
+  // --- Compute MALA acceptance correction (Titsias 2023, Prop. 1) ---
+  const arma::vec forward_proposal_residual =
+    proposed_state - current_state -
+    0.25 * scaled_step_size * inv_fisher * current_grad;
+  const arma::vec reverse_proposal_residual =
+    current_state - proposed_state -
+    0.25 * scaled_step_size * inv_fisher * proposed_grad;
+
+  const double log_forward = 0.5 * arma::dot (forward_proposal_residual, current_grad);
+  const double log_backward = 0.5 * arma::dot (reverse_proposal_residual, proposed_grad);
+
+  const double log_accept = log_post_prop - log_post + (log_backward - log_forward);
+  const double accept_prob = std::min(1.0, std::exp (log_accept));
+
+  // --- Accept or reject proposed move ---
+  if (std::log (R::unif_rand()) < log_accept) {
+    main_effects = proposed_main_effects;
+  }
+
+  // --- Update step size and Fisher matrix ---
+  if (iteration < warmup_stageI_end) {
+    // During warm-up stage I: dual averaging adaptation
+    update_step_size_with_dual_averaging (
+        initial_step_size, accept_prob, iteration + 1, dual_averaging_state,
+        target_accept_thresholds
+    );
+    step_size = std::exp (dual_averaging_state[1]);
+  } else if (iteration < warmup_stageII_end) {
+    // After warm-up stage I: Robbins-Monro + Fisher preconditioner update
+    update_step_size_with_robbins_monro (
+        accept_prob, iteration - warmup_stageI_end + 1, step_size,
+        target_accept_thresholds
+    );
+
+    const arma::vec score_diff =
+      std::sqrt(accept_prob) * (proposed_grad - current_grad);
+
+    update_fisher_preconditioner(sqrt_inv_fisher, score_diff);
+  } else if (iteration < warmup_stageIII_end) {
+    // After warm-up stages I & II: Robbins-Monro
+    update_step_size_with_robbins_monro (
+        accept_prob, iteration - warmup_stageII_end + 1, step_size,
+        target_accept_thresholds
+    );
+  }
+}
+
+
+
+/**
+ * Function: update_interactions_with_fisher_mala
+ *
+ * Updates all included pairwise interaction effects using Fisher-preconditioned MALA.
+ *
+ * This function performs a joint update of the interaction weights using a Fisher-preconditioned
+ * Metropolis-adjusted Langevin algorithm (MALA). The inverse Fisher matrix is either identity
+ * (during burn-in) or estimated and adapted post-burn-in using rank-one score difference updates.
+ *
+ * The step size is normalized using the trace of the inverse Fisher matrix (Titsias, 2023), ensuring
+ * consistent average proposal scale.
+ *
+ * During burn-in, the step size is adapted using dual averaging. After burn-in, Robbins-Monro is used
+ * along with Fisher matrix updates.
+ *
+ * Inputs:
+ *  - pairwise_effects: Matrix of interaction parameters (symmetric, updated in-place).
+ *  - rest_matrix: Person-by-variable linear predictor matrix (updated if proposal is accepted).
+ *  - main_effects: Matrix of current threshold (main effect) parameters.
+ *  - observations: Person-by-variable observation matrix.
+ *  - num_categories: Number of categories per variable.
+ *  - inclusion_indicator: Binary indicator matrix showing active interaction pairs.
+ *  - is_ordinal_variable: Flags indicating ordinal variables.
+ *  - reference_category: Reference category index per variable.
+ *  - interaction_scale: Scale parameter for the Cauchy prior on interaction weights.
+ *  - step_size_pairwise: Current MALA step size (updated in-place).
+ *  - initial_step_size_pairwise: Initial step size for dual averaging.
+ *  - iteration: Current MCMC iteration.
+ *  - total_burnin: Total burn-in length.
+ *  - dual_averaging_state: Dual averaging parameters (updated during burn-in).
+ *  - sqrt_inv_fisher_pairwise: Square root of inverse Fisher information matrix (updated post-burn-in).
+ *
+ * Modifies:
+ *  - pairwise_effects (on accept)
+ *  - rest_matrix (on accept)
+ *  - step_size_pairwise (if adaptive)
+ *  - dual_averaging_state (during burn-in)
+ *  - sqrt_inv_fisher_pairwise (post-burn-in)
+ */
+void update_interactions_with_fisher_mala (
+    arma::mat& pairwise_effects,
+    arma::mat& rest_matrix,
+    const arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    double& step_size_pairwise,
+    const double initial_step_size_pairwise,
+    const int iteration,
+    arma::vec& dual_averaging_state,
+    arma::mat& sqrt_inv_fisher_pairwise,
+    const double target_accept_interactions,
+    const int warmup_stageI_end,
+    const int warmup_stageII_end,
+    const int warmup_stageIII_end,
+    const arma::imat& sufficient_pairwise
+) {
+  const int num_variables = pairwise_effects.n_rows;
+  const int num_interactions = (num_variables * (num_variables - 1)) / 2;
+
+  // --- Flatten current pairwise interactions into vector format
+  arma::vec current_state(num_interactions, arma::fill::zeros);
+  int interaction_index = -1;
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      interaction_index++;
+      if (inclusion_indicator(var1, var2) == 1) {
+        current_state(interaction_index) = pairwise_effects(var1, var2);
+      }
+    }
+  }
+
+  // --- Compute gradient and log-posterior at current state
+  arma::vec current_grad = gradient_log_pseudoposterior_interactions(
+    pairwise_effects, main_effects, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  double current_log_post = log_pseudoposterior_interactions (
+    pairwise_effects, main_effects, rest_matrix, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale, sufficient_pairwise
+  );
+
+  // --- Initialize Fisher matrix after burn-in
+  if (iteration == warmup_stageI_end) {
+    sqrt_inv_fisher_pairwise = initialize_fisher_preconditioner(current_grad);
+  }
+
+  const int dim = current_state.n_elem;
+
+  // --- Construct inverse Fisher matrix (identity during burn-in)
+  arma::mat inv_fisher;
+  if (iteration >= warmup_stageI_end) {
+    inv_fisher = sqrt_inv_fisher_pairwise * sqrt_inv_fisher_pairwise.t();
+  } else {
+    inv_fisher.eye(dim, dim);
+  }
+
+  // --- Rescale step size based on trace-normalization
+  double trace_inv_fisher = arma::trace(inv_fisher);
+  double scaled_step_size = step_size_pairwise / (trace_inv_fisher / dim);
+  const double sqrt_step = std::sqrt(scaled_step_size);
+
+  // --- Compute proposal: drift + noise
+  const arma::vec proposal_drift = 0.5 * scaled_step_size * inv_fisher * current_grad;
+  const arma::vec noise = sqrt_inv_fisher_pairwise * arma::randn(dim);
+  const arma::vec proposed_state = current_state + proposal_drift + sqrt_step * noise;
+
+  // --- Reconstruct proposed interaction matrix
+  arma::mat proposed_matrix = pairwise_effects;
+  interaction_index = -1;
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      interaction_index++;
+      if (inclusion_indicator(var1, var2) == 1) {
+        proposed_matrix(var1, var2) = proposed_state(interaction_index);
+        proposed_matrix(var2, var1) = proposed_state(interaction_index);
+      }
+    }
+  }
+
+  // --- Compute gradient and posterior at proposed state
+  arma::mat proposed_rest = observations * proposed_matrix;
+
+  double proposed_log_post = log_pseudoposterior_interactions(
+    proposed_matrix, main_effects, proposed_rest, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale, sufficient_pairwise
+  );
+
+  arma::vec proposed_grad = gradient_log_pseudoposterior_interactions(
+    proposed_matrix, main_effects, observations, num_categories,
+    inclusion_indicator, is_ordinal_variable, reference_category,
+    interaction_scale, sufficient_pairwise, proposed_rest
+  );
+
+  // --- Compute forward/reverse correction terms (Titsias 2023, Prop. 1)
+  const arma::vec forward_proposal_residual =
+    proposed_state - current_state -
+    0.25 * scaled_step_size * inv_fisher * current_grad;
+  const arma::vec reverse_proposal_residual =
+    current_state - proposed_state -
+    0.25 * scaled_step_size * inv_fisher * proposed_grad;
+
+  const double log_forward = 0.5 * arma::dot (forward_proposal_residual, current_grad);
+  const double log_backward = 0.5 * arma::dot (reverse_proposal_residual, proposed_grad);
+
+  const double log_accept = proposed_log_post - current_log_post + (log_backward - log_forward);
+  const double accept_prob = std::min(1.0, std::exp (log_accept));
+
+  // --- Accept/reject step
+  if (std::log(R::unif_rand()) < log_accept) {
+    for (int var1 = 0; var1 < num_variables - 1; var1++) {
+      for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+        if (inclusion_indicator (var1, var2) == 1) {
+          double delta = proposed_matrix (var1, var2) - pairwise_effects (var1, var2);
+          pairwise_effects (var1, var2) = proposed_matrix (var1, var2);
+          pairwise_effects (var2, var1) = proposed_matrix (var1, var2);
+          rest_matrix.col (var1) += arma::conv_to<arma::vec>::from (observations.col (var2)) * delta;
+          rest_matrix.col (var2) += arma::conv_to<arma::vec>::from (observations.col (var1)) * delta;
+        }
+      }
+    }
+  }
+
+  // --- Step size and Fisher adaptation
+  if (iteration < warmup_stageI_end) {
+    // Stage I warmup: Use dual averaging
+    update_step_size_with_dual_averaging (
+        initial_step_size_pairwise, accept_prob, iteration,
+        dual_averaging_state, target_accept_interactions
+    );
+    step_size_pairwise = std::exp (dual_averaging_state[0]);
+  } else if (iteration < warmup_stageII_end) {
+    // Stage II warmup: Robbins-Monro and Fisher update
+    update_step_size_with_robbins_monro (
+        accept_prob, iteration - warmup_stageI_end + 1, step_size_pairwise,
+        target_accept_interactions
+    );
+
+    // Scaled score difference for rank-1 Fisher update
+    arma::vec score_diff = std::sqrt (accept_prob) * (proposed_grad - current_grad);
+    update_fisher_preconditioner(
+      sqrt_inv_fisher_pairwise, score_diff
+    );
+  } else if (iteration < warmup_stageIII_end) {
+    // Stage III warmup: Robbins-Monro
+    update_step_size_with_robbins_monro (
+        accept_prob, iteration - warmup_stageII_end + 1, step_size_pairwise,
+        target_accept_interactions
+    );
+  }
+}
+
+
+
+double find_reasonable_initial_step_size (
+    const arma::mat main_effects,
+    const arma::mat pairwise_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    const arma::mat& rest_matrix,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double interaction_scale,
+    const double target_acceptance,
+    const arma::imat& sufficient_pairwise
+) {
+  constexpr double initial_step_size = 0.1;
+  constexpr int max_attempts = 20;
+  constexpr double max_log_step = 10.0;
+
+  double log_step_size = std::log (initial_step_size);
+
+  // Current state and log posterior
+  const arma::vec current_state = vectorize_model_parameters(
+    main_effects, pairwise_effects, inclusion_indicator, num_categories,
+    is_ordinal_variable);
+
+  const arma::vec current_grad = gradient_log_pseudoposterior (
+    main_effects, pairwise_effects, inclusion_indicator,
+    observations, num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  const double current_log_post = log_pseudoposterior (
+    main_effects, pairwise_effects, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  int direction = 0;
+  double accept_prob = 0.0;
+
+  // Propose initial MALA step: θ' = θ + ½ε ∇log p(θ) + √ε * N(0, I)
+
+  double step_size = std::exp (log_step_size);
+  double sqrt_step = std::sqrt(step_size);
+  arma::vec proposed_state = current_state + 0.5 * step_size * current_grad +
+    sqrt_step * arma::randn(current_state.n_elem);
+
+  arma::mat main_proposed = arma::mat(main_effects.n_rows, main_effects.n_cols,
+                                      arma::fill::zeros);
+  arma::mat pairwise_proposed = arma::mat(pairwise_effects.n_rows, pairwise_effects.n_cols,
+                                          arma::fill::zeros);
+  unvectorize_model_parameters(
+    proposed_state, main_proposed, pairwise_proposed, num_categories,
+    is_ordinal_variable
+  );
+
+  arma::mat proposed_rest = observations * pairwise_proposed;
+
+  double proposed_log_post = log_pseudoposterior (
+    main_proposed, pairwise_proposed, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, proposed_rest
+  );
+
+  arma::vec proposed_grad = gradient_log_pseudoposterior (
+    main_proposed, pairwise_proposed, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, proposed_rest
+  );
+
+  arma::vec forward = current_state + 0.5 * step_size * current_grad;
+  arma::vec backward = proposed_state + 0.5 * step_size * proposed_grad;
+
+  double log_fwd = -0.5 / step_size * arma::accu (arma::square(proposed_state - forward));
+  double log_bwd = -0.5 / step_size * arma::accu (arma::square(current_state - backward));
+  double log_accept = proposed_log_post + log_bwd - current_log_post - log_fwd;
+
+  accept_prob = std::min(1.0, std::exp (log_accept));
+  if (std::abs(accept_prob - target_acceptance) < 0.1) {
+    return std::exp (log_step_size);
+  }
+  direction = (accept_prob > target_acceptance) ? 1 : -1;
+
+
+  // Log-scale search for step size that brackets the target acceptance rate
+  for (int attempt = 0; attempt < max_attempts; attempt++) {
+    log_step_size += direction;
+    step_size = std::exp (log_step_size);
+    sqrt_step = std::sqrt(step_size);
+
+    proposed_state = current_state + 0.5 * step_size * current_grad +
+      sqrt_step * arma::randn(current_state.n_elem);
+
+    unvectorize_model_parameters(
+      proposed_state, main_proposed, pairwise_proposed, num_categories,
+      is_ordinal_variable
+    );
+
+    proposed_rest = observations * pairwise_proposed;
+
+    proposed_log_post = log_pseudoposterior (
+      main_proposed, pairwise_proposed, inclusion_indicator, observations,
+      num_categories, num_obs_categories, sufficient_blume_capel,
+      reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+      interaction_scale, sufficient_pairwise, proposed_rest
+    );
+
+    proposed_grad = gradient_log_pseudoposterior (
+      main_proposed, pairwise_proposed, inclusion_indicator, observations,
+      num_categories, num_obs_categories, sufficient_blume_capel,
+      reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+      interaction_scale, sufficient_pairwise, proposed_rest
+    );
+
+    arma::vec forward = current_state + 0.5 * step_size * current_grad;
+    arma::vec backward = proposed_state + 0.5 * step_size * proposed_grad;
+
+    log_fwd = -0.5 / step_size * arma::accu (arma::square(proposed_state - forward));
+    log_bwd = -0.5 / step_size * arma::accu (arma::square(current_state - backward));
+    log_accept = proposed_log_post + log_bwd - current_log_post - log_fwd;
+
+    double new_accept_prob = std::min(1.0, std::exp (log_accept));
+
+    // Exit if acceptance flips across the target
+    if ((direction == 1 && new_accept_prob < target_acceptance) ||
+        (direction == -1 && new_accept_prob > target_acceptance)) {
+      break;
+    }
+
+    accept_prob = new_accept_prob;
+
+    if (std::abs(log_step_size) > max_log_step) {
+      Rcpp::Rcout << "Warning: Step size search failed. Falling back to default (0.01)." << std::endl;
+      return 0.01;
+    }
+  }
+
+  return std::exp (log_step_size);
+}
+
+void update_parameters_with_fisher_mala (
+    arma::mat& main_effects,
+    arma::mat& pairwise_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double interaction_scale,
+    double& step_size,
+    const int iteration,
+    arma::vec& dual_averaging_state,
+    arma::mat& sqrt_inv_fisher,
+    const double initial_step_size,
+    const double target_accept,
+    const int warmup_stageI_end,
+    const int warmup_stageII_end,
+    const int warmup_stageIII_end,
+    const arma::imat& sufficient_pairwise,
+    arma::mat& rest_matrix
+) {
+  // --- Compute current parameter vector and its gradient ---
+  const arma::vec current_state = vectorize_model_parameters(
+    main_effects, pairwise_effects, inclusion_indicator, num_categories,
+    is_ordinal_variable);
+
+  const arma::vec current_grad = gradient_log_pseudoposterior (
+    main_effects, pairwise_effects, inclusion_indicator,
+    observations, num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  const double current_log_post = log_pseudoposterior (
+    main_effects, pairwise_effects, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  const int dim = current_state.n_elem;
+
+  // --- If burn-in just ended, initialize Fisher matrix using gradient
+  if (iteration == warmup_stageI_end) {
+    sqrt_inv_fisher = initialize_fisher_preconditioner (current_grad);
+  }
+
+  // --- Set inverse Fisher matrix: identity during warm-up, adapted afterward
+  arma::mat inv_fisher;
+  if (iteration >= warmup_stageI_end) {
+    inv_fisher = sqrt_inv_fisher * sqrt_inv_fisher.t();
+  } else {
+    inv_fisher.eye(dim, dim);
+  }
+
+  // --- Construct Fisher-preconditioned MALA proposal ---
+  const double trace_inv_fisher = arma::trace(inv_fisher);
+  const double scaled_step_size = step_size / (trace_inv_fisher / dim);
+  const double sqrt_step = std::sqrt(scaled_step_size);
+
+  // Drift (mean shift) and stochastic noise
+  const arma::vec proposal_drift = 0.5 * scaled_step_size * inv_fisher * current_grad;
+  const arma::vec noise = sqrt_inv_fisher * arma::randn(dim);
+
+  const arma::vec proposed_state = current_state + proposal_drift + sqrt_step * noise;
+
+  arma::mat main_proposed = arma::mat(
+    main_effects.n_rows, main_effects.n_cols, arma::fill::zeros
+  );
+  arma::mat pairwise_proposed = arma::mat(
+    pairwise_effects.n_rows, pairwise_effects.n_cols, arma::fill::zeros
+  );
+  unvectorize_model_parameters(
+    proposed_state, main_proposed, pairwise_proposed, num_categories,
+    is_ordinal_variable
+  );
+
+  arma::mat proposed_rest = observations * pairwise_proposed;
+
+  const double proposed_log_post = log_pseudoposterior (
+    main_proposed, pairwise_proposed, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, proposed_rest
+  );
+
+  const arma::vec proposed_grad = gradient_log_pseudoposterior (
+    main_proposed, pairwise_proposed, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, proposed_rest
+  );
+
+  // --- Compute MALA acceptance correction (Titsias 2023, Prop. 1) ---
+  const arma::vec forward_proposal_residual =
+    proposed_state - current_state -
+    0.25 * scaled_step_size * inv_fisher * current_grad;
+  const arma::vec reverse_proposal_residual =
+    current_state - proposed_state -
+    0.25 * scaled_step_size * inv_fisher * proposed_grad;
+
+  const double log_forward = 0.5 * arma::dot (forward_proposal_residual, current_grad);
+  const double log_backward = 0.5 * arma::dot (reverse_proposal_residual, proposed_grad);
+
+  double log_accept = proposed_log_post - current_log_post;
+  log_accept += (log_backward - log_forward);
+
+  const double accept_prob = std::min(1.0, std::exp (log_accept));
+
+  // --- Accept or reject proposed move ---
+  if (std::log (R::unif_rand()) < log_accept) {
+    main_effects = main_proposed;
+    pairwise_effects = pairwise_proposed;
+    rest_matrix = proposed_rest;
+  }
+
+  // --- Update step size and Fisher matrix ---
+  if (iteration < warmup_stageI_end) {
+    // During warm-up stage I: dual averaging adaptation
+    update_step_size_with_dual_averaging (
+        initial_step_size, accept_prob, iteration + 1, dual_averaging_state,
+        target_accept
+    );
+    step_size = std::exp (dual_averaging_state[1]);
+  } else if (iteration < warmup_stageII_end) {
+
+    // After warm-up stage I: Robbins-Monro + Fisher preconditioner update
+    update_step_size_with_robbins_monro (
+        accept_prob, iteration - warmup_stageI_end + 1, step_size,
+        target_accept
+    );
+
+    const arma::vec score_diff =
+      std::sqrt(accept_prob) * (proposed_grad - current_grad);
+
+    update_fisher_preconditioner(sqrt_inv_fisher, score_diff);
+  } else if (iteration < warmup_stageIII_end) {
+    // After warm-up stages I & II: Robbins-Monro
+    update_step_size_with_robbins_monro (
+        accept_prob, iteration - warmup_stageII_end + 1, step_size,
+        target_accept
+    );
+  }
+}

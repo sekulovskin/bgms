@@ -363,6 +363,174 @@ arma::vec gradient_log_pseudoposterior_thresholds (
 
 
 /**
+ * Function: log_pseudoposterior_interactions
+ *
+ * Computes the log of the pseudoposterior distribution over interaction parameters.
+ * Includes:
+ *  - The pairwise quadratic sufficient statistic: trace(X * B * Xᵗ)
+ *  - The (unnormalized) nodewise log-likelihood contributions
+ *  - The log Cauchy prior for included interaction terms
+ *
+ * Inputs:
+ *  - pairwise_effects: Symmetric matrix of interaction parameters.
+ *  - main_effects: Matrix of main effect (threshold) parameters.
+ *  - observations: Matrix of ordinal and BC scores.
+ *  - num_categories: Vector of number of categories for each variable.
+ *  - inclusion_indicator: Binary matrix indicating active interactions.
+ *  - is_ordinal_variable: Logical vector: 1 = ordinal, 0 = Blume-Capel.
+ *  - reference_category: Reference category index per variable (for BC).
+ *  - interaction_scale: Cauchy prior scale for interaction terms.
+ *
+ * Returns:
+ *  - Scalar log pseudoposterior (double)
+ */
+double log_pseudoposterior_interactions (
+    const arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::mat& rest_matrix,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise
+) {
+  const int num_variables = observations.n_cols;
+  const int num_observations = observations.n_rows;
+
+  // Convert to double matrix for trace calculation
+  //arma::mat real_observations = arma::conv_to<arma::mat>::from (observations);
+
+  // Leading term: trace(X * B * X^T)
+  //double log_pseudo_posterior = arma::trace (real_observations * pairwise_effects * real_observations.t ());
+
+  double log_pseudo_posterior = arma::accu(pairwise_effects % arma::conv_to<arma::mat>::from(sufficient_pairwise));
+
+  for (int var = 0; var < num_variables; var++) {
+    int num_categories_var = num_categories (var);
+
+    // Compute rest score: contribution from other variables
+    arma::vec rest_scores = rest_matrix.col (var);
+    arma::vec bounds = arma::max (rest_scores, arma::zeros<arma::vec> (num_observations)) * num_categories_var;
+    arma::vec denominator = arma::zeros (num_observations);
+
+    if (is_ordinal_variable (var)) {
+      // Ordinal variable: denominator includes exp (-bounds) + exp over categories
+
+      denominator += arma::exp (-bounds);
+      for (int category = 0; category < num_categories_var; category++) {
+        arma::vec exponent = main_effects (var, category) + (category + 1) * rest_scores - bounds;
+        denominator += arma::exp(exponent);
+      }
+
+      // ----- Version with minimal exp calls -----
+      // This ran into underflow issues due to large bounds when we started with exp_bounds as er_accum
+      // That is resolved now, but it still fails
+      // arma::vec exp_bounds = arma::exp(-bounds);
+      // arma::vec exp_rest = arma::exp(rest_scores);
+      // arma::vec er_accum = arma::ones<arma::vec>(num_observations);
+      //
+      // denominator += exp_bounds;
+      //
+      // for (int category = 0; category < num_categories_var; category++) {
+      //   er_accum %= exp_rest;
+      //   double main = main_effects(var, category);
+      //   denominator += std::exp(main) * er_accum % exp_bounds;
+      // }
+    } else {
+      // Binary/categorical variable: quadratic + linear term
+      const int ref_cat = reference_category (var);
+      for (int category = 0; category <= num_categories_var; category++) {
+        int centered_cat = category - ref_cat;
+        double lin_term = main_effects (var, 0) * category;
+        double quad_term = main_effects (var, 1) * centered_cat * centered_cat;
+        arma::vec exponent = lin_term + quad_term + category * rest_scores - bounds;
+        denominator += arma::exp (exponent);
+      }
+    }
+
+    // Subtract log partition function and bounds adjustment
+    log_pseudo_posterior -= arma::accu (arma::log (denominator));
+    log_pseudo_posterior -= arma::accu (bounds);
+  }
+
+  // Add Cauchy prior terms for included pairwise effects
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      if (inclusion_indicator (var1, var2) == 1) {
+        log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, interaction_scale, true);
+      }
+    }
+  }
+
+  return log_pseudo_posterior;
+}
+
+
+
+double log_pseudoposterior_interactions_component (
+    const arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    const int var1,
+    const int var2
+) {
+  const int num_observations = observations.n_rows;
+
+  double log_pseudo_posterior = 2.0 * pairwise_effects(var1, var2) * sufficient_pairwise(var1, var2);
+
+  for (int var : {var1, var2}) {
+    int num_categories_var = num_categories (var);
+
+    // Compute rest score: contribution from other variables
+    arma::vec rest_scores = observations * pairwise_effects.col (var);
+    arma::vec bounds = arma::max (rest_scores, arma::zeros<arma::vec> (num_observations)) * num_categories_var;
+    arma::vec denominator = arma::zeros (num_observations);
+
+    if (is_ordinal_variable (var)) {
+      // Ordinal variable: denominator includes exp (-bounds)
+
+      denominator += arma::exp (-bounds);
+      for (int category = 0; category < num_categories_var; category++) {
+        arma::vec exponent = main_effects (var, category) + (category + 1) * rest_scores - bounds;
+        denominator += arma::exp(exponent);
+      }
+
+    } else {
+      // Binary/categorical variable: quadratic + linear term
+      const int ref_cat = reference_category (var);
+      for (int category = 0; category <= num_categories_var; category++) {
+        int centered_cat = category - ref_cat;
+        double lin_term = main_effects (var, 0) * category;
+        double quad_term = main_effects (var, 1) * centered_cat * centered_cat;
+        arma::vec exponent = lin_term + quad_term + category * rest_scores - bounds;
+        denominator += arma::exp (exponent);
+      }
+    }
+
+    // Subtract log partition function and bounds adjustment
+    log_pseudo_posterior -= arma::accu (arma::log (denominator));
+    log_pseudo_posterior -= arma::accu (bounds);
+  }
+
+  // Add Cauchy prior terms for included pairwise effects
+  if (inclusion_indicator (var1, var2) == 1) {
+    log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, interaction_scale, true);
+  }
+
+  return log_pseudo_posterior;
+}
+
+
+
+/**
  * Function: gradient_log_pseudoposterior_interactions
  *
  * Computes the gradient of the log pseudoposterior with respect to the
@@ -500,7 +668,7 @@ arma::vec gradient_log_pseudoposterior_interactions (
 
 
 /**
- * Function: gradient_log_pseudoposterior_interaction_single
+ * Function: gradient_log_pseudoposterior_interactions_component
  *
  * Computes the gradient of the log pseudoposterior with respect to a single
  * interaction parameter (i, j), assuming symmetric pairwise_effects matrix.
@@ -518,7 +686,7 @@ arma::vec gradient_log_pseudoposterior_interactions (
  * Returns:
  *  - A single double value: the gradient with respect to β_ij.
  */
-double gradient_log_pseudoposterior_interaction_single (
+double gradient_log_pseudoposterior_interactions_component (
     int var1,
     int var2,
     const arma::mat& pairwise_effects,
@@ -687,110 +855,275 @@ double gradient_log_pseudoposterior_interaction_single (
 }
 
 
-/**
- * Function: log_pseudoposterior_interactions
- *
- * Computes the log of the pseudoposterior distribution over interaction parameters.
- * Includes:
- *  - The pairwise quadratic sufficient statistic: trace(X * B * Xᵗ)
- *  - The (unnormalized) nodewise log-likelihood contributions
- *  - The log Cauchy prior for included interaction terms
- *
- * Inputs:
- *  - pairwise_effects: Symmetric matrix of interaction parameters.
- *  - main_effects: Matrix of main effect (threshold) parameters.
- *  - observations: Matrix of ordinal and BC scores.
- *  - num_categories: Vector of number of categories for each variable.
- *  - inclusion_indicator: Binary matrix indicating active interactions.
- *  - is_ordinal_variable: Logical vector: 1 = ordinal, 0 = Blume-Capel.
- *  - reference_category: Reference category index per variable (for BC).
- *  - interaction_scale: Cauchy prior scale for interaction terms.
- *
- * Returns:
- *  - Scalar log pseudoposterior (double)
- */
-double log_pseudoposterior_interactions (
-    const arma::mat& pairwise_effects,
+
+double log_pseudoposterior (
     const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
+    const arma::mat& pairwise_effects,
+    const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& inclusion_indicator,
-    const arma::uvec& is_ordinal_variable,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise
+    const arma::imat& sufficient_pairwise,
+    const arma::mat& rest_matrix
 ) {
+
   const int num_variables = observations.n_cols;
-  const int num_observations = observations.n_rows;
+  const int num_persons = observations.n_rows;
 
-  // Convert to double matrix for trace calculation
-  //arma::mat real_observations = arma::conv_to<arma::mat>::from (observations);
+  double log_pseudoposterior = 0.0;
 
-  // Leading term: trace(X * B * X^T)
-  //double log_pseudo_posterior = arma::trace (real_observations * pairwise_effects * real_observations.t ());
+  // Calculate the contribution from the data and the prior
+  auto log_beta_prior = [&](double threshold_param) {
+    return threshold_param * threshold_alpha - std::log1p (std::exp (threshold_param)) * (threshold_alpha + threshold_beta);
+  };
 
-  double log_pseudo_posterior = arma::accu(pairwise_effects % arma::conv_to<arma::mat>::from(sufficient_pairwise));
-
-  for (int var = 0; var < num_variables; var++) {
-    int num_categories_var = num_categories (var);
-
-    // Compute rest score: contribution from other variables
-    arma::vec rest_scores = rest_matrix.col (var);
-    arma::vec bounds = arma::max (rest_scores, arma::zeros<arma::vec> (num_observations)) * num_categories_var;
-    arma::vec denominator = arma::zeros (num_observations);
-
-    if (is_ordinal_variable (var)) {
-      // Ordinal variable: denominator includes exp (-bounds) + exp over categories
-
-      denominator += arma::exp (-bounds);
-      for (int category = 0; category < num_categories_var; category++) {
-        arma::vec exponent = main_effects (var, category) + (category + 1) * rest_scores - bounds;
-        denominator += arma::exp(exponent);
+  for (int variable = 0; variable < num_variables; variable++) {
+    if (is_ordinal_variable(variable)) {
+      const int num_cats = num_categories(variable);
+      for (int cat = 0; cat < num_cats; cat++) {
+        double value = main_effects(variable, cat);
+        log_pseudoposterior += num_obs_categories(cat + 1, variable) * value;
+        log_pseudoposterior += log_beta_prior(value);
       }
-
-      // ----- Version with minimal exp calls -----
-      // This ran into underflow issues due to large bounds when we started with exp_bounds as er_accum
-      // That is resolved now, but it still fails
-      // arma::vec exp_bounds = arma::exp(-bounds);
-      // arma::vec exp_rest = arma::exp(rest_scores);
-      // arma::vec er_accum = arma::ones<arma::vec>(num_observations);
-      //
-      // denominator += exp_bounds;
-      //
-      // for (int category = 0; category < num_categories_var; category++) {
-      //   er_accum %= exp_rest;
-      //   double main = main_effects(var, category);
-      //   denominator += std::exp(main) * er_accum % exp_bounds;
-      // }
     } else {
-      // Binary/categorical variable: quadratic + linear term
-      const int ref_cat = reference_category (var);
-      for (int category = 0; category <= num_categories_var; category++) {
-        int centered_cat = category - ref_cat;
-        double lin_term = main_effects (var, 0) * category;
-        double quad_term = main_effects (var, 1) * centered_cat * centered_cat;
-        arma::vec exponent = lin_term + quad_term + category * rest_scores - bounds;
-        denominator += arma::exp (exponent);
-      }
+      double value = main_effects(variable, 0);
+      log_pseudoposterior += log_beta_prior(value);
+      log_pseudoposterior += sufficient_blume_capel(0, variable) * value;
+
+      value = main_effects(variable, 1);
+      log_pseudoposterior += log_beta_prior(value);
+      log_pseudoposterior += sufficient_blume_capel(1, variable) * value;
     }
-
-    // Subtract log partition function and bounds adjustment
-    log_pseudo_posterior -= arma::accu (arma::log (denominator));
-    log_pseudo_posterior -= arma::accu (bounds);
   }
-
-  // Add Cauchy prior terms for included pairwise effects
   for (int var1 = 0; var1 < num_variables - 1; var1++) {
     for (int var2 = var1 + 1; var2 < num_variables; var2++) {
-      if (inclusion_indicator (var1, var2) == 1) {
-        log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, interaction_scale, true);
-      }
+      if (inclusion_indicator(var1, var2) == 0) continue;
+
+      double value = pairwise_effects(var1, var2);
+      log_pseudoposterior += 2.0 * sufficient_pairwise(var1, var2) * value;
+      log_pseudoposterior += R::dcauchy(value, 0.0, interaction_scale, true); // Cauchy prior
     }
   }
 
-  return log_pseudo_posterior;
+  // Calculate the log denominators
+  for (int variable = 0; variable < num_variables; variable++) {
+    const int num_cats = num_categories(variable);
+    arma::vec rest_score = rest_matrix.col (variable);                    // rest scores for all persons
+    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
+    bound = arma::clamp(bound, 0.0, arma::datum::inf);                        // only positive bounds to prevent overflow
+
+    arma::vec denom;
+    if (is_ordinal_variable(variable)) {
+      denom = arma::exp (-bound);                                     // initialize with base term
+      arma::vec threshold_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // threshold parameters for variable
+      for (int cat = 0; cat < num_cats; cat++) {
+        arma::vec exponent = threshold_param(cat) + (cat + 1) * rest_score - bound; // exponent per person
+        denom += arma::exp (exponent);                                          // accumulate exp terms
+      }
+    } else {
+      const double lin_effect = main_effects(variable, 0);
+      const double quad_effect = main_effects(variable, 1);
+      const int ref = reference_category(variable);
+
+      denom.zeros(num_persons);
+      for (int cat = 0; cat <= num_cats; cat++) {
+        int centered = cat - ref;                                               // centered category
+        double quad = quad_effect * centered * centered;                    // precompute quadratic term
+        double lin = lin_effect * cat;                                      // precompute linear term
+        arma::vec exponent = lin + quad + cat * rest_score - bound;
+        denom += arma::exp (exponent);                                           // accumulate over categories
+      }
+    }
+
+    log_pseudoposterior -= arma::accu (bound + arma::log (denom));                    // total contribution
+  }
+
+  return log_pseudoposterior;
 }
+
+
+
+arma::vec gradient_log_pseudoposterior (
+    const arma::mat& main_effects,
+    const arma::mat& pairwise_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    const arma::mat& rest_matrix
+) {
+  const int num_variables = observations.n_cols;
+  const int num_persons = observations.n_rows;
+  const int num_main = count_num_main_effects (num_categories, is_ordinal_variable);
+  const int num_pairwise = num_variables * (num_variables - 1) / 2;
+
+  arma::umat index_matrix(num_variables, num_variables);
+  int counter = num_main; // Start after the main effects
+  for(int var1 = 0; var1 < num_variables-1; var1++) {
+    for(int var2 = var1 + 1; var2 < num_variables; var2++) {
+      index_matrix(var1, var2) = counter++;
+    }
+  }
+
+  arma::vec gradient (num_main + num_pairwise, arma::fill::zeros);
+
+  // Gradients are built up as O - E + gradient_prior
+  // - O is the observed value of the sufficient statistic
+  // - E is the expected value of the sufficient statistic
+  // - gradient_prior is the gradient of the prior distribution
+
+  // Calculate the observed sufficient statistics
+  int offset = 0;
+  for (int variable = 0; variable < num_variables; variable++) {
+    if (is_ordinal_variable(variable)) {
+      const int num_cats = num_categories(variable);
+      for (int cat = 0; cat < num_cats; cat++) {
+        gradient(offset + cat) = num_obs_categories(cat + 1, variable);
+      }
+      offset += num_cats;
+    } else {
+      gradient(offset) = sufficient_blume_capel(0, variable);
+      gradient(offset + 1) = sufficient_blume_capel(1, variable);
+      offset += 2;
+    }
+  }
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      if (inclusion_indicator(var1, var2) == 0)
+        continue;
+      int location = index_matrix(var1, var2);
+      gradient(location) = 2.0 * sufficient_pairwise(var1, var2);
+    }
+  }
+
+  // Calculate the expected sufficient statistics
+  offset = 0;
+  for (int variable = 0; variable < num_variables; variable++) {
+    const int num_cats = num_categories(variable);
+    arma::vec rest_score = rest_matrix.col(variable);
+    arma::vec bound = num_cats * rest_score;
+    bound = arma::clamp(bound, 0.0, arma::datum::inf);
+
+    if (is_ordinal_variable(variable)) {
+      arma::vec threshold_param = main_effects.row(variable).cols(0, num_cats - 1).t();
+      bound += threshold_param.max();
+
+      arma::mat exponents(num_persons, num_cats);
+      for (int cat = 0; cat < num_cats; cat++) {
+        exponents.col(cat) = threshold_param(cat) + (cat + 1) * rest_score - bound;
+      }
+
+      arma::mat probs = arma::exp (exponents);
+      arma::vec denom = arma::sum(probs, 1) + arma::exp (-bound);
+      probs.each_col() /= denom;
+
+      // Expected sufficient statistics main effects
+      for (int cat = 0; cat < num_cats; cat++) {
+        gradient(offset + cat) -= arma::accu (probs.col(cat));
+      }
+
+      // Expected sufficient statistics pairwise effects
+      for (int var2 = 0; var2 < num_variables; var2++) {
+        if (inclusion_indicator(variable, var2) == 0 || variable == var2)
+          continue;
+
+        arma::vec expected_value = arma::zeros(num_persons);
+        for (int cat = 0; cat < num_cats; cat++) {
+          expected_value += (cat + 1) * probs.col(cat) % observations.col(var2);
+        }
+        int location = (variable < var2) ? index_matrix(variable, var2) : index_matrix(var2, variable);
+        gradient(location) -= arma::accu(expected_value);
+      }
+
+      offset += num_cats;
+    } else {
+      const int ref = reference_category(variable);
+      const double lin_effect = main_effects(variable, 0);
+      const double quad_effect = main_effects(variable, 1);
+
+      arma::mat exponents(num_persons, num_cats + 1);
+      for (int cat = 0; cat <= num_cats; cat++) {
+        int score = cat;
+        int centered = score - ref;
+        double lin = lin_effect * score;
+        double quad = quad_effect * centered * centered;
+        exponents.col(cat) = lin + quad + score * rest_score - bound;
+      }
+      arma::mat probs = arma::exp (exponents);
+      arma::vec denom = arma::sum(probs, 1);
+      probs.each_col() /= denom;
+
+      arma::ivec lin_score =  arma::regspace<arma::ivec>(0, num_cats);
+      arma::ivec quad_score = arma::square(lin_score - ref);
+
+      // Expected sufficient statistics main effects
+      gradient(offset) -= arma::accu(probs * lin_score);
+      gradient(offset + 1) -= arma::accu(probs * quad_score);;
+
+      // Expected sufficient statistics pairwise effects
+      for (int var2 = 0; var2 < num_variables; var2++) {
+        if (inclusion_indicator(variable, var2) == 0 || variable == var2)
+          continue;
+
+        arma::vec expected_value = arma::zeros(num_persons);
+        for (int cat = 0; cat < num_cats; cat++) {
+          expected_value += (cat + 1) * probs.col(cat + 1) % observations.col(var2); // Here the zero category score is in probs, so we skip it
+        }
+        int location = (variable < var2) ? index_matrix(variable, var2) : index_matrix(var2, variable);
+        gradient(location) -= arma::accu(expected_value);
+      }
+      offset += 2;
+    }
+  }
+
+  // Calculate the gradient contribution from the prior distribution
+  offset = 0;
+  for (int variable = 0; variable < num_variables; variable++) {
+    if (is_ordinal_variable(variable)) {
+      const int num_cats = num_categories(variable);
+      for (int cat = 0; cat < num_cats; cat++) {
+        const double p = 1.0 / (1.0 + std::exp (-main_effects(variable, cat)));
+        gradient(offset + cat) += threshold_alpha - (threshold_alpha + threshold_beta) * p;
+      }
+      offset += num_cats;
+    } else {
+      for (int i = 0; i < 2; i++) {
+        const double threshold_param = main_effects(variable, i);
+        const double p = 1.0 / (1.0 + std::exp (-threshold_param));
+        gradient(offset + i) += threshold_alpha - (threshold_alpha + threshold_beta) * p;
+      }
+      offset += 2;
+    }
+  }
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      if (inclusion_indicator(var1, var2) == 0)
+        continue;
+
+      // ---- Gradient contribution from Cauchy prior
+      int location = index_matrix(var1, var2);
+      const double effect = pairwise_effects (var1, var2);
+      gradient (location) -= 2.0 * effect / (effect * effect + interaction_scale * interaction_scale);
+    }
+  }
+
+  return gradient;
+}
+
+
 
 /**
  * Function: compute_log_likelihood_ratio_for_variable
@@ -989,271 +1322,4 @@ double log_pseudolikelihood_ratio_interaction (
   );
 
   return log_ratio;
-}
-
-
-
-arma::vec gradient_log_pseudoposterior (
-    const arma::mat& main_effects,
-    const arma::mat& pairwise_effects,
-    const arma::imat& inclusion_indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
-    const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
-) {
-  const int num_variables = observations.n_cols;
-  const int num_persons = observations.n_rows;
-  const int num_main = count_num_main_effects (num_categories, is_ordinal_variable);
-  const int num_pairwise = num_variables * (num_variables - 1) / 2;
-
-  arma::umat index_matrix(num_variables, num_variables);
-  int counter = num_main; // Start after the main effects
-  for(int var1 = 0; var1 < num_variables-1; var1++) {
-    for(int var2 = var1 + 1; var2 < num_variables; var2++) {
-      index_matrix(var1, var2) = counter++;
-    }
-  }
-
-  arma::vec gradient (num_main + num_pairwise, arma::fill::zeros);
-
-  // Gradients are built up as O - E + gradient_prior
-  // - O is the observed value of the sufficient statistic
-  // - E is the expected value of the sufficient statistic
-  // - gradient_prior is the gradient of the prior distribution
-
-  // Calculate the observed sufficient statistics
-  int offset = 0;
-  for (int variable = 0; variable < num_variables; variable++) {
-    if (is_ordinal_variable(variable)) {
-      const int num_cats = num_categories(variable);
-      for (int cat = 0; cat < num_cats; cat++) {
-        gradient(offset + cat) = num_obs_categories(cat + 1, variable);
-      }
-      offset += num_cats;
-    } else {
-      gradient(offset) = sufficient_blume_capel(0, variable);
-      gradient(offset + 1) = sufficient_blume_capel(1, variable);
-      offset += 2;
-    }
-  }
-  for (int var1 = 0; var1 < num_variables - 1; var1++) {
-    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
-      if (inclusion_indicator(var1, var2) == 0)
-        continue;
-      int location = index_matrix(var1, var2);
-      gradient(location) = 2.0 * sufficient_pairwise(var1, var2);
-    }
-  }
-
-  // Calculate the expected sufficient statistics
-  offset = 0;
-  for (int variable = 0; variable < num_variables; variable++) {
-    const int num_cats = num_categories(variable);
-    arma::vec rest_score = rest_matrix.col(variable);
-    arma::vec bound = num_cats * rest_score;
-    bound = arma::clamp(bound, 0.0, arma::datum::inf);
-
-    if (is_ordinal_variable(variable)) {
-      arma::vec threshold_param = main_effects.row(variable).cols(0, num_cats - 1).t();
-      bound += threshold_param.max();
-
-      arma::mat exponents(num_persons, num_cats);
-      for (int cat = 0; cat < num_cats; cat++) {
-        exponents.col(cat) = threshold_param(cat) + (cat + 1) * rest_score - bound;
-      }
-
-      arma::mat probs = arma::exp (exponents);
-      arma::vec denom = arma::sum(probs, 1) + arma::exp (-bound);
-      probs.each_col() /= denom;
-
-      // Expected sufficient statistics main effects
-      for (int cat = 0; cat < num_cats; cat++) {
-        gradient(offset + cat) -= arma::accu (probs.col(cat));
-      }
-
-      // Expected sufficient statistics pairwise effects
-      for (int var2 = 0; var2 < num_variables; var2++) {
-        if (inclusion_indicator(variable, var2) == 0 || variable == var2)
-          continue;
-
-        arma::vec expected_value = arma::zeros(num_persons);
-        for (int cat = 0; cat < num_cats; cat++) {
-          expected_value += (cat + 1) * probs.col(cat) % observations.col(var2);
-        }
-        int location = (variable < var2) ? index_matrix(variable, var2) : index_matrix(var2, variable);
-        gradient(location) -= arma::accu(expected_value);
-      }
-
-      offset += num_cats;
-    } else {
-      const int ref = reference_category(variable);
-      const double lin_effect = main_effects(variable, 0);
-      const double quad_effect = main_effects(variable, 1);
-
-      arma::mat exponents(num_persons, num_cats + 1);
-      for (int cat = 0; cat <= num_cats; cat++) {
-        int score = cat;
-        int centered = score - ref;
-        double lin = lin_effect * score;
-        double quad = quad_effect * centered * centered;
-        exponents.col(cat) = lin + quad + score * rest_score - bound;
-      }
-      arma::mat probs = arma::exp (exponents);
-      arma::vec denom = arma::sum(probs, 1);
-      probs.each_col() /= denom;
-
-      arma::ivec lin_score =  arma::regspace<arma::ivec>(0, num_cats);
-      arma::ivec quad_score = arma::square(lin_score - ref);
-
-      // Expected sufficient statistics main effects
-      gradient(offset) -= arma::accu(probs * lin_score);
-      gradient(offset + 1) -= arma::accu(probs * quad_score);;
-
-      // Expected sufficient statistics pairwise effects
-      for (int var2 = 0; var2 < num_variables; var2++) {
-        if (inclusion_indicator(variable, var2) == 0 || variable == var2)
-          continue;
-
-        arma::vec expected_value = arma::zeros(num_persons);
-        for (int cat = 0; cat < num_cats; cat++) {
-          expected_value += (cat + 1) * probs.col(cat + 1) % observations.col(var2); // Here the zero category score is in probs, so we skip it
-        }
-        int location = (variable < var2) ? index_matrix(variable, var2) : index_matrix(var2, variable);
-        gradient(location) -= arma::accu(expected_value);
-      }
-      offset += 2;
-    }
-  }
-
-  // Calculate the gradient contribution from the prior distribution
-  offset = 0;
-  for (int variable = 0; variable < num_variables; variable++) {
-    if (is_ordinal_variable(variable)) {
-      const int num_cats = num_categories(variable);
-      for (int cat = 0; cat < num_cats; cat++) {
-        const double p = 1.0 / (1.0 + std::exp (-main_effects(variable, cat)));
-        gradient(offset + cat) += threshold_alpha - (threshold_alpha + threshold_beta) * p;
-      }
-      offset += num_cats;
-    } else {
-      for (int i = 0; i < 2; i++) {
-        const double threshold_param = main_effects(variable, i);
-        const double p = 1.0 / (1.0 + std::exp (-threshold_param));
-        gradient(offset + i) += threshold_alpha - (threshold_alpha + threshold_beta) * p;
-      }
-      offset += 2;
-    }
-  }
-  for (int var1 = 0; var1 < num_variables - 1; var1++) {
-    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
-      if (inclusion_indicator(var1, var2) == 0)
-        continue;
-
-      // ---- Gradient contribution from Cauchy prior
-      int location = index_matrix(var1, var2);
-      const double effect = pairwise_effects (var1, var2);
-      gradient (location) -= 2.0 * effect / (effect * effect + interaction_scale * interaction_scale);
-    }
-  }
-
-  return gradient;
-}
-
-double log_pseudoposterior (
-    const arma::mat& main_effects,
-    const arma::mat& pairwise_effects,
-    const arma::imat& inclusion_indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
-    const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
-) {
-
-  const int num_variables = observations.n_cols;
-  const int num_persons = observations.n_rows;
-
-  double log_pseudoposterior = 0.0;
-
-  // Calculate the contribution from the data and the prior
-  auto log_beta_prior = [&](double threshold_param) {
-    return threshold_param * threshold_alpha - std::log1p (std::exp (threshold_param)) * (threshold_alpha + threshold_beta);
-  };
-
-  for (int variable = 0; variable < num_variables; variable++) {
-    if (is_ordinal_variable(variable)) {
-      const int num_cats = num_categories(variable);
-      for (int cat = 0; cat < num_cats; cat++) {
-        double value = main_effects(variable, cat);
-        log_pseudoposterior += num_obs_categories(cat + 1, variable) * value;
-        log_pseudoposterior += log_beta_prior(value);
-      }
-    } else {
-      double value = main_effects(variable, 0);
-      log_pseudoposterior += log_beta_prior(value);
-      log_pseudoposterior += sufficient_blume_capel(0, variable) * value;
-
-      value = main_effects(variable, 1);
-      log_pseudoposterior += log_beta_prior(value);
-      log_pseudoposterior += sufficient_blume_capel(1, variable) * value;
-    }
-  }
-  for (int var1 = 0; var1 < num_variables - 1; var1++) {
-    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
-      if (inclusion_indicator(var1, var2) == 0) continue;
-
-      double value = pairwise_effects(var1, var2);
-      log_pseudoposterior += 2.0 * sufficient_pairwise(var1, var2) * value;
-      log_pseudoposterior += R::dcauchy(value, 0.0, interaction_scale, true); // Cauchy prior
-    }
-  }
-
-  // Calculate the log denominators
-  for (int variable = 0; variable < num_variables; variable++) {
-    const int num_cats = num_categories(variable);
-    arma::vec rest_score = rest_matrix.col (variable);                    // rest scores for all persons
-    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
-    bound = arma::clamp(bound, 0.0, arma::datum::inf);                        // only positive bounds to prevent overflow
-
-    arma::vec denom;
-    if (is_ordinal_variable(variable)) {
-      denom = arma::exp (-bound);                                     // initialize with base term
-      arma::vec threshold_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // threshold parameters for variable
-      for (int cat = 0; cat < num_cats; cat++) {
-        arma::vec exponent = threshold_param(cat) + (cat + 1) * rest_score - bound; // exponent per person
-        denom += arma::exp (exponent);                                          // accumulate exp terms
-      }
-    } else {
-      const double lin_effect = main_effects(variable, 0);
-      const double quad_effect = main_effects(variable, 1);
-      const int ref = reference_category(variable);
-
-      denom.zeros(num_persons);
-      for (int cat = 0; cat <= num_cats; cat++) {
-        int centered = cat - ref;                                               // centered category
-        double quad = quad_effect * centered * centered;                    // precompute quadratic term
-        double lin = lin_effect * cat;                                      // precompute linear term
-        arma::vec exponent = lin + quad + cat * rest_score - bound;
-        denom += arma::exp (exponent);                                           // accumulate over categories
-      }
-    }
-
-    log_pseudoposterior -= arma::accu (bound + arma::log (denom));                    // total contribution
-  }
-
-  return log_pseudoposterior;
 }

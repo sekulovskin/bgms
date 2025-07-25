@@ -1,5 +1,9 @@
+#include <RcppArmadillo.h>
+#include <functional>
 #include "mcmc_nuts.h"
+#include "mcmc_leapfrog.h"
 #include "mcmc_memoization.h"
+#include "mcmc_utils.h"
 #include <Rcpp.h>
 using namespace Rcpp;
 
@@ -19,80 +23,6 @@ using namespace Rcpp;
  */
 double kinetic_energy(const arma::vec& r) {
   return 0.5 * arma::dot(r, r);
-}
-
-
-
-/**
- * Function: leapfrog
- *
- * Performs a single leapfrog integration step using the standard gradient function.
- * Used to simulate Hamiltonian dynamics in HMC/NUTS.
- *
- * Inputs:
- *  - theta: Current position (parameter vector).
- *  - r: Current momentum vector.
- *  - eps: Step size for integration.
- *  - grad: Gradient function of the log posterior.
- *
- * Returns:
- *  - A pair containing:
- *      - Updated position vector.
- *      - Updated momentum vector.
- */
-std::pair<arma::vec, arma::vec> leapfrog(
-    const arma::vec& theta,
-    const arma::vec& r,
-    double eps,
-    const std::function<arma::vec(const arma::vec&)>& grad
-) {
-  arma::vec r_half = r;
-  arma::vec theta_new = theta;
-
-  auto grad1 = grad(theta_new);
-  r_half += 0.5 * eps * grad1;
-  theta_new += eps * r_half;
-  auto grad2 = grad(theta_new);
-  r_half += 0.5 * eps * grad2;
-
-  return {theta_new, r_half};
-}
-
-
-
-/**
- * Function: leapfrog_memo
- *
- * Performs a single leapfrog step using memoization for the gradient evaluations.
- * This improves computational efficiency when the same positions are revisited.
- *
- * Inputs:
- *  - theta: Current position (parameter vector).
- *  - r: Current momentum vector.
- *  - eps: Step size for integration.
- *  - memo: Memoizer object caching gradient evaluations.
- *
- * Returns:
- *  - A pair containing:
- *      - Updated position vector.
- *      - Updated momentum vector.
- */
-std::pair<arma::vec, arma::vec> leapfrog_memo(
-    const arma::vec& theta,
-    const arma::vec& r,
-    double eps,
-    Memoizer& memo
-) {
-  arma::vec r_half = r;
-  arma::vec theta_new = theta;
-
-  auto grad1 = memo.cached_grad(theta_new);
-  r_half += 0.5 * eps * grad1;
-  theta_new += eps * r_half;
-  auto grad2 = memo.cached_grad(theta_new);
-  r_half += 0.5 * eps * grad2;
-
-  return {theta_new, r_half};
 }
 
 
@@ -309,5 +239,7 @@ SamplerResult nuts_sampler(
     j++;
   }
 
-  return {theta, alpha, n_alpha};
+  double accept_prob = alpha / static_cast<double>(n_alpha);
+
+  return {theta, accept_prob};
 }
