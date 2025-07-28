@@ -1,8 +1,8 @@
 #include <RcppArmadillo.h>
 #include <functional>
-#include "mcmc_nuts.h"
 #include "mcmc_leapfrog.h"
 #include "mcmc_memoization.h"
+#include "mcmc_nuts.h"
 #include "mcmc_utils.h"
 #include <Rcpp.h>
 using namespace Rcpp;
@@ -17,12 +17,12 @@ using namespace Rcpp;
  *
  * Inputs:
  *  - r: The momentum vector.
- *
+ *  - inv_mass_diag: Diagonal of Inverse Mass Matrix
  * Returns:
  *  - The scalar kinetic energy value (0.5 * r^T * r).
  */
-double kinetic_energy(const arma::vec& r) {
-  return 0.5 * arma::dot(r, r);
+double kinetic_energy(const arma::vec& r, const arma::vec& inv_mass_diag) {
+  return 0.5 * arma::dot(r % inv_mass_diag, r);
 }
 
 
@@ -45,9 +45,11 @@ double kinetic_energy(const arma::vec& r) {
 bool is_uturn(const arma::vec& theta_min,
               const arma::vec& theta_plus,
               const arma::vec& r_min,
-              const arma::vec& r_plus) {
+              const arma::vec& r_plus,
+              const arma::vec& inv_mass_diag) {
   arma::vec delta = theta_plus - theta_min;
-  return arma::dot(delta, r_min) < 0 || arma::dot(delta, r_plus) < 0;
+  return arma::dot(delta, inv_mass_diag % r_min) < 0 ||
+    arma::dot(delta, inv_mass_diag % r_plus) < 0;
 }
 
 
@@ -90,16 +92,22 @@ BuildTreeResult build_tree(
     const arma::vec& r0,
     const double logp0,
     const double kin0,
-    Memoizer& memo
+    Memoizer& memo,
+    const arma::vec& inv_mass_diag
 ) {
   constexpr double Delta_max = 1000.0;
+  nuts_max_depth = std::max(nuts_max_depth, j);
+
   if (j == 0) {
 
     arma::vec theta_new, r_new;
-    std::tie(theta_new, r_new) = leapfrog_memo(theta, r, v * step_size, memo);
+    std::tie(theta_new, r_new) = leapfrog_memo(
+      theta, r, v * step_size, memo, inv_mass_diag
+    );
+    ++nuts_total_leapfrog;
 
     auto logp = memo.cached_log_post(theta_new);
-    double kin = kinetic_energy(r_new);
+    double kin = kinetic_energy(r_new, inv_mass_diag);
     int n_new = 1 * (log_u <= logp - kin);
     int s_new = 1 * (log_u <= Delta_max + logp - kin);
     double alpha = std::min(1.0, std::exp(logp - kin - logp0 + kin0));
@@ -109,7 +117,8 @@ BuildTreeResult build_tree(
     };
   } else {
     BuildTreeResult result = build_tree(
-      theta, r, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0, memo
+      theta, r, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0, memo,
+      inv_mass_diag
     );
 
     arma::vec theta_min = result.theta_min;
@@ -125,13 +134,15 @@ BuildTreeResult build_tree(
     if (s_prime == 1) {
       if (v == -1) {
         result = build_tree(
-          theta_min, r_min, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0, memo
+          theta_min, r_min, log_u, v, j - 1, step_size, theta_0, r0, logp0,
+          kin0, memo, inv_mass_diag
         );
         theta_min = result.theta_min;
         r_min = result.r_min;
       } else {
         result = build_tree(
-          theta_plus, r_plus, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0, memo
+          theta_plus, r_plus, log_u, v, j - 1, step_size, theta_0, r0, logp0,
+          kin0, memo, inv_mass_diag
         );
         theta_plus = result.theta_plus;
         r_plus = result.r_plus;
@@ -151,7 +162,8 @@ BuildTreeResult build_tree(
       }
       alpha_prime += alpha_double_prime;
       n_alpha_prime += n_alpha_double_prime;
-      s_prime = s_double_prime * !is_uturn(theta_min, theta_plus, r_min, r_plus);
+      bool no_uturn = !is_uturn(theta_min, theta_plus, r_min, r_plus, inv_mass_diag);
+      s_prime = s_double_prime * no_uturn;
       n_prime += n_double_prime;
     }
 
@@ -191,14 +203,19 @@ SamplerResult nuts_sampler(
     double step_size,
     const std::function<double(const arma::vec&)>& log_post,
     const std::function<arma::vec(const arma::vec&)>& grad,
+    const arma::vec& inv_mass_diag,
     int max_depth
 ) {
+  nuts_total_leapfrog = 0;
+  nuts_max_depth = 0;
+  nuts_uturn_encountered = false;
+
   // Here memo is created locally; terminates at end of nuts_sampler() call
   Memoizer memo(log_post, grad);
 
-  arma::vec r0 = arma::randn(init_theta.n_elem);
+  arma::vec r0 = arma::sqrt(1.0 / inv_mass_diag) % arma::randn(init_theta.n_elem);
   auto logp0 = memo.cached_log_post(init_theta);
-  double kin0 = kinetic_energy(r0);
+  double kin0 = kinetic_energy(r0, inv_mass_diag);
   double joint0 = logp0 - kin0;
   double log_u = log(R::unif_rand()) + joint0;
   arma::vec theta_min = init_theta, r_min = r0;
@@ -215,11 +232,17 @@ SamplerResult nuts_sampler(
 
     BuildTreeResult result;
     if (v == -1) {
-      result = build_tree(theta_min, r_min, log_u, v, j, step_size, init_theta, r0, logp0, kin0, memo);
+      result = build_tree(
+        theta_min, r_min, log_u, v, j, step_size, init_theta, r0, logp0, kin0,
+        memo, inv_mass_diag
+      );
       theta_min = result.theta_min;
       r_min = result.r_min;
     } else {
-      result = build_tree(theta_plus, r_plus, log_u, v, j, step_size, init_theta, r0, logp0, kin0, memo);
+      result = build_tree(
+        theta_plus, r_plus, log_u, v, j, step_size, init_theta, r0, logp0, kin0,
+        memo, inv_mass_diag
+      );
       theta_plus = result.theta_plus;
       r_plus = result.r_plus;
     }
@@ -233,9 +256,9 @@ SamplerResult nuts_sampler(
         theta = result.theta_prime;
       }
     }
-
+    bool no_uturn = !is_uturn(theta_min, theta_plus, r_min, r_plus, inv_mass_diag);
+    s = result.s_prime * no_uturn;
     n += result.n_prime;
-    s = result.s_prime == 1 ? !is_uturn(theta_min, theta_plus, r_min, r_plus) : 0;
     j++;
   }
 

@@ -165,6 +165,8 @@
 #' the model parameters. Default: 0.44 for Adaptive Metropolis, .65 for HMC, .6 for NUTS
 #' @param hmc_num_leapfrogs Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.
 #' @param nuts_max_depth Integer. The maximum tree depth in NUTS.
+#' @param learn_mass_matrix Logical. If TRUE (default), adapt a diagonal mass matrix during warmup. If FALSE, use identity.
+#'
 #' @return If \code{save = FALSE} (the default), the result is a list of class
 #' ``bgms'' containing the following matrices with model-averaged quantities:
 #' \itemize{
@@ -332,7 +334,8 @@ bgm = function(x,
                update_method = c("adaptive-metropolis", "hamiltonian-mc", "nuts"),
                target_accept,
                hmc_num_leapfrogs = 20,
-               nuts_max_depth = 5
+               nuts_max_depth = 5,
+               learn_mass_matrix = TRUE
 ) {
   # Deprecation warning for save parameter
   if(hasArg(save)) {
@@ -497,7 +500,7 @@ bgm = function(x,
   for(variable1 in 1:(num_variables - 1)) {
     for(variable2 in (variable1 + 1):num_variables) {
       cntr =  cntr + 1
-      interaction_index_matrix[cntr, 1] = cntr
+      interaction_index_matrix[cntr, 1] = cntr - 1
       interaction_index_matrix[cntr, 2] = variable1 - 1
       interaction_index_matrix[cntr, 3] = variable2 - 1
     }
@@ -534,7 +537,8 @@ bgm = function(x,
     target_accept = target_accept,
     sufficient_pairwise = sufficient_pairwise,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth = nuts_max_depth
+    nuts_max_depth = nuts_max_depth,
+    nuts_learn_mass_matrix = learn_mass_matrix
   )
 
   # Main output handler in the wrapper function
@@ -555,7 +559,8 @@ bgm = function(x,
     update_method = update_method,
     target_accept = target_accept,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth = nuts_max_depth
+    nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix
   )
 
   return(output)

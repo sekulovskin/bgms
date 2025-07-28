@@ -1,5 +1,4 @@
-#ifndef BGM_HELPER_H
-#define BGM_HELPER_H
+#pragma once
 
 #include <RcppArmadillo.h>
 
@@ -37,8 +36,7 @@ void unvectorize_model_parameters(
     const arma::vec& param_vec,
     arma::mat& main_effects_out,
     arma::mat& pairwise_effects_out,
+    const arma::imat& inclusion_indicator,
     const arma::ivec& num_categories,
     const arma::uvec& is_ordinal_variable
 );
-
-#endif // BGM_HELPER_H

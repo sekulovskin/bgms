@@ -1,6 +1,5 @@
 // mcmc_leapfrog.h
-#ifndef MCMC_LEAPFROG_H
-#define MCMC_LEAPFROG_H
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <functional>
@@ -32,7 +31,6 @@ std::pair<arma::vec, arma::vec> leapfrog_memo(
     const arma::vec& theta,
     const arma::vec& r,
     double eps,
-    Memoizer& memo
+    Memoizer& memo,
+    const arma::vec& inv_mass_diag
 );
-
-#endif // MCMC_LEAPFROG_H

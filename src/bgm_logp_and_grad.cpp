@@ -1125,6 +1125,66 @@ arma::vec gradient_log_pseudoposterior (
 
 
 
+arma::vec gradient_log_pseudoposterior_active(
+    const arma::mat& main_effects,
+    const arma::mat& pairwise_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const arma::imat& num_obs_categories,
+    const arma::imat& sufficient_blume_capel,
+    const arma::ivec& reference_category,
+    const arma::uvec& is_ordinal_variable,
+    const double threshold_alpha,
+    const double threshold_beta,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    const arma::mat& rest_matrix
+) {
+
+  // Step 1: Reconstruct full parameter matrices
+  arma::vec full_gradient = gradient_log_pseudoposterior(
+    main_effects, pairwise_effects, inclusion_indicator, observations,
+    num_categories, num_obs_categories, sufficient_blume_capel,
+    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    interaction_scale, sufficient_pairwise, rest_matrix
+  );
+
+  // Step 2: Extract compressed gradient (same layout as new vectorizer)
+  const int num_variables = num_categories.n_elem;
+  const int num_main = count_num_main_effects(num_categories, is_ordinal_variable);
+
+  int num_active = 0;
+  for (int i = 0; i < num_variables - 1; i++) {
+    for (int j = i + 1; j < num_variables; j++) {
+      if (inclusion_indicator(i, j) == 1) num_active++;
+    }
+  }
+
+  arma::vec reduced_gradient(num_main + num_active);
+  int offset = 0;
+
+  // Copy main effect gradient directly
+  for (int i = 0; i < num_main; ++i) {
+    reduced_gradient[offset++] = full_gradient[i];
+  }
+
+  // Copy active interaction gradient values
+  int full_idx = num_main;
+  for (int i = 0; i < num_variables - 1; ++i) {
+    for (int j = i + 1; j < num_variables; ++j) {
+      if (inclusion_indicator(i, j) == 1) {
+        reduced_gradient[offset++] = full_gradient[full_idx];
+      }
+      full_idx++;
+    }
+  }
+
+  return reduced_gradient;
+}
+
+
+
 /**
  * Function: compute_log_likelihood_ratio_for_variable
  *

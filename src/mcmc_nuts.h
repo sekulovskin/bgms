@@ -1,5 +1,4 @@
-#ifndef MCMC_NUTS_H
-#define MCMC_NUTS_H
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <functional>
@@ -8,7 +7,7 @@
 #include "mcmc_memoization.h"
 #include "mcmc_utils.h"
 
-
+extern int nuts_total_leapfrog;
 
 /**
  * Struct: BuildTreeResult
@@ -51,6 +50,5 @@ SamplerResult nuts_sampler(const arma::vec& init_theta,
                            double step_size,
                            const std::function<double(const arma::vec&)>& log_post,
                            const std::function<arma::vec(const arma::vec&)>& grad,
+                           const arma::vec& inv_mass_diag,
                            int max_depth = 10);
-
-#endif // MCMC_NUTS.H

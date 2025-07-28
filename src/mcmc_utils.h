@@ -1,9 +1,9 @@
-#ifndef MCMC_UTILS_H
-#define MCMC_UTILS_H
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 
 
@@ -153,10 +153,11 @@ inline double update_proposal_sd_with_robbins_monro (
 
 
 
-inline double update_proposal_sd_with_robbins_monro (
-    const double current_sd,
-    const double observed_log_acceptance_probability,
-    const double rm_weight,
-    const double target_acceptance
+double heuristic_initial_step_size(
+    const arma::vec& theta,
+    const std::function<double(const arma::vec&)>& log_post,
+    const std::function<arma::vec(const arma::vec&)>& grad,
+    double target_acceptance = 0.625,
+    double init_step = 1.0,
+    int max_attempts = 20
 );
-#endif // MCMC_UTILS_H

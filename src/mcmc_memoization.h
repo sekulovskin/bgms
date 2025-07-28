@@ -1,5 +1,4 @@
-#ifndef MCMC_MEMOIZATION_H
-#define MCMC_MEMOIZATION_H
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <unordered_map>     // for std::unordered_map
@@ -142,5 +141,3 @@ public:
     return val;
   }
 };
-
-#endif

@@ -75,14 +75,15 @@ std::pair<arma::vec, arma::vec> leapfrog_memo(
     const arma::vec& theta,
     const arma::vec& r,
     double eps,
-    Memoizer& memo
+    Memoizer& memo,
+    const arma::vec& inv_mass_diag
 ) {
   arma::vec r_half = r;
   arma::vec theta_new = theta;
 
   auto grad1 = memo.cached_grad(theta_new);
   r_half += 0.5 * eps * grad1;
-  theta_new += eps * r_half;
+  theta_new += eps * (inv_mass_diag % r_half);
   auto grad2 = memo.cached_grad(theta_new);
   r_half += 0.5 * eps * grad2;
 

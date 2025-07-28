@@ -132,9 +132,17 @@ arma::vec vectorize_model_parameters(
 ) {
   const int num_variables = main_effects.n_rows;
   const int num_main = count_num_main_effects(num_categories, is_ordinal_variable);
-  const int num_interactions = (num_variables * (num_variables - 1)) / 2;
+  // Compute total number of active interactions
+  int num_active = 0;
+  for (int v1 = 0; v1 < num_variables - 1; ++v1) {
+    for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
+      if (inclusion_indicator(v1, v2) == 1) {
+        num_active++;
+      }
+    }
+  }
 
-  arma::vec param_vec(num_main + num_interactions, arma::fill::zeros);
+  arma::vec param_vec(num_main + num_active, arma::fill::zeros);
   int offset = 0;
 
   // Threshold parameters
@@ -154,9 +162,8 @@ arma::vec vectorize_model_parameters(
   // Interaction parameters (upper triangle)
   for (int v1 = 0; v1 < num_variables - 1; ++v1) {
     for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
-      int idx = num_main + (v1 * num_variables + v2 - ((v1 + 2) * (v1 + 1)) / 2);
       if (inclusion_indicator(v1, v2) == 1) {
-        param_vec(idx) = pairwise_effects(v1, v2);
+        param_vec(offset++) = pairwise_effects(v1, v2);
       }
     }
   }
@@ -189,11 +196,11 @@ void unvectorize_model_parameters(
     const arma::vec& param_vec,
     arma::mat& main_effects_out,
     arma::mat& pairwise_effects_out,
+    const arma::imat& inclusion_indicator,
     const arma::ivec& num_categories,
     const arma::uvec& is_ordinal_variable
 ) {
   const int num_variables = num_categories.n_elem;
-  const int num_main = count_num_main_effects(num_categories, is_ordinal_variable);
   const int max_num_categories = num_categories.max();
 
   main_effects_out.set_size(num_variables, max_num_categories);
@@ -203,7 +210,7 @@ void unvectorize_model_parameters(
 
   int offset = 0;
 
-  // Thresholds
+  // --- Reconstruct thresholds
   for (int v = 0; v < num_variables; ++v) {
     if (is_ordinal_variable(v)) {
       int num_cats = num_categories(v);
@@ -216,13 +223,14 @@ void unvectorize_model_parameters(
     }
   }
 
-  // Interactions (upper triangle)
+  // --- Reconstruct only active interactions
   for (int v1 = 0; v1 < num_variables - 1; ++v1) {
     for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
-      int idx = num_main + (v1 * num_variables + v2 - ((v1 + 2) * (v1 + 1)) / 2);
-      double val = param_vec(idx);
-      pairwise_effects_out(v1, v2) = val;
-      pairwise_effects_out(v2, v1) = val;
+      if (inclusion_indicator(v1, v2) == 1) {
+        double val = param_vec(offset++);
+        pairwise_effects_out(v1, v2) = val;
+        pairwise_effects_out(v2, v1) = val;
+      }
     }
   }
 }

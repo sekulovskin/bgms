@@ -1,5 +1,4 @@
-#ifndef MCMC_HMC_H
-#define MCMC_HMC_H
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <functional>
@@ -14,5 +13,3 @@ SamplerResult hmc_sampler(
     const std::function<arma::vec(const arma::vec&)>& grad,
     const int num_leapfrogs
 );
-
-#endif // MCMC_HMC.H

@@ -1,5 +1,4 @@
-#ifndef MCMC_RWM_H
-#define MCMC_RWM_H
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <cmath>
@@ -12,5 +11,3 @@ SamplerResult rwm_sampler(
     double step_size,
     const std::function<double(double)>& log_post
 );
-
-#endif // MCMC_RWM.H

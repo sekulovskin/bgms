@@ -6,7 +6,7 @@ prepare_output_bgm = function (
     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
     variable_type, update_method, target_accept, hmc_num_leapfrogs,
-    nuts_max_depth) {
+    nuts_max_depth, learn_mass_matrix) {
 
   save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
 
@@ -23,7 +23,8 @@ prepare_output_bgm = function (
     update_method = update_method,
     target_accept = target_accept,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth = nuts_max_depth
+    nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix
   )
 
   num_variables = ncol(x)
