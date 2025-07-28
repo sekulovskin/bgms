@@ -7,7 +7,7 @@
 #include "mcmc_memoization.h"
 #include "mcmc_utils.h"
 
-extern int nuts_total_leapfrog;
+
 
 /**
  * Struct: BuildTreeResult

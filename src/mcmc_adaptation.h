@@ -7,6 +7,8 @@
 #include <vector>
 #include "mcmc_utils.h"
 
+
+
 class DualAveraging {
 public:
   double log_step_size;

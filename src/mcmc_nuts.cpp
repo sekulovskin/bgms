@@ -96,15 +96,12 @@ BuildTreeResult build_tree(
     const arma::vec& inv_mass_diag
 ) {
   constexpr double Delta_max = 1000.0;
-  nuts_max_depth = std::max(nuts_max_depth, j);
 
   if (j == 0) {
-
     arma::vec theta_new, r_new;
     std::tie(theta_new, r_new) = leapfrog_memo(
       theta, r, v * step_size, memo, inv_mass_diag
     );
-    ++nuts_total_leapfrog;
 
     auto logp = memo.cached_log_post(theta_new);
     double kin = kinetic_energy(r_new, inv_mass_diag);
@@ -206,10 +203,6 @@ SamplerResult nuts_sampler(
     const arma::vec& inv_mass_diag,
     int max_depth
 ) {
-  nuts_total_leapfrog = 0;
-  nuts_max_depth = 0;
-  nuts_uturn_encountered = false;
-
   // Here memo is created locally; terminates at end of nuts_sampler() call
   Memoizer memo(log_post, grad);
 
