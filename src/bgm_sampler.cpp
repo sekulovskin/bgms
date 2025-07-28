@@ -472,7 +472,7 @@ void update_parameters_with_hmc(
     const int num_leapfrogs,
     const int iteration,
     HMCAdaptationController& adapt,
-    const bool nuts_learn_mass_matrix
+    const bool learn_mass_matrix
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -508,7 +508,8 @@ void update_parameters_with_hmc(
   };
 
   SamplerResult result = hmc_sampler(
-    current_state, adapt.current_step_size(), log_post, grad, num_leapfrogs
+    current_state, adapt.current_step_size(), log_post, grad, num_leapfrogs,
+    adapt.inv_mass_diag()
   );
 
   current_state = result.state;
@@ -573,7 +574,7 @@ void update_parameters_with_nuts(
     const int nuts_max_depth,
     const int iteration,
     HMCAdaptationController& adapt,
-    const bool nuts_learn_mass_matrix
+    const bool learn_mass_matrix
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -960,7 +961,7 @@ void gibbs_update_step_for_graphical_model_parameters (
     HMCAdaptationController& adapt,
     RWMAdaptationController& adapt_main,
     RWMAdaptationController& adapt_pairwise,
-    const bool nuts_learn_mass_matrix
+    const bool learn_mass_matrix
 ) {
   // Step 1: Edge selection via MH indicator updates (if enabled)
   if (edge_selection) {
@@ -1011,7 +1012,7 @@ void gibbs_update_step_for_graphical_model_parameters (
       num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, rest_matrix, sufficient_pairwise, hmc_num_leapfrogs,
-      iteration, adapt, nuts_learn_mass_matrix
+      iteration, adapt, learn_mass_matrix
     );
   } else if (update_method == "nuts") {
     update_parameters_with_nuts(
@@ -1019,7 +1020,7 @@ void gibbs_update_step_for_graphical_model_parameters (
       observations, num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, sufficient_pairwise, rest_matrix, nuts_max_depth,
-      iteration, adapt, nuts_learn_mass_matrix
+      iteration, adapt, learn_mass_matrix
     );
   }
 }
@@ -1104,7 +1105,7 @@ List run_gibbs_sampler_for_bgm (
     arma::imat& sufficient_pairwise,
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
-    const bool nuts_learn_mass_matrix
+    const bool learn_mass_matrix
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -1189,7 +1190,7 @@ List run_gibbs_sampler_for_bgm (
   WarmupSchedule warmup_schedule(burnin, edge_selection);
   HMCAdaptationController adapt_joint(
       num_main + num_pairwise, initial_step_size_joint, target_accept,
-      warmup_schedule, nuts_learn_mass_matrix
+      warmup_schedule, learn_mass_matrix
   );
   RWMAdaptationController adapt_main(
       proposal_sd_main, warmup_schedule, target_accept
@@ -1238,7 +1239,7 @@ List run_gibbs_sampler_for_bgm (
         reference_category, warmup_schedule.selection_enabled(iteration),
         iteration, update_method, pairwise_effect_indices, sufficient_pairwise,
         hmc_num_leapfrogs, nuts_max_depth, adapt_joint, adapt_main, adapt_pairwise,
-        nuts_learn_mass_matrix
+        learn_mass_matrix
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)

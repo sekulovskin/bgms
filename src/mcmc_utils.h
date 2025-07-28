@@ -153,6 +153,10 @@ inline double update_proposal_sd_with_robbins_monro (
 
 
 
+double kinetic_energy(const arma::vec& r, const arma::vec& inv_mass_diag);
+
+
+
 double heuristic_initial_step_size(
     const arma::vec& theta,
     const std::function<double(const arma::vec&)>& log_post,

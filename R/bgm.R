@@ -333,8 +333,8 @@ bgm = function(x,
                display_progress = TRUE,
                update_method = c("adaptive-metropolis", "hamiltonian-mc", "nuts"),
                target_accept,
-               hmc_num_leapfrogs = 20,
-               nuts_max_depth = 5,
+               hmc_num_leapfrogs = 100,
+               nuts_max_depth = 10,
                learn_mass_matrix = TRUE
 ) {
   # Deprecation warning for save parameter
@@ -538,7 +538,7 @@ bgm = function(x,
     sufficient_pairwise = sufficient_pairwise,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
-    nuts_learn_mass_matrix = learn_mass_matrix
+    learn_mass_matrix = learn_mass_matrix
   )
 
   # Main output handler in the wrapper function

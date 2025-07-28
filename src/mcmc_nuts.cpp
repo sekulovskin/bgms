@@ -10,24 +10,6 @@ using namespace Rcpp;
 
 
 /**
- * Function: kinetic_energy
- *
- * Computes the kinetic energy of a momentum vector r, assuming a standard multivariate normal distribution.
- * This is used as part of the Hamiltonian energy in Hamiltonian Monte Carlo.
- *
- * Inputs:
- *  - r: The momentum vector.
- *  - inv_mass_diag: Diagonal of Inverse Mass Matrix
- * Returns:
- *  - The scalar kinetic energy value (0.5 * r^T * r).
- */
-double kinetic_energy(const arma::vec& r, const arma::vec& inv_mass_diag) {
-  return 0.5 * arma::dot(r % inv_mass_diag, r);
-}
-
-
-
-/**
  * Function: is_uturn
  *
  * Determines whether a U-turn has occurred in the trajectory of the NUTS algorithm.

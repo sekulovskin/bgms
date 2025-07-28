@@ -29,7 +29,8 @@ std::pair<arma::vec, arma::vec> leapfrog(
     const arma::vec& r_init,
     double eps,
     const std::function<arma::vec(const arma::vec&)>& grad,
-    const int num_leapfrogs
+    const int num_leapfrogs,
+    const arma::vec& inv_mass_diag
 ) {
   arma::vec r = r_init;
   arma::vec theta = theta_init;
@@ -40,7 +41,7 @@ std::pair<arma::vec, arma::vec> leapfrog(
     r += 0.5 * eps * grad_theta;
 
     // Full step position
-    theta += eps * r;
+    theta += eps * (inv_mass_diag % r);
 
     // Update gradient
     grad_theta = grad(theta);

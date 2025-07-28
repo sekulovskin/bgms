@@ -27,11 +27,11 @@ bgm(
   save_pairwise = FALSE,
   save_indicator = FALSE,
   display_progress = TRUE,
-  update_method = c("adaptive-metropolis", "fisher-mala-block", "fisher-mala-joint",
-    "hamiltonian-mc", "nuts"),
+  update_method = c("adaptive-metropolis", "hamiltonian-mc", "nuts"),
   target_accept,
-  hum_num_leapfrogs = 20,
-  nuts_max_depth = 5
+  hmc_num_leapfrogs = 100,
+  nuts_max_depth = 10,
+  learn_mass_matrix = TRUE
 )
 }
 \arguments{
@@ -165,19 +165,19 @@ The default is \code{TRUE}.}
 model parameters:
 \describe{
   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
-  \item{"fisher-mala-block"}{Uses Fisher-preconditioned MALA to each of the threshold and interaction parameter blocks.}
-  \item{"fisher-mala-joint"}{Uses Fisher-preconditioned MALA.}
   \item{"hamiltonian-mc"}{Uses Hamiltonian Monte Carlo with fixed path length.}
   \item{"nuts"}{Uses NUTS - HMC.}
 }
 Defaults to \code{"adaptive-metropolis"}.}
 
 \item{target_accept}{Target acceptance rate for the methods used for updating
-the model parameters. Default: 0.44 for Adaptive Metropolis, .574 for MALA, and .65 for HMC}
+the model parameters. Default: 0.44 for Adaptive Metropolis, .65 for HMC, .6 for NUTS}
+
+\item{hmc_num_leapfrogs}{Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.}
 
 \item{nuts_max_depth}{Integer. The maximum tree depth in NUTS.}
 
-\item{hmc_num_leapfrogs}{Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.}
+\item{learn_mass_matrix}{Logical. If TRUE (default), adapt a diagonal mass matrix during warmup. If FALSE, use identity.}
 }
 \value{
 If \code{save = FALSE} (the default), the result is a list of class

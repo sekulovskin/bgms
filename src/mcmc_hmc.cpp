@@ -12,17 +12,20 @@ SamplerResult hmc_sampler(
     double step_size,
     const std::function<double(const arma::vec&)>& log_post,
     const std::function<arma::vec(const arma::vec&)>& grad,
-    const int num_leapfrogs
+    const int num_leapfrogs,
+    const arma::vec& inv_mass_diag
 ) {
   arma::vec theta = init_theta;
-  arma::vec init_r = arma::randn(theta.n_elem);
+  arma::vec init_r = arma::sqrt(1.0 / inv_mass_diag) % arma::randn(theta.n_elem);
   arma::vec r = init_r;
 
-  std::tie(theta, r) = leapfrog(theta, r, step_size, grad, num_leapfrogs);
+  std::tie(theta, r) = leapfrog(
+    theta, r, step_size, grad, num_leapfrogs, inv_mass_diag
+  );
 
   // Hamiltonians
-  double current_H = -log_post(init_theta) + 0.5 * arma::dot(init_r, init_r);
-  double proposed_H = -log_post(theta) + 0.5 * arma::dot(r, r);
+  double current_H = -log_post(init_theta) + kinetic_energy(init_r, inv_mass_diag);
+  double proposed_H = -log_post(theta) + kinetic_energy(r, inv_mass_diag);
   double log_accept_prob = current_H - proposed_H;
 
   arma::vec state = (std::log(R::unif_rand()) < log_accept_prob) ? theta : init_theta;

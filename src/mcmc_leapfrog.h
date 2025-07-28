@@ -17,7 +17,8 @@ std::pair<arma::vec, arma::vec> leapfrog(
     const arma::vec& r,
     double eps,
     const std::function<arma::vec(const arma::vec&)>& grad,
-    const int num_leapfrogs = 1
+    const int num_leapfrogs,
+    const arma::vec& inv_mass_diag
 );
 
 
