@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include "mcmc_utils.h"
-
+#include "mcmc_rwm.h"
 
 
 class DualAveraging {
@@ -99,50 +99,137 @@ public:
 
 // === Stan-style Dynamic Warmup Schedule with Adaptive Windows ===
 struct WarmupSchedule {
-  int stage1_end;
-  std::vector<int> window_ends;
-  int stage3_start;
-  int total_burnin;
-  bool selection_enabled_globally;
+  /* ---------- members (keep this order!) ---------- */
+  int stage1_end;                 // Stage-1   [0 … stage1_end-1]
+  std::vector<int> window_ends;   // Stage-2   windows (last index of each)
+  int stage3a_start;              // first iter in Stage-3 a
+  int stage3b_start;              // first iter in Stage-3 b (may == total_burnin)
+  int total_burnin;               // warm-up iterations in total
+  bool learn_proposal_sd;         // do we run the proposal-SD tuner?
+  bool enable_selection;          // allow edge-indicator moves (after warm-up)
+  /* ------------------------------------------------ */
 
-
-  WarmupSchedule(int burnin, bool enable_selection)
-    : total_burnin(burnin),
-      selection_enabled_globally(enable_selection)
+  WarmupSchedule(int burnin_core,
+                 bool enable_sel,
+                 bool learn_sd)
+    : stage1_end(0)
+    , window_ends()
+    , stage3a_start(0)
+    , stage3b_start(0)
+    , total_burnin(0)             // will be set below
+    , learn_proposal_sd(learn_sd)
+    , enable_selection(enable_sel)
   {
-    // 15% init, 10% term
-    stage1_end  = int(0.15 * burnin);
-    stage3_start= burnin - int(0.10 * burnin);
+    /* ---------- Stage-1 (15 % of core warm-up) ---------- */
+    stage1_end      = int(0.15 * burnin_core);
 
-    // carve phase II into doubling windows
-    int current  = stage1_end;
-    int win_size = 25;  // Stan’s default base window
-    while (current < stage3_start) {
-      // clamp window so we don’t overshoot phase II
-      int this_win = std::min(win_size, stage3_start - current);
-      window_ends.push_back(current + this_win);
-      current     += this_win;
-      win_size    = std::min(win_size * 2, stage3_start - current);
+    /* ---------- Stage-3 a (last 10 % of core warm-up) ---- */
+    stage3a_start   = burnin_core - int(0.10 * burnin_core);
+
+    /* ---------- Stage-2 : build doubling windows ---------- */
+    int cur   = stage1_end;
+    int wsize = 25;
+    while (cur < stage3a_start) {
+      int win = std::min(wsize, stage3a_start - cur);
+      window_ends.push_back(cur + win);          // 0-based index of *last* iter
+      cur   += win;
+      wsize  = std::min(wsize * 2, stage3a_start - cur);
     }
+
+    /* ---------- Stage-3 b : proposal-SD learning ---------- */
+    int stage3a_len = burnin_core - stage3a_start;          // 10 % of core
+    int stage3b_len = (learn_proposal_sd && enable_selection)
+      ? std::max(100, stage3a_len)
+        : 0;
+
+    stage3b_start = burnin_core;            // begins directly after 3 a
+    total_burnin  = burnin_core + stage3b_len;
   }
 
-  int current_window(int iteration) const {
-    for (size_t i = 0; i < window_ends.size(); ++i) {
-      if (iteration < window_ends[i]) return static_cast<int>(i);
-    }
-    return -1;
+  /* ---------- helpers ---------- */
+  bool in_stage1 (int i) const { return i <  stage1_end;               }
+  bool in_stage2 (int i) const { return i >= stage1_end   && i < stage3a_start; }
+  bool in_stage3a(int i) const { return i >= stage3a_start&& i < stage3b_start; }
+  bool in_stage3b(int i) const { return i >= stage3b_start&& i < total_burnin; }
+  bool sampling (int i) const { return i >= total_burnin; }
+
+  /* indicator moves only once warm-up is finished */
+  bool selection_enabled(int i) const {
+    return enable_selection && sampling(i);
   }
 
-  bool in_stage1(int iter) const { return iter < stage1_end; }
-  bool in_stage2(int iter) const { return iter >= stage1_end && iter < stage3_start; }
-  bool in_stage3(int iter) const { return iter >= stage3_start && iter < total_burnin; }
+  /* adapt proposal_sd only inside Stage-3 b (if that phase exists) */
+  bool adapt_proposal_sd(int i) const {
+    return learn_proposal_sd && in_stage3b(i);
+  }
 
-  bool selection_enabled(int iter) const {
-    if (!selection_enabled_globally) return false;
-    int win = current_window(iter);
-    return window_ends.size() > 3 && win >= 3;
+  /* current Stage-2 window index (-1 outside Stage-2) */
+  int current_window(int i) const {
+    for (size_t k = 0; k < window_ends.size(); ++k)
+      if (i < window_ends[k]) return static_cast<int>(k);
+      return -1;
   }
 };
+// struct WarmupSchedule {
+//   int stage1_end;
+//   std::vector<int> window_ends;
+//   int stage3a_start;
+//   int stage3b_start;
+//   int total_burnin;
+//   bool learn_proposal_sd;
+//   bool enable_selection;
+//
+//   WarmupSchedule(int burnin,
+//                  bool enable_sel,
+//                  bool learn_sd)
+//     : stage1_end(0)
+//     , window_ends()
+//     , stage3a_start(0)
+//     , stage3b_start(0)
+//     , total_burnin(burnin)
+//     , learn_proposal_sd(learn_sd)
+//     , enable_selection(enable_sel)
+//   {
+//     stage1_end      = int(0.15 * burnin);
+//     int stage3_start= burnin - int(0.10 * burnin);
+//     stage3a_start   = stage3_start;
+//     stage3b_start   = learn_sd ? stage3_start
+//     : burnin;
+//
+//     // === build Stage-2 windows until stage3a_start
+//     int cur   = stage1_end;
+//     int wsize = 25;
+//     while (cur < stage3a_start) {
+//       int win = std::min(wsize, stage3a_start - cur);
+//       window_ends.push_back(cur + win);    // store *last* iter in that window (0-based)
+//       cur   += win;
+//       wsize  = std::min(wsize * 2, stage3a_start - cur);
+//     }
+//   }
+//
+//   // ---------- helpers ----------
+//   bool in_stage1 (int i) const { return i <  stage1_end;               }
+//   bool in_stage2 (int i) const { return i >= stage1_end && i < stage3a_start; }
+//   bool in_stage3a(int i) const { return i >= stage3a_start && i < stage3b_start; }
+//   bool in_stage3b(int i) const { return i >= stage3b_start && i < total_burnin; }
+//   bool sampling (int i) const { return i >= total_burnin; }
+//
+//   /* indicator moves only once warm-up is finished */
+//   bool selection_enabled(int i) const {
+//     return enable_selection && sampling(i);
+//   }
+//
+//   /* we adapt proposal_sd only inside Stage-3b (if that phase exists) */
+//   bool adapt_proposal_sd(int i) const {
+//     return learn_proposal_sd && in_stage3b(i);
+//   }
+//
+//   int current_window(int i) const {
+//     for (size_t k = 0; k < window_ends.size(); ++k)
+//       if (i < window_ends[k]) return static_cast<int>(k);
+//       return -1;
+//   }
+// };
 
 
 
@@ -165,35 +252,37 @@ public:
 
   void update(const arma::vec& theta,
               double accept_prob,
-              int iteration /* zero‐based: iteration=0 on first warmup draw */) {
-    // 1) Step‐size adaptation on EVERY warmup iteration (phases I–III)
-    if (iteration + 1 <= schedule.total_burnin) {
+              int iteration) {
+    /* ---------------------------------------------------------
+     * 1. STEP-SIZE ADAPTATION
+     *    – should run in Stage-1, Stage-2, Stage-3a
+     *    – must stop in Stage-3b and afterwards
+     * --------------------------------------------------------- */
+    if (schedule.in_stage1(iteration)  || schedule.in_stage2(iteration)  ||
+    schedule.in_stage3a(iteration))
+    {
       step_adapter.update(accept_prob, target_accept_);
       step_size_ = step_adapter.current();
     }
 
-    // 2) Mass‐matrix adaptation ONLY in phase II (slow windows)
+    /* ---------------------------------------------------------
+     * 2. MASS-MATRIX ADAPTATION
+     *    – only while we are inside Stage-2
+     * --------------------------------------------------------- */
     if (schedule.in_stage2(iteration) && learn_mass_matrix_) {
-      // accumulate θ
       mass_accumulator.update(theta);
-
-      // if we’ve just reached the end of the current window…
       int w = schedule.current_window(iteration);
       if (iteration + 1 == schedule.window_ends[w]) {
-        // compute shrunk sample variance → diag mass matrix
-        arma::vec var    = mass_accumulator.variance();
-        inv_mass_        = 1.0 / var;
-
-        // reset for next window
+        inv_mass_        = 1.0 / mass_accumulator.variance();
         mass_accumulator.reset();
-
-        // restart dual‐averaging under the new metric
         step_adapter.restart(step_size_);
       }
     }
 
-    // 3) At the last warmup iteration, freeze ε to its running average
-    if (iteration + 1 == schedule.total_burnin) {
+    /* ---------------------------------------------------------
+     * 3. FREEZE ε AS SOON AS WE ENTER STAGE-3b
+     * --------------------------------------------------------- */
+    if (iteration == schedule.stage3b_start) {
       step_size_ = step_adapter.averaged();
     }
   }
@@ -257,3 +346,73 @@ public:
     }
   }
 };
+
+
+
+/* ------------------------------------------------------------------ *
+ Tune the Gaussian s.d. for *weight* proposals only.
+ Runs   ONLY   when  schedule.adapt_proposal_sd(iter) == true,
+ i.e.   Stage-3b,   indicator moves still *OFF*.
+ * ------------------------------------------------------------------ */
+void tune_pairwise_proposal_sd(
+    arma::mat& proposal_sd_pairwise_effects,
+    arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    arma::mat& rest_matrix,
+    const arma::ivec& num_categories,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    int iteration,
+    const WarmupSchedule& sched,
+    double target_accept = 0.44,
+    double rm_decay = 0.75
+)
+{
+  if (!sched.adapt_proposal_sd(iteration)) return;
+
+  double t = iteration - sched.stage3b_start + 1;
+  double rm_weight = std::pow(t, -rm_decay);
+
+  const int num_variables = pairwise_effects.n_rows;
+
+  for (int variable1 = 0; variable1 < num_variables - 1; variable1++) {
+    for (int variable2 = variable1 + 1; variable2 < num_variables; variable2++) {
+      double& value = pairwise_effects(variable1, variable2);
+      double proposal_sd = proposal_sd_pairwise_effects(variable1, variable2);
+      double current = value;
+
+      auto log_post = [&](double theta) {
+        pairwise_effects(variable1, variable2) = theta;
+        pairwise_effects(variable2, variable1) = theta;
+
+        return log_pseudoposterior_interactions_component(
+          pairwise_effects, main_effects, observations, num_categories,
+          inclusion_indicator, is_ordinal_variable, reference_category,
+          interaction_scale, sufficient_pairwise, variable1, variable2
+        );
+      };
+
+      SamplerResult result = rwm_sampler(current, proposal_sd, log_post);
+
+      value = result.state[0];
+      pairwise_effects(variable2, variable1) = value;
+
+      if(current != value) {
+        double delta = value - current;
+        rest_matrix.col(variable1) += arma::conv_to<arma::vec>::from(observations.col(variable2)) * delta;
+        rest_matrix.col(variable2) += arma::conv_to<arma::vec>::from(observations.col(variable1)) * delta;
+      }
+
+      proposal_sd = update_proposal_sd_with_robbins_monro(
+        proposal_sd, std::log(result.accept_prob), rm_weight, target_accept
+      );
+
+      proposal_sd_pairwise_effects(variable1, variable2) = proposal_sd;
+      proposal_sd_pairwise_effects(variable2, variable1) = proposal_sd;
+    }
+  }
+}

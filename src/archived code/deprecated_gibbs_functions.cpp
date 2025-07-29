@@ -2100,3 +2100,149 @@ void update_parameters_with_fisher_mala (
     );
   }
 }
+
+
+
+/**
+ * Function: update_indicator_interaction_pair_with_mala
+ *
+ * Updates the inclusion indicators and associated interaction weights using MALA.
+ *
+ * For each candidate interaction, this function proposes:
+ *   - Adding an edge using a Fisher-preconditioned Langevin proposal
+ *   - Removing an edge by proposing an effect value of zero
+ *
+ * The acceptance ratio includes:
+ *   - Pseudolikelihood difference (pairwise-only)
+ *   - Cauchy prior for interaction weights
+ *   - Inclusion probability prior (Bernoulli)
+ *   - Forward/reverse Langevin proposal correction
+ *
+ * Step size is preconditioned using an inverse mass term estimated during warmup.
+ *
+ * Inputs:
+ *  - pairwise_effects: Symmetric matrix of interaction parameters (modified in-place).
+ *  - main_effects: Matrix of threshold (main effect) parameters.
+ *  - indicator: Symmetric matrix of inclusion indicators (modified in-place).
+ *  - observations: Person-by-variable matrix of observed scores.
+ *  - num_categories: Number of categories per variable.
+ *  - step_size: Global step size for MALA.
+ *  - inv_mass_diag: Inverse diagonal mass vector (per interaction pair).
+ *  - interaction_scale: Scale parameter for Cauchy prior on interaction weights.
+ *  - index: Matrix listing candidate interactions: [index, var1, var2].
+ *  - num_persons: Number of observations (rows in observations matrix).
+ *  - rest_matrix: Linear predictor matrix (updated in-place on accept).
+ *  - inclusion_probability: Prior inclusion probabilities for interaction pairs.
+ *  - is_ordinal_variable: Indicator of ordinal variables.
+ *  - reference_category: Reference category for each variable.
+ *  - num_pairwise: Total number of candidate interactions.
+ *  - sufficient_pairwise: Sufficient statistics for pairwise terms.
+ *
+ * Modifies:
+ *  - indicator
+ *  - pairwise_effects (on accept)
+ *  - rest_matrix (on accept)
+ */
+void update_indicator_interaction_pair_with_mala (
+    arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    arma::imat& indicator,
+    const arma::imat& observations,
+    const arma::ivec& num_categories,
+    const double step_size,
+    const arma::vec& inv_mass_diag,
+    const double interaction_scale,
+    const arma::imat& index,
+    const int num_persons,
+    arma::mat& rest_matrix,
+    const arma::mat& inclusion_probability,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const int num_pairwise,
+    const arma::imat& sufficient_pairwise
+) {
+  for (int pair_index = 0; pair_index < num_pairwise; pair_index++) {
+    const int var1 = index(pair_index, 1);
+    const int var2 = index(pair_index, 2);
+    const double current_state = pairwise_effects(var1, var2);
+    const double inclusion_prob = inclusion_probability(var1, var2);
+
+    const int true_index = index(pair_index, 0);
+    const double inv_mass = inv_mass_diag(true_index);
+    const double local_step_size = step_size * inv_mass;
+    const double sd = std::sqrt(local_step_size);
+
+    double proposed_state = 0.0;
+    double log_accept = 0.0;
+
+    if (indicator(var1, var2) == 0) {
+      const double grad = gradient_log_pseudoposterior_interactions_component(
+        var1, var2, pairwise_effects, main_effects, observations, rest_matrix,
+        num_categories, is_ordinal_variable, reference_category,
+        interaction_scale, sufficient_pairwise
+      );
+
+      const double drift = 0.5 * local_step_size * grad;
+      const double forward_mean = current_state + drift;
+
+      proposed_state = forward_mean + R::rnorm(0.0, sd);
+      log_accept -= R::dnorm(proposed_state, forward_mean, sd, true);
+      log_accept += R::dcauchy(proposed_state, 0.0, interaction_scale, true);
+      log_accept += std::log(inclusion_prob) - std::log(1.0 - inclusion_prob);
+    } else {
+      const double proposed_state = 0.0;
+      const double tmp = pairwise_effects(var1, var2);
+
+      pairwise_effects(var1, var2) = proposed_state;
+      pairwise_effects(var2, var1) = proposed_state;
+
+      const arma::vec obs_var1 = arma::conv_to<arma::vec>::from(observations.col(var1));
+      const arma::vec obs_var2 = arma::conv_to<arma::vec>::from(observations.col(var2));
+      const double delta = proposed_state - current_state;
+
+      rest_matrix.col(var1) += obs_var2 * delta;
+      rest_matrix.col(var2) += obs_var1 * delta;
+
+      const double grad = gradient_log_pseudoposterior_interactions_component(
+        var1, var2, pairwise_effects, main_effects, observations, rest_matrix,
+        num_categories, is_ordinal_variable, reference_category,
+        interaction_scale, sufficient_pairwise
+      );
+
+      const double drift = 0.5 * local_step_size * grad;
+      const double backward_mean = proposed_state + drift;
+
+      log_accept += R::dnorm(current_state, backward_mean, sd, true);
+      log_accept -= R::dcauchy(current_state, 0.0, interaction_scale, true);
+      log_accept -= std::log(inclusion_prob) - std::log(1.0 - inclusion_prob);
+
+      // Restore
+      pairwise_effects(var1, var2) = tmp;
+      pairwise_effects(var2, var1) = tmp;
+      rest_matrix.col(var1) -= obs_var2 * delta;
+      rest_matrix.col(var2) -= obs_var1 * delta;
+    }
+
+    log_accept += log_pseudolikelihood_ratio_interaction(
+      pairwise_effects, main_effects, observations, num_categories, num_persons,
+      var1, var2, proposed_state, current_state, rest_matrix,
+      is_ordinal_variable, reference_category, sufficient_pairwise
+    );
+
+    if (std::log(R::unif_rand()) < log_accept) {
+      const int new_value = 1 - indicator(var1, var2);
+      indicator(var1, var2) = new_value;
+      indicator(var2, var1) = new_value;
+
+      const double delta = proposed_state - current_state;
+      pairwise_effects(var1, var2) = proposed_state;
+      pairwise_effects(var2, var1) = proposed_state;
+
+      const arma::vec obs_var1 = arma::conv_to<arma::vec>::from(observations.col(var1));
+      const arma::vec obs_var2 = arma::conv_to<arma::vec>::from(observations.col(var2));
+
+      rest_matrix.col(var1) += obs_var2 * delta;
+      rest_matrix.col(var2) += obs_var1 * delta;
+    }
+  }
+}

@@ -421,7 +421,6 @@ void update_pairwise_effects_with_metropolis (
 
 
 
-
 /**
  * Function: update_parameters_with_hmc
  *
@@ -472,7 +471,8 @@ void update_parameters_with_hmc(
     const int num_leapfrogs,
     const int iteration,
     HMCAdaptationController& adapt,
-    const bool learn_mass_matrix
+    const bool learn_mass_matrix,
+    const bool selection
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -507,9 +507,14 @@ void update_parameters_with_hmc(
     );
   };
 
+  arma::vec active_inv_mass = inv_mass_active(
+    adapt.inv_mass_diag(), inclusion_indicator, num_categories,
+    is_ordinal_variable, selection
+  );
+
   SamplerResult result = hmc_sampler(
     current_state, adapt.current_step_size(), log_post, grad, num_leapfrogs,
-    adapt.inv_mass_diag()
+    active_inv_mass
   );
 
   current_state = result.state;
@@ -574,7 +579,8 @@ void update_parameters_with_nuts(
     const int nuts_max_depth,
     const int iteration,
     HMCAdaptationController& adapt,
-    const bool learn_mass_matrix
+    const bool learn_mass_matrix,
+    const bool selection
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -611,9 +617,14 @@ void update_parameters_with_nuts(
     );
   };
 
+  arma::vec active_inv_mass = inv_mass_active(
+    adapt.inv_mass_diag(), inclusion_indicator, num_categories,
+    is_ordinal_variable, selection
+  );
+
   SamplerResult result = nuts_sampler(
     current_state, adapt.current_step_size(), log_post, grad,
-    adapt.inv_mass_diag(), nuts_max_depth
+    active_inv_mass, nuts_max_depth
   );
 
   current_state = result.state;
@@ -623,7 +634,7 @@ void update_parameters_with_nuts(
   );
   rest_matrix = observations * pairwise_effects;
 
-  adapt.update(current_state, result.accept_prob, iteration);
+  adapt.update(current_state, result.accept_prob, iteration);                   //here
 }
 
 
@@ -723,152 +734,6 @@ void update_indicator_interaction_pair_with_metropolis (
 
 
 /**
- * Function: update_indicator_interaction_pair_with_mala
- *
- * Updates the inclusion indicators and associated interaction weights using MALA.
- *
- * For each candidate interaction, this function proposes:
- *   - Adding an edge using a Fisher-preconditioned Langevin proposal
- *   - Removing an edge by proposing an effect value of zero
- *
- * The acceptance ratio includes:
- *   - Pseudolikelihood difference (pairwise-only)
- *   - Cauchy prior for interaction weights
- *   - Inclusion probability prior (Bernoulli)
- *   - Forward/reverse Langevin proposal correction
- *
- * Step size is preconditioned using an inverse mass term estimated during warmup.
- *
- * Inputs:
- *  - pairwise_effects: Symmetric matrix of interaction parameters (modified in-place).
- *  - main_effects: Matrix of threshold (main effect) parameters.
- *  - indicator: Symmetric matrix of inclusion indicators (modified in-place).
- *  - observations: Person-by-variable matrix of observed scores.
- *  - num_categories: Number of categories per variable.
- *  - step_size: Global step size for MALA.
- *  - inv_mass_diag: Inverse diagonal mass vector (per interaction pair).
- *  - interaction_scale: Scale parameter for Cauchy prior on interaction weights.
- *  - index: Matrix listing candidate interactions: [index, var1, var2].
- *  - num_persons: Number of observations (rows in observations matrix).
- *  - rest_matrix: Linear predictor matrix (updated in-place on accept).
- *  - inclusion_probability: Prior inclusion probabilities for interaction pairs.
- *  - is_ordinal_variable: Indicator of ordinal variables.
- *  - reference_category: Reference category for each variable.
- *  - num_pairwise: Total number of candidate interactions.
- *  - sufficient_pairwise: Sufficient statistics for pairwise terms.
- *
- * Modifies:
- *  - indicator
- *  - pairwise_effects (on accept)
- *  - rest_matrix (on accept)
- */
-void update_indicator_interaction_pair_with_mala (
-    arma::mat& pairwise_effects,
-    const arma::mat& main_effects,
-    arma::imat& indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const double step_size,
-    const arma::vec& inv_mass_diag,
-    const double interaction_scale,
-    const arma::imat& index,
-    const int num_persons,
-    arma::mat& rest_matrix,
-    const arma::mat& inclusion_probability,
-    const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
-    const int num_pairwise,
-    const arma::imat& sufficient_pairwise
-) {
-  for (int pair_index = 0; pair_index < num_pairwise; pair_index++) {
-    const int var1 = index(pair_index, 1);
-    const int var2 = index(pair_index, 2);
-    const double current_state = pairwise_effects(var1, var2);
-    const double inclusion_prob = inclusion_probability(var1, var2);
-
-    const int true_index = index(pair_index, 0);
-    const double inv_mass = inv_mass_diag(true_index);
-    const double local_step_size = step_size * inv_mass;
-    const double sd = std::sqrt(local_step_size);
-
-    double proposed_state = 0.0;
-    double log_accept = 0.0;
-
-    if (indicator(var1, var2) == 0) {
-      const double grad = gradient_log_pseudoposterior_interactions_component(
-        var1, var2, pairwise_effects, main_effects, observations, rest_matrix,
-        num_categories, is_ordinal_variable, reference_category,
-        interaction_scale, sufficient_pairwise
-      );
-
-      const double drift = 0.5 * local_step_size * grad;
-      const double forward_mean = current_state + drift;
-
-      proposed_state = forward_mean + R::rnorm(0.0, sd);
-      log_accept -= R::dnorm(proposed_state, forward_mean, sd, true);
-      log_accept += R::dcauchy(proposed_state, 0.0, interaction_scale, true);
-      log_accept += std::log(inclusion_prob) - std::log(1.0 - inclusion_prob);
-    } else {
-      const double proposed_state = 0.0;
-      const double tmp = pairwise_effects(var1, var2);
-
-      pairwise_effects(var1, var2) = proposed_state;
-      pairwise_effects(var2, var1) = proposed_state;
-
-      const arma::vec obs_var1 = arma::conv_to<arma::vec>::from(observations.col(var1));
-      const arma::vec obs_var2 = arma::conv_to<arma::vec>::from(observations.col(var2));
-      const double delta = proposed_state - current_state;
-
-      rest_matrix.col(var1) += obs_var2 * delta;
-      rest_matrix.col(var2) += obs_var1 * delta;
-
-      const double grad = gradient_log_pseudoposterior_interactions_component(
-        var1, var2, pairwise_effects, main_effects, observations, rest_matrix,
-        num_categories, is_ordinal_variable, reference_category,
-        interaction_scale, sufficient_pairwise
-      );
-
-      const double drift = 0.5 * local_step_size * grad;
-      const double backward_mean = proposed_state + drift;
-
-      log_accept += R::dnorm(current_state, backward_mean, sd, true);
-      log_accept -= R::dcauchy(current_state, 0.0, interaction_scale, true);
-      log_accept -= std::log(inclusion_prob) - std::log(1.0 - inclusion_prob);
-
-      // Restore
-      pairwise_effects(var1, var2) = tmp;
-      pairwise_effects(var2, var1) = tmp;
-      rest_matrix.col(var1) -= obs_var2 * delta;
-      rest_matrix.col(var2) -= obs_var1 * delta;
-    }
-
-    log_accept += log_pseudolikelihood_ratio_interaction(
-      pairwise_effects, main_effects, observations, num_categories, num_persons,
-      var1, var2, proposed_state, current_state, rest_matrix,
-      is_ordinal_variable, reference_category, sufficient_pairwise
-    );
-
-    if (std::log(R::unif_rand()) < log_accept) {
-      const int new_value = 1 - indicator(var1, var2);
-      indicator(var1, var2) = new_value;
-      indicator(var2, var1) = new_value;
-
-      const double delta = proposed_state - current_state;
-      pairwise_effects(var1, var2) = proposed_state;
-      pairwise_effects(var2, var1) = proposed_state;
-
-      const arma::vec obs_var1 = arma::conv_to<arma::vec>::from(observations.col(var1));
-      const arma::vec obs_var2 = arma::conv_to<arma::vec>::from(observations.col(var2));
-
-      rest_matrix.col(var1) += obs_var2 * delta;
-      rest_matrix.col(var2) += obs_var1 * delta;
-    }
-  }
-}
-
-
-
-/**
  * Performs a single iteration of the Gibbs sampler for graphical model parameters.
  *
  * This function performs a full Gibbs update sweep over:
@@ -951,7 +816,6 @@ void gibbs_update_step_for_graphical_model_parameters (
     const arma::mat& inclusion_probability,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const bool edge_selection,
     const int iteration,
     const std::string& update_method,
     const arma::imat& pairwise_effect_indices,
@@ -961,28 +825,17 @@ void gibbs_update_step_for_graphical_model_parameters (
     HMCAdaptationController& adapt,
     RWMAdaptationController& adapt_main,
     RWMAdaptationController& adapt_pairwise,
-    const bool learn_mass_matrix
+    const bool learn_mass_matrix,
+    WarmupSchedule const& schedule
 ) {
   // Step 1: Edge selection via MH indicator updates (if enabled)
-  if (edge_selection) {
-    if (update_method != "adaptive-metropolis") {
-      // Use MALA for weight-inclusion pair updates
-      update_indicator_interaction_pair_with_mala (
-          pairwise_effects, main_effects, inclusion_indicator, observations,
-          num_categories, adapt.current_step_size(), adapt.inv_mass_diag(),
-          interaction_scale, index,
-          num_persons, rest_matrix, inclusion_probability, is_ordinal_variable,
-          reference_category, num_pairwise, sufficient_pairwise
-      );
-    } else if (update_method == "adaptive-metropolis") {
-      // Use standard Metropolis-Hastings for weight-inclusion pair updates
-      update_indicator_interaction_pair_with_metropolis (
-          pairwise_effects, main_effects, inclusion_indicator, observations,
-          num_categories, proposal_sd_pairwise, interaction_scale, index,
-          num_pairwise, num_persons, rest_matrix, inclusion_probability,
-          is_ordinal_variable, reference_category, sufficient_pairwise
-      );
-    }
+  if (schedule.selection_enabled(iteration)) {
+    update_indicator_interaction_pair_with_metropolis (
+        pairwise_effects, main_effects, inclusion_indicator, observations,
+        num_categories, proposal_sd_pairwise, interaction_scale, index,
+        num_pairwise, num_persons, rest_matrix, inclusion_probability,
+        is_ordinal_variable, reference_category, sufficient_pairwise
+    );
   }
 
   // Step 2a: Update interaction weights for active edges
@@ -1012,7 +865,7 @@ void gibbs_update_step_for_graphical_model_parameters (
       num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, rest_matrix, sufficient_pairwise, hmc_num_leapfrogs,
-      iteration, adapt, learn_mass_matrix
+      iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration)
     );
   } else if (update_method == "nuts") {
     update_parameters_with_nuts(
@@ -1020,9 +873,17 @@ void gibbs_update_step_for_graphical_model_parameters (
       observations, num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, sufficient_pairwise, rest_matrix, nuts_max_depth,
-      iteration, adapt, learn_mass_matrix
+      iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration)
     );
   }
+
+  /* --- 2b.  proposal-sd tuning during Stage-3b ------------------------------ */
+  tune_pairwise_proposal_sd(
+    proposal_sd_pairwise, pairwise_effects, main_effects, inclusion_indicator,
+    observations, rest_matrix, num_categories, is_ordinal_variable,
+    reference_category, interaction_scale, sufficient_pairwise,
+    iteration, schedule
+  );
 }
 
 
@@ -1187,7 +1048,7 @@ List run_gibbs_sampler_for_bgm (
   }
 
   // --- Warmup scheduling + adaptation controller
-  WarmupSchedule warmup_schedule(burnin, edge_selection);
+  WarmupSchedule warmup_schedule(burnin, edge_selection, (update_method != "adaptive-metropolis"));
   HMCAdaptationController adapt_joint(
       num_main + num_pairwise, initial_step_size_joint, target_accept,
       warmup_schedule, learn_mass_matrix
@@ -1236,10 +1097,10 @@ List run_gibbs_sampler_for_bgm (
         threshold_alpha, threshold_beta, num_persons, num_variables, num_pairwise,
         num_main, inclusion_indicator, pairwise_effects, main_effects,
         rest_matrix, inclusion_probability, is_ordinal_variable,
-        reference_category, warmup_schedule.selection_enabled(iteration),
+        reference_category,
         iteration, update_method, pairwise_effect_indices, sufficient_pairwise,
         hmc_num_leapfrogs, nuts_max_depth, adapt_joint, adapt_main, adapt_pairwise,
-        learn_mass_matrix
+        learn_mass_matrix, warmup_schedule
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)

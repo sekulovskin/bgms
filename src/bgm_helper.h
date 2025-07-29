@@ -40,3 +40,11 @@ void unvectorize_model_parameters(
     const arma::ivec& num_categories,
     const arma::uvec& is_ordinal_variable
 );
+
+arma::vec inv_mass_active(
+    const arma::vec& inv_diag,
+    const arma::imat& inclusion_indicator,
+    const arma::ivec& num_categories,
+    const arma::uvec& is_ordinal_variable,
+    const bool& selection
+);

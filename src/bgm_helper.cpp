@@ -234,3 +234,46 @@ void unvectorize_model_parameters(
     }
   }
 }
+
+
+
+arma::vec inv_mass_active(
+    const arma::vec& inv_diag,
+    const arma::imat& inclusion_indicator,
+    const arma::ivec& num_categories,
+    const arma::uvec& is_ordinal_variable,
+    const bool& selection
+) {
+  if(selection == false)
+    return inv_diag;
+
+  const int num_variables = inclusion_indicator.n_rows;
+  const int num_main = count_num_main_effects(num_categories, is_ordinal_variable);
+
+  // Compute total number of active interactions
+  int num_active = 0;
+  for (int v1 = 0; v1 < num_variables - 1; ++v1) {
+    for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
+      if (inclusion_indicator(v1, v2) == 1) {
+        num_active++;
+      }
+    }
+  }
+
+  arma::vec active_inv_diag(num_main + num_active, arma::fill::zeros);
+  active_inv_diag.head(num_main) = inv_diag.head(num_main);
+
+  int offset_full = num_main;
+  int offset_active = num_main;
+
+  for (int v1 = 0; v1 < num_variables - 1; ++v1) {
+    for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
+      if (inclusion_indicator(v1, v2) == 1) {
+        active_inv_diag(offset_active) = inv_diag(offset_full);
+        offset_active++;
+      }
+      offset_full++;
+    }
+  }
+  return active_inv_diag;
+}
