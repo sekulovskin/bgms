@@ -5,6 +5,16 @@
 #include <cmath>
 #include <functional>
 
+// (only if <algorithm> didn’t already provide it under C++17)
+#if __cplusplus < 201703L
+namespace std {
+  template <class T>
+  const T& clamp(const T& v, const T& lo, const T& hi) {
+    return v < lo ? lo : hi < v ? hi : v;
+  }
+}
+#endif
+
 
 
 // -----------------------------------------------------------------------------

@@ -1,19 +1,20 @@
 #define ARMA_NO_DEBUG
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include <tbb/mutex.h>
 #include "bgm_helper.h"
 #include "bgm_logp_and_grad.h"
+#include "bgm_sampler.h"
 #include "mcmc_adaptation.h"
 #include "mcmc_hmc.h"
 #include "mcmc_leapfrog.h"
 #include "mcmc_nuts.h"
 #include "mcmc_rwm.h"
 #include "mcmc_utils.h"
+#include "print_mutex.h"
 #include "gibbs_functions_edge_prior.h"
-#include <progress.hpp>
-#include <progress_bar.hpp>
-using namespace Rcpp;
 
+using namespace Rcpp;
 
 
 /**
@@ -828,6 +829,15 @@ void gibbs_update_step_for_graphical_model_parameters (
     const bool learn_mass_matrix,
     WarmupSchedule const& schedule
 ) {
+
+  // Step 0: Initialise random graph structure when edge_selection = TRUE
+  if (schedule.selection_enabled(iteration) && iteration == schedule.stage3c_start) {
+    initialise_graph(
+      inclusion_indicator, pairwise_effects, inclusion_probability, rest_matrix,
+      observations
+    );
+  }
+
   // Step 1: Edge selection via MH indicator updates (if enabled)
   if (schedule.selection_enabled(iteration)) {
     update_indicator_interaction_pair_with_metropolis (
@@ -839,7 +849,7 @@ void gibbs_update_step_for_graphical_model_parameters (
   }
 
   // Step 2a: Update interaction weights for active edges
- if (update_method == "adaptive-metropolis") {
+  if (update_method == "adaptive-metropolis") {
     update_pairwise_effects_with_metropolis (
         pairwise_effects, main_effects, inclusion_indicator, observations,
         num_categories, proposal_sd_pairwise, adapt_pairwise, interaction_scale,
@@ -934,12 +944,13 @@ void gibbs_update_step_for_graphical_model_parameters (
  *    - (optional) "allocations": Cluster allocations (if SBM used)
  */
 // [[Rcpp::export]]
-List run_gibbs_sampler_for_bgm (
-    arma::imat& observations,
+Rcpp::List run_gibbs_sampler_for_bgm(
+    int chain_id,
+    arma::imat observations,
     const arma::ivec& num_categories,
     const double interaction_scale,
-    const String& edge_prior,
-    arma::mat& inclusion_probability,
+    const std::string& edge_prior,
+    arma::mat inclusion_probability,
     const double beta_bernoulli_alpha,
     const double beta_bernoulli_beta,
     const double dirichlet_alpha,
@@ -947,23 +958,19 @@ List run_gibbs_sampler_for_bgm (
     const arma::imat& interaction_index_matrix,
     const int iter,
     const int burnin,
-    arma::imat& num_obs_categories,
-    arma::imat& sufficient_blume_capel,
+    arma::imat num_obs_categories,
+    arma::imat sufficient_blume_capel,
     const double threshold_alpha,
     const double threshold_beta,
     const bool na_impute,
     const arma::imat& missing_index,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const bool save_main,
-    const bool save_pairwise,
-    const bool save_indicator,
-    const bool display_progress,
     bool edge_selection,
     const std::string& update_method,
     const arma::imat pairwise_effect_indices,
     const double target_accept,
-    arma::imat& sufficient_pairwise,
+    arma::imat sufficient_pairwise,
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
     const bool learn_mass_matrix
@@ -979,23 +986,22 @@ List run_gibbs_sampler_for_bgm (
   arma::mat pairwise_effects(num_variables, num_variables, arma::fill::zeros);
   arma::imat inclusion_indicator(num_variables, num_variables, arma::fill::ones);
 
-  // Posterior mean accumulators
-  arma::mat posterior_mean_main(num_variables, max_num_categories, arma::fill::zeros);
-  arma::mat posterior_mean_pairwise(num_variables, num_variables, arma::fill::zeros);
-  arma::mat posterior_mean_indicator(num_variables, num_variables, arma::fill::zeros);
-
   // Residuals used in pseudo-likelihood computation
   arma::mat rest_matrix(num_persons, num_variables, arma::fill::zeros);
 
   // Allocate optional storage for MCMC samples
   const int num_main = count_num_main_effects(num_categories, is_ordinal_variable);
-  arma::mat* main_effect_samples = nullptr;
-  arma::mat* pairwise_effect_samples = nullptr;
-  arma::imat* indicator_samples = nullptr;
+  arma::mat main_effect_samples(iter, num_main);
+  arma::mat pairwise_effect_samples(iter, num_pairwise);
+  arma::imat indicator_samples;
+  arma::imat allocation_samples;
 
-  if (save_main) main_effect_samples = new arma::mat(iter, num_main);
-  if (save_pairwise) pairwise_effect_samples = new arma::mat(iter, num_pairwise);
-  if (save_indicator) indicator_samples = new arma::imat(iter, num_pairwise);
+  if (edge_selection) {
+    indicator_samples.set_size(iter, num_pairwise);
+  }
+  if (edge_selection && edge_prior == "Stochastic-Block") {
+    allocation_samples.set_size(iter, num_variables);
+  }
 
   // Edge update shuffling setup
   arma::uvec v = arma::regspace<arma::uvec>(0, num_pairwise - 1);
@@ -1007,7 +1013,6 @@ List run_gibbs_sampler_for_bgm (
   arma::uvec cluster_allocations(num_variables);
   arma::mat cluster_prob(1, 1);
   arma::vec log_Vn(1);
-  arma::imat out_allocations(iter, num_variables);
 
   // --- Initialize SBM prior if applicable
   if (edge_prior == "Stochastic-Block") {
@@ -1061,18 +1066,18 @@ List run_gibbs_sampler_for_bgm (
   );
 
   const int total_iter = burnin + iter;
-  Progress p(total_iter, display_progress);
+  const int print_every = std::max(1, total_iter / 10);
 
   // --- Main Gibbs sampling loop
   for (int iteration = 0; iteration < total_iter; iteration++) {
-    if (Progress::check_abort()) {
-      return List::create(
-        Named("main") = posterior_mean_main,
-        Named("pairwise") = posterior_mean_pairwise,
-        Named("inclusion_indicator") = posterior_mean_indicator
-      );
+    if (iteration % print_every == 0) {
+      tbb::mutex::scoped_lock lock(print_mutex);
+      Rcpp::Rcout
+      << "[bgm] chain " << chain_id
+      << " iteration " << iteration
+      << " / " << total_iter
+      << std::endl;
     }
-    p.increment();
 
     // Shuffle update order of edge indices
     order = arma::randperm(num_pairwise);
@@ -1097,8 +1102,8 @@ List run_gibbs_sampler_for_bgm (
         threshold_alpha, threshold_beta, num_persons, num_variables, num_pairwise,
         num_main, inclusion_indicator, pairwise_effects, main_effects,
         rest_matrix, inclusion_probability, is_ordinal_variable,
-        reference_category,
-        iteration, update_method, pairwise_effect_indices, sufficient_pairwise,
+        reference_category, iteration, update_method, pairwise_effect_indices,
+        sufficient_pairwise,
         hmc_num_leapfrogs, nuts_max_depth, adapt_joint, adapt_main, adapt_pairwise,
         learn_mass_matrix, warmup_schedule
     );
@@ -1141,71 +1146,44 @@ List run_gibbs_sampler_for_bgm (
       }
     }
 
-    // --- Save samples and update posterior means
+    // --- Store states
     if (iteration >= warmup_schedule.total_burnin) {
-      int iter_adj = iteration - warmup_schedule.total_burnin + 1;
-
-      // Running posterior means
-      posterior_mean_main = (posterior_mean_main * (iter_adj - 1) + main_effects) / iter_adj;
-      posterior_mean_pairwise = (posterior_mean_pairwise * (iter_adj - 1) + pairwise_effects) / iter_adj;
-
-      if (edge_selection) {
-        posterior_mean_indicator = (posterior_mean_indicator * (iter_adj - 1) +
-          arma::conv_to<arma::mat>::from(inclusion_indicator)) / iter_adj;
-      }
-
       int sample_index = iteration - warmup_schedule.total_burnin;
 
-      if (save_main) {
-        arma::vec vectorized_main = vectorize_thresholds(main_effects, num_categories, is_ordinal_variable);
-        main_effect_samples->row(sample_index) = vectorized_main.t();
+      arma::vec vectorized_main = vectorize_thresholds(main_effects, num_categories, is_ordinal_variable);
+      main_effect_samples.row(sample_index) = vectorized_main.t();
+
+      for (int i = 0; i < num_pairwise; i++) {
+        int v1 = interaction_index_matrix(i, 1);
+        int v2 = interaction_index_matrix(i, 2);
+        pairwise_effect_samples(sample_index, i) = pairwise_effects(v1, v2);
       }
 
-      if (save_pairwise) {
-        arma::vec vectorized_pairwise(num_pairwise);
+      if (edge_selection) {
         for (int i = 0; i < num_pairwise; i++) {
-          vectorized_pairwise(i) = pairwise_effects(interaction_index_matrix(i, 1), interaction_index_matrix(i, 2));
+          int v1 = interaction_index_matrix(i, 1);
+          int v2 = interaction_index_matrix(i, 2);
+          indicator_samples(sample_index, i) = inclusion_indicator(v1, v2);
         }
-        pairwise_effect_samples->row(sample_index) = vectorized_pairwise.t();
       }
 
-      if (save_indicator) {
-        arma::ivec vectorized_indicator(num_pairwise);
-        for (int i = 0; i < num_pairwise; i++) {
-          vectorized_indicator(i) = inclusion_indicator(interaction_index_matrix(i, 1), interaction_index_matrix(i, 2));
+      if (edge_selection && edge_prior == "Stochastic-Block") {
+        for (int v = 0; v < num_variables; v++) {
+          allocation_samples(sample_index, v) = cluster_allocations[v] + 1;
         }
-        indicator_samples->row(sample_index) = vectorized_indicator.t();
-      }
-
-      if (edge_prior == "Stochastic-Block") {
-        for (int j = 0; j < num_variables; j++)
-          out_allocations(sample_index, j) = cluster_allocations[j] + 1;
       }
     }
   }
 
-  // --- Final output
-  List out = List::create(
-    Named("main") = posterior_mean_main,
-    Named("pairwise") = posterior_mean_pairwise,
-    Named("inclusion_indicator") = posterior_mean_indicator
-  );
-
-  if (save_main) {
-    out["main_samples"] = *main_effect_samples;
-    delete main_effect_samples;
+  Rcpp::List out;
+  out["main_samples"] = main_effect_samples;
+  out["pairwise_samples"] = pairwise_effect_samples;
+  if(edge_selection) {
+    out["indicator_samples"] = indicator_samples;
   }
-  if (save_pairwise) {
-    out["pairwise_samples"] = *pairwise_effect_samples;
-    delete pairwise_effect_samples;
+  if(edge_selection && edge_prior=="Stochastic-Block"){
+    out["allocation_samples"] = allocation_samples;
   }
-  if (save_indicator) {
-    out["inclusion_indicator_samples"] = *indicator_samples;
-    delete indicator_samples;
-  }
-  if (edge_prior == "Stochastic-Block") {
-    out["allocations"] = out_allocations;
-  }
-
+  out["chain_id"] = chain_id;
   return out;
 }

@@ -308,6 +308,8 @@
 #' @importFrom utils packageVersion
 #' @importFrom Rcpp evalCpp
 #' @importFrom Rdpack reprompt
+#' @import RcppParallel
+#' @importFrom RcppParallel defaultNumThreads
 #'
 #' @export
 bgm = function(x,
@@ -326,30 +328,15 @@ bgm = function(x,
                dirichlet_alpha = 1,
                lambda = 1,
                na_action = c("listwise", "impute"),
-               save = FALSE,
-               save_main = FALSE,
-               save_pairwise = FALSE,
-               save_indicator = FALSE,
                display_progress = TRUE,
                update_method = c("adaptive-metropolis", "hamiltonian-mc", "nuts"),
                target_accept,
                hmc_num_leapfrogs = 100,
                nuts_max_depth = 10,
-               learn_mass_matrix = TRUE
+               learn_mass_matrix = FALSE,
+               chains = 4,
+               cores = parallel::detectCores()
 ) {
-  # Deprecation warning for save parameter
-  if(hasArg(save)) {
-    warning("`save` is deprecated. Use `save_main`, `save_pairwise`, or `save_indicator` instead.")
-    save_main = save_main || save
-    save_pairwise = save_pairwise || save
-    save_indicator = save_indicator || save
-  }
-
-  # Check save options
-  save_main = check_logical(save_main, "save_main")
-  save_pairwise = check_logical(save_pairwise, "save_pairwise")
-  save_indicator = check_logical(save_indicator, "save_indicator")
-
   # Check update method
   update_method_input = update_method
   update_method = match.arg(update_method)
@@ -416,7 +403,7 @@ bgm = function(x,
     stop("Parameter ``burnin'' needs to be a positive integer.")
   if(burnin < 1e3)
     warning("The burnin parameter is set to a low value. This may lead to unreliable results. Reset to a minimum of 1000 iterations.")
-  #burnin = max(burnin, 1e3) # Set minimum burnin to 1000 iterations
+  burnin = max(burnin, 1e3) # Set minimum burnin to 1000 iterations
   if(abs(hmc_num_leapfrogs - round(hmc_num_leapfrogs)) > .Machine$double.eps)
     stop("Parameter ``hmc_num_leapfrogs'' needs to be a positive integer.")
   hmc_num_leapfrogs = max(hmc_num_leapfrogs, 1) # Set minimum hmc_num_leapfrogs to 1
@@ -431,13 +418,6 @@ bgm = function(x,
   if(inherits(na_action, what = "try-error"))
     stop(paste0("The na_action argument should equal listwise or impute, not ",
                 na_action_input,
-                "."))
-  #Check save ------------------------------------------------------------------
-  save_input = save
-  save = as.logical(save)
-  if(is.na(save))
-    stop(paste0("The save argument should equal TRUE or FALSE, not ",
-                save_input,
                 "."))
 
   #Check display_progress ------------------------------------------------------
@@ -516,52 +496,60 @@ bgm = function(x,
     }
   }
 
-  # Call the Rcpp function
-  out = run_gibbs_sampler_for_bgm (
-    observations = x, num_categories = num_categories,
-    interaction_scale = interaction_scale, edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability, beta_bernoulli_alpha = beta_bernoulli_alpha,
+  output <- run_bgm_parallel(
+    observations = x,
+    num_categories = num_categories,
+    interaction_scale = interaction_scale,
+    edge_prior = edge_prior,
+    inclusion_probability = inclusion_probability,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
     beta_bernoulli_beta = beta_bernoulli_beta,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-    interaction_index_matrix = interaction_index_matrix,
-    iter = iter, burnin = burnin, num_obs_categories = num_obs_categories,
+    dirichlet_alpha = dirichlet_alpha,
+    lambda = lambda,
+    interaction_index_matrix= interaction_index_matrix,
+    iter = iter,
+    burnin = burnin,
+    num_obs_categories = num_obs_categories,
     sufficient_blume_capel = sufficient_blume_capel,
-    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
-    na_impute = na_impute, missing_index = missing_index,
+    threshold_alpha = threshold_alpha,
+    threshold_beta = threshold_beta,
+    na_impute = na_impute,
+    missing_index = missing_index,
     is_ordinal_variable = variable_bool,
-    reference_category = reference_category, save_main = save_main,
-    save_pairwise = save_pairwise, save_indicator = save_indicator,
-    display_progress = display_progress, edge_selection = edge_selection,
+    reference_category = reference_category,
+    edge_selection = edge_selection,
     update_method = update_method,
     pairwise_effect_indices = pairwise_effect_indices,
     target_accept = target_accept,
     sufficient_pairwise = sufficient_pairwise,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix
+    learn_mass_matrix = learn_mass_matrix,
+    num_chains = chains,
+    nThreads = cores
   )
 
-  # Main output handler in the wrapper function
-  output = prepare_output_bgm (
-    out = out, x = x, num_categories = num_categories, iter = iter,
-    data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
-    is_ordinal_variable = variable_bool,
-    save_options = list(save_main = save_main, save_pairwise = save_pairwise,
-    save_indicator = save_indicator),
-    burnin = burnin, interaction_scale = interaction_scale,
-    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
-    na_action = na_action, na_impute = na_impute,
-    edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-    variable_type = variable_type,
-    update_method = update_method,
-    target_accept = target_accept,
-    hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix
-  )
+  # # Main output handler in the wrapper function
+  # output = prepare_output_bgm (
+  #   out = out, x = x, num_categories = num_categories, iter = iter,
+  #   data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
+  #   is_ordinal_variable = variable_bool,
+  #   save_options = list(save_main = save_main, save_pairwise = save_pairwise,
+  #   save_indicator = save_indicator),
+  #   burnin = burnin, interaction_scale = interaction_scale,
+  #   threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
+  #   na_action = na_action, na_impute = na_impute,
+  #   edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
+  #   beta_bernoulli_alpha = beta_bernoulli_alpha,
+  #   beta_bernoulli_beta = beta_bernoulli_beta,
+  #   dirichlet_alpha = dirichlet_alpha, lambda = lambda,
+  #   variable_type = variable_type,
+  #   update_method = update_method,
+  #   target_accept = target_accept,
+  #   hmc_num_leapfrogs = hmc_num_leapfrogs,
+  #   nuts_max_depth = nuts_max_depth,
+  #   learn_mass_matrix = learn_mass_matrix
+  # )
 
   return(output)
 }

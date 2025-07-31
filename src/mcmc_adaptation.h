@@ -104,6 +104,7 @@ struct WarmupSchedule {
   std::vector<int> window_ends;   // Stage-2   windows (last index of each)
   int stage3a_start;              // first iter in Stage-3 a
   int stage3b_start;              // first iter in Stage-3 b (may == total_burnin)
+  int stage3c_start;              // = stage3b_end if selection is ON, else stage3b_end == total_burnin
   int total_burnin;               // warm-up iterations in total
   bool learn_proposal_sd;         // do we run the proposal-SD tuner?
   bool enable_selection;          // allow edge-indicator moves (after warm-up)
@@ -116,6 +117,7 @@ struct WarmupSchedule {
     , window_ends()
     , stage3a_start(0)
     , stage3b_start(0)
+    , stage3c_start(0)
     , total_burnin(0)             // will be set below
     , learn_proposal_sd(learn_sd)
     , enable_selection(enable_sel)
@@ -141,21 +143,26 @@ struct WarmupSchedule {
     int stage3b_len = (learn_proposal_sd && enable_selection)
       ? std::max(100, stage3a_len)
         : 0;
+    int stage3c_len = (learn_proposal_sd && enable_selection)
+      ? std::max(100, stage3a_len)
+        : 0;
 
     stage3b_start = burnin_core;            // begins directly after 3 a
-    total_burnin  = burnin_core + stage3b_len;
+    stage3c_start = burnin_core + stage3b_len;
+    total_burnin  = stage3c_start + stage3c_len;
   }
 
   /* ---------- helpers ---------- */
   bool in_stage1 (int i) const { return i <  stage1_end;               }
   bool in_stage2 (int i) const { return i >= stage1_end   && i < stage3a_start; }
   bool in_stage3a(int i) const { return i >= stage3a_start&& i < stage3b_start; }
-  bool in_stage3b(int i) const { return i >= stage3b_start&& i < total_burnin; }
+  bool in_stage3b(int i) const { return i >= stage3b_start&& i < stage3c_start; }
+  bool in_stage3c(int i) const { return enable_selection && i >= stage3c_start && i < total_burnin; }
   bool sampling (int i) const { return i >= total_burnin; }
 
   /* indicator moves only once warm-up is finished */
   bool selection_enabled(int i) const {
-    return enable_selection && sampling(i);
+    return enable_selection && ( in_stage3c(i) || sampling(i) );
   }
 
   /* adapt proposal_sd only inside Stage-3 b (if that phase exists) */
@@ -170,66 +177,6 @@ struct WarmupSchedule {
       return -1;
   }
 };
-// struct WarmupSchedule {
-//   int stage1_end;
-//   std::vector<int> window_ends;
-//   int stage3a_start;
-//   int stage3b_start;
-//   int total_burnin;
-//   bool learn_proposal_sd;
-//   bool enable_selection;
-//
-//   WarmupSchedule(int burnin,
-//                  bool enable_sel,
-//                  bool learn_sd)
-//     : stage1_end(0)
-//     , window_ends()
-//     , stage3a_start(0)
-//     , stage3b_start(0)
-//     , total_burnin(burnin)
-//     , learn_proposal_sd(learn_sd)
-//     , enable_selection(enable_sel)
-//   {
-//     stage1_end      = int(0.15 * burnin);
-//     int stage3_start= burnin - int(0.10 * burnin);
-//     stage3a_start   = stage3_start;
-//     stage3b_start   = learn_sd ? stage3_start
-//     : burnin;
-//
-//     // === build Stage-2 windows until stage3a_start
-//     int cur   = stage1_end;
-//     int wsize = 25;
-//     while (cur < stage3a_start) {
-//       int win = std::min(wsize, stage3a_start - cur);
-//       window_ends.push_back(cur + win);    // store *last* iter in that window (0-based)
-//       cur   += win;
-//       wsize  = std::min(wsize * 2, stage3a_start - cur);
-//     }
-//   }
-//
-//   // ---------- helpers ----------
-//   bool in_stage1 (int i) const { return i <  stage1_end;               }
-//   bool in_stage2 (int i) const { return i >= stage1_end && i < stage3a_start; }
-//   bool in_stage3a(int i) const { return i >= stage3a_start && i < stage3b_start; }
-//   bool in_stage3b(int i) const { return i >= stage3b_start && i < total_burnin; }
-//   bool sampling (int i) const { return i >= total_burnin; }
-//
-//   /* indicator moves only once warm-up is finished */
-//   bool selection_enabled(int i) const {
-//     return enable_selection && sampling(i);
-//   }
-//
-//   /* we adapt proposal_sd only inside Stage-3b (if that phase exists) */
-//   bool adapt_proposal_sd(int i) const {
-//     return learn_proposal_sd && in_stage3b(i);
-//   }
-//
-//   int current_window(int i) const {
-//     for (size_t k = 0; k < window_ends.size(); ++k)
-//       if (i < window_ends[k]) return static_cast<int>(k);
-//       return -1;
-//   }
-// };
 
 
 
@@ -259,7 +206,7 @@ public:
      *    – must stop in Stage-3b and afterwards
      * --------------------------------------------------------- */
     if (schedule.in_stage1(iteration)  || schedule.in_stage2(iteration)  ||
-    schedule.in_stage3a(iteration))
+    schedule.in_stage3a(iteration) || schedule.in_stage3c(iteration) )
     {
       step_adapter.update(accept_prob, target_accept_);
       step_size_ = step_adapter.current();
@@ -273,16 +220,16 @@ public:
       mass_accumulator.update(theta);
       int w = schedule.current_window(iteration);
       if (iteration + 1 == schedule.window_ends[w]) {
-        inv_mass_        = 1.0 / mass_accumulator.variance();
+        inv_mass_ = 1.0 / mass_accumulator.variance();
         mass_accumulator.reset();
         step_adapter.restart(step_size_);
       }
     }
 
     /* ---------------------------------------------------------
-     * 3. FREEZE ε AS SOON AS WE ENTER STAGE-3b
+     * 3. FREEZE ε AS SOON AS WE ENTER STAGE-3b or SAMPLING
      * --------------------------------------------------------- */
-    if (iteration == schedule.stage3b_start) {
+    if (iteration == schedule.stage3b_start || schedule.sampling(iteration)) {
       step_size_ = step_adapter.averaged();
     }
   }

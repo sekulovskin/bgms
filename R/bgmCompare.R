@@ -72,9 +72,6 @@
 #' In addition to the results of the analysis, the output lists some of the
 #' arguments of its call. This is useful for post-processing the results.
 #'
-#' @importFrom methods hasArg
-#' @importFrom Rcpp evalCpp
-#' @importFrom Rdpack reprompt
 #'
 #' @export
 bgmCompare = function(x,

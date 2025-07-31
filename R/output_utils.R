@@ -1,5 +1,3 @@
-#' @importFrom utils packageVersion
-
 prepare_output_bgm = function (
     out, x, num_categories, iter, data_columnnames, is_ordinal_variable,
     save_options, burnin, interaction_scale, threshold_alpha, threshold_beta,
@@ -117,9 +115,9 @@ prepare_output_bgm = function (
     results$allocations = sbm_summary$allocations
   }
 
-
   return(results)
 }
+
 
 
 prepare_output_bgmCompare = function(out, x, independent_thresholds,

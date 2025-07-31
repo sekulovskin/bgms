@@ -1,0 +1,8 @@
+#' @importFrom methods hasArg
+#' @importFrom utils packageVersion
+#' @importFrom Rcpp evalCpp
+#' @importFrom Rdpack reprompt
+#' @import RcppParallel
+#' @importFrom RcppParallel setThreadOptions
+#' @importFrom RcppParallel defaultNumThreads
+NULL

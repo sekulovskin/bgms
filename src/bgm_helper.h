@@ -48,3 +48,25 @@ arma::vec inv_mass_active(
     const arma::uvec& is_ordinal_variable,
     const bool& selection
 );
+
+
+
+inline void initialise_graph(
+    arma::imat& indicator,
+    arma::mat&  pairwise,
+    const arma::mat& incl_prob,
+    arma::mat&  rest,
+    const arma::imat& X
+) {
+  int V = indicator.n_rows;
+  for (int i = 0; i < V-1; ++i) {
+    for (int j = i+1; j < V; ++j) {
+      double p = incl_prob(i,j);
+      int draw = (R::unif_rand() < p) ? 1 : 0;
+      indicator(i,j) = indicator(j,i) = draw;
+      if (!draw)
+        pairwise(i,j) = pairwise(j,i) = 0.0;
+    }
+  }
+  rest = X * pairwise;
+}

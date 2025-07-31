@@ -22,16 +22,15 @@ bgm(
   dirichlet_alpha = 1,
   lambda = 1,
   na_action = c("listwise", "impute"),
-  save = FALSE,
-  save_main = FALSE,
-  save_pairwise = FALSE,
-  save_indicator = FALSE,
   display_progress = TRUE,
   update_method = c("adaptive-metropolis", "hamiltonian-mc", "nuts"),
   target_accept,
   hmc_num_leapfrogs = 100,
   nuts_max_depth = 10,
-  learn_mass_matrix = TRUE
+  learn_mass_matrix = FALSE,
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = 1234
 )
 }
 \arguments{
@@ -150,13 +149,6 @@ the mode of the posterior do not have an imputation option, the bgm function
 will automatically switch to \code{interaction_prior = "Cauchy"} and
 \code{adaptive = TRUE}.}
 
-\item{save}{Logical. If true, sampled states for all parameters are returned.
-Deprecated.}
-
-\item{save_main, save_pairwise, save_indicator}{Logical. Enable saving sampled
-states for `main_effects`, `pairwise_effects`, and `indicator`, respectively.
-Default: `FALSE`.}
-
 \item{display_progress}{Should the function show a progress bar
 (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 The default is \code{TRUE}.}
@@ -178,6 +170,13 @@ the model parameters. Default: 0.44 for Adaptive Metropolis, .65 for HMC, .6 for
 \item{nuts_max_depth}{Integer. The maximum tree depth in NUTS.}
 
 \item{learn_mass_matrix}{Logical. If TRUE (default), adapt a diagonal mass matrix during warmup. If FALSE, use identity.}
+
+\item{save_main, save_pairwise, save_indicator}{Logical. Enable saving sampled
+states for `main_effects`, `pairwise_effects`, and `indicator`, respectively.
+Default: `FALSE`.}
+
+\item{save}{Logical. If true, sampled states for all parameters are returned.
+Deprecated.}
 }
 \value{
 If \code{save = FALSE} (the default), the result is a list of class

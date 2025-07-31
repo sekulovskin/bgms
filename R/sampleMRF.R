@@ -105,8 +105,6 @@
 #'                variable_type = c("b","b","o","b","o"),
 #'                reference_category = 2)
 #'
-#' @importFrom Rcpp evalCpp
-#' @importFrom Rdpack reprompt
 #' @export
 mrfSampler = function(no_states,
                       no_variables,

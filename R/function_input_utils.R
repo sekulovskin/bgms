@@ -1,5 +1,3 @@
-#' @importFrom methods hasArg
-
 check_positive_integer = function(value, name) {
   if (!is.numeric(value) || abs(value - round(value)) > .Machine$double.eps || value <= 0) {
     stop(sprintf("Parameter `%s` must be a positive integer. Got: %s", name, value))
