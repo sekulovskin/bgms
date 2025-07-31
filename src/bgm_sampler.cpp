@@ -1065,7 +1065,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
       proposal_sd_pairwise, warmup_schedule, target_accept
   );
 
-  const int total_iter = burnin + iter;
+  const int total_iter = warmup_schedule.total_burnin + iter;
   const int print_every = std::max(1, total_iter / 10);
 
   // --- Main Gibbs sampling loop

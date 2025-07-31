@@ -496,40 +496,29 @@ bgm = function(x,
     }
   }
 
-  output <- run_bgm_parallel(
-    observations = x,
-    num_categories = num_categories,
-    interaction_scale = interaction_scale,
-    edge_prior = edge_prior,
+  chain_results = run_bgm_parallel(
+    observations = x, num_categories = num_categories,
+    interaction_scale = interaction_scale, edge_prior = edge_prior,
     inclusion_probability = inclusion_probability,
     beta_bernoulli_alpha = beta_bernoulli_alpha,
     beta_bernoulli_beta = beta_bernoulli_beta,
-    dirichlet_alpha = dirichlet_alpha,
-    lambda = lambda,
-    interaction_index_matrix= interaction_index_matrix,
-    iter = iter,
-    burnin = burnin,
-    num_obs_categories = num_obs_categories,
+    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
+    interaction_index_matrix = interaction_index_matrix, iter = iter,
+    burnin = burnin, num_obs_categories = num_obs_categories,
     sufficient_blume_capel = sufficient_blume_capel,
-    threshold_alpha = threshold_alpha,
-    threshold_beta = threshold_beta,
-    na_impute = na_impute,
-    missing_index = missing_index,
+    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
+    na_impute = na_impute, missing_index = missing_index,
     is_ordinal_variable = variable_bool,
-    reference_category = reference_category,
-    edge_selection = edge_selection,
+    reference_category = reference_category, edge_selection = edge_selection,
     update_method = update_method,
     pairwise_effect_indices = pairwise_effect_indices,
-    target_accept = target_accept,
-    sufficient_pairwise = sufficient_pairwise,
-    hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix,
-    num_chains = chains,
+    target_accept = target_accept, sufficient_pairwise = sufficient_pairwise,
+    hmc_num_leapfrogs = hmc_num_leapfrogs, nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix, num_chains = chains,
     nThreads = cores
   )
 
-  # # Main output handler in the wrapper function
+  # Main output handler in the wrapper function
   # output = prepare_output_bgm (
   #   out = out, x = x, num_categories = num_categories, iter = iter,
   #   data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
@@ -551,5 +540,5 @@ bgm = function(x,
   #   learn_mass_matrix = learn_mass_matrix
   # )
 
-  return(output)
+  return(chain_results)
 }
