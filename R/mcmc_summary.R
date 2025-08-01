@@ -68,7 +68,7 @@ summarize_indicator <- function(fit, component = c("indicator_samples"), param_n
   niter <- dim(array3d)[1]
 
   result <- matrix(NA, nparam, 9)
-  colnames(result) <- c("mean", "sd", "mcse", "n0->1", "n0->0", "n1->0", "n1->1", "n_eff", "Rhat")
+  colnames(result) <- c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
 
   for (j in seq_len(nparam)) {
     draws <- array3d[, , j]
@@ -84,7 +84,7 @@ summarize_indicator <- function(fit, component = c("indicator_samples"), param_n
     n10 <- sum(g_curr == 1 & g_next == 0)
     n11 <- sum(g_curr == 1 & g_next == 1)
 
-    if (any(c(n01, n10) == 0)) {
+    if (n01 + n10 == 0) {
       n_eff <- mcse <- R <- NA_real_
     } else {
       a <- n01 / (n00 + n01)
@@ -96,7 +96,7 @@ summarize_indicator <- function(fit, component = c("indicator_samples"), param_n
       R <- est$rhat
     }
 
-    result[j, ] <- c(p_hat, sd, mcse, n01, n00, n10, n11, n_eff, R)
+    result[j, ] <- c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
   }
 
   if(is.null(param_names)) {
