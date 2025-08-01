@@ -112,8 +112,8 @@ summarize_slab <- function(fit, component = c("pairwise_samples"), param_names =
   component <- match.arg(component) # Add options later
   array3d <- combine_chains(fit, component)
   nparam <- dim(array3d)[3]
-  result <- matrix(NA, nparam, 6)
-  colnames(result) <- c("mean", "sd", "mcse", "n", "n_eff", "Rhat")
+  result <- matrix(NA, nparam, 5)
+  colnames(result) <- c("mean", "sd", "mcse", "n_eff", "Rhat")
 
   for (j in seq_len(nparam)) {
     draws <- array3d[, , j]
@@ -125,9 +125,9 @@ summarize_slab <- function(fit, component = c("pairwise_samples"), param_names =
     if (T > 10) {
       eap <- mean(vec)
       sdev <- sd(vec)
-      mcse <- sdev / sqrt(T)
       est <- compute_rhat_ess(draws)
-      result[j, ] <- c(eap, sdev, mcse, T, est$ess, est$rhat)
+      mcse <- sdev / sqrt(est$ess)
+      result[j, ] <- c(eap, sdev, mcse, est$ess, est$rhat)
     }
   }
 
@@ -179,8 +179,7 @@ summarize_pair <- function(fit,
         chain_means[chain] <- pi * e
         chain_vars[chain] <- pi * (v + (1 - pi) * e^2)
       }
-      eap_mean <- mean(chain_means)
-      B <- T * sum((chain_means - eap_mean)^2) / (nchains - 1)
+      B <- T * sum((chain_means - eap[j])^2) / (nchains - 1)
       W <- mean(chain_vars)
       V <- (T - 1) * W / T + B / T
       rhat[j] <- sqrt(V / W)
