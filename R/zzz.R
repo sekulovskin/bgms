@@ -5,4 +5,6 @@
 #' @import RcppParallel
 #' @importFrom RcppParallel setThreadOptions
 #' @importFrom RcppParallel defaultNumThreads
+#' @importFrom coda effectiveSize gelman.diag mcmc mcmc.list
+
 NULL

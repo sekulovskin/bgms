@@ -1,23 +1,150 @@
-prepare_output_bgm = function (
+# prepare_output_bgm = function (
+#     out, x, num_categories, iter, data_columnnames, is_ordinal_variable,
+#     save_options, burnin, interaction_scale, threshold_alpha, threshold_beta,
+#     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
+#     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
+#     variable_type, update_method, target_accept, hmc_num_leapfrogs,
+#     nuts_max_depth, learn_mass_matrix) {
+#
+#   save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
+#
+#   arguments = list (
+#     prepared_data = x, num_variables = ncol(x), num_cases = nrow(x),
+#     na_impute = na_impute, variable_type = variable_type, iter = iter,
+#     burnin = burnin, interaction_scale = interaction_scale,
+#     threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
+#     edge_selection = edge_selection, edge_prior = edge_prior,
+#     inclusion_probability = inclusion_probability, beta_bernoulli_alpha = beta_bernoulli_alpha,
+#     beta_bernoulli_beta =  beta_bernoulli_beta,
+#     dirichlet_alpha = dirichlet_alpha, lambda = lambda, na_action = na_action,
+#     save = save, version = packageVersion("bgms"),
+#     update_method = update_method,
+#     target_accept = target_accept,
+#     hmc_num_leapfrogs = hmc_num_leapfrogs,
+#     nuts_max_depth = nuts_max_depth,
+#     learn_mass_matrix = learn_mass_matrix
+#   )
+#
+#   num_variables = ncol(x)
+#   results = list()
+#
+#   # Basic posterior means
+#   results$posterior_mean_main = out$main
+#   results$posterior_mean_pairwise = out$pairwise
+#
+#   # Assign names to posterior mean matrices
+#   rownames(results$posterior_mean_main) = data_columnnames
+#   col_names <- character(ncol(results$posterior_mean_main))
+#   # Default: name by category index
+#   col_names[] <- paste0("category ", seq_along(col_names))
+#   # Override first two if only Blume-Capel variables exist
+#   if (all(!is_ordinal_variable)) {
+#     results$posterior_mean_main = results$posterior_mean_main[, 1:2]
+#     col_names <- c("linear", "quadratic")
+#   } else if (any(!is_ordinal_variable)) {
+#     # If mixed, prefix first two with dual meaning
+#     col_names[1:2] <- c("category 1 / linear", "category 2 / quadratic")
+#   }
+#   colnames(results$posterior_mean_main) <- col_names
+#
+#
+#   rownames(results$posterior_mean_pairwise) = data_columnnames
+#   colnames(results$posterior_mean_pairwise) = data_columnnames
+#
+#   if(edge_selection) {
+#     results$posterior_mean_indicator = out$inclusion_indicator
+#     rownames(results$posterior_mean_indicator) = data_columnnames
+#     colnames(results$posterior_mean_indicator) = data_columnnames
+#   }
+#
+#   # Generate variable × category names
+#   names_variable_categories = character()
+#   for (v in seq_len(num_variables)) {
+#     if (is_ordinal_variable[v]) {
+#       cats = seq_len(num_categories[v])
+#       names_variable_categories = c(
+#         names_variable_categories,
+#         paste0(data_columnnames[v], "(", cats, ")")
+#       )
+#     } else {
+#       names_variable_categories = c(
+#         names_variable_categories,
+#         paste0(data_columnnames[v], "(linear)"),
+#         paste0(data_columnnames[v], "(quadratic)")
+#       )
+#     }
+#   }
+#
+#   # Sample storage
+#   if (save_options$save_main && "main_samples" %in% names(out)) {
+#     results$main_effect_samples = out$main_samples
+#     colnames(results$main_effect_samples) = names_variable_categories
+#   }
+#
+#   if (save_options$save_pairwise && "pairwise_samples" %in% names(out)) {
+#     edge_names = character()
+#     for (i in 1:(num_variables - 1)) {
+#       for (j in (i + 1):num_variables) {
+#         edge_names = c(edge_names, paste0(data_columnnames[i], "-", data_columnnames[j]))
+#       }
+#     }
+#     results$pairwise_effect_samples = out$pairwise_samples
+#     colnames(results$pairwise_effect_samples) = edge_names
+#   }
+#
+#   if (edge_selection && save_options$save_indicator && "inclusion_indicator_samples" %in% names(out)) {
+#     edge_names = character()
+#     for (i in 1:(num_variables - 1)) {
+#       for (j in (i + 1):num_variables) {
+#         edge_names = c(edge_names, paste0(data_columnnames[i], "-", data_columnnames[j]))
+#       }
+#     }
+#     results$inclusion_indicator_samples = out$inclusion_indicator_samples
+#     colnames(results$inclusion_indicator_samples) = edge_names
+#   }
+#
+#   results$arguments = arguments
+#   class(results) = "bgms"
+#
+#   # SBM postprocessing
+#   if (edge_selection && edge_prior == "Stochastic-Block" && "allocations" %in% names(out)) {
+#     results$arguments$allocations = out$allocations
+#     # Requires that summarySBM() is available in namespace
+#     sbm_summary = summarySBM(results, internal_call = TRUE)
+#     results$components = sbm_summary$components
+#     results$allocations = sbm_summary$allocations
+#   }
+#
+#   return(results)
+# }
+prepare_output_bgm <- function(
     out, x, num_categories, iter, data_columnnames, is_ordinal_variable,
-    save_options, burnin, interaction_scale, threshold_alpha, threshold_beta,
+    burnin, interaction_scale, threshold_alpha, threshold_beta,
     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
     variable_type, update_method, target_accept, hmc_num_leapfrogs,
-    nuts_max_depth, learn_mass_matrix) {
-
-  save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
-
-  arguments = list (
-    prepared_data = x, num_variables = ncol(x), num_cases = nrow(x),
-    na_impute = na_impute, variable_type = variable_type, iter = iter,
-    burnin = burnin, interaction_scale = interaction_scale,
-    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
-    edge_selection = edge_selection, edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability, beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta =  beta_bernoulli_beta,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda, na_action = na_action,
-    save = save, version = packageVersion("bgms"),
+    nuts_max_depth, learn_mass_matrix
+) {
+  arguments <- list(
+    prepared_data = x,
+    num_variables = ncol(x),
+    num_cases = nrow(x),
+    na_impute = na_impute,
+    variable_type = variable_type,
+    iter = iter,
+    burnin = burnin,
+    interaction_scale = interaction_scale,
+    threshold_alpha = threshold_alpha,
+    threshold_beta = threshold_beta,
+    edge_selection = edge_selection,
+    edge_prior = edge_prior,
+    inclusion_probability = inclusion_probability,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
+    dirichlet_alpha = dirichlet_alpha,
+    lambda = lambda,
+    na_action = na_action,
+    version = packageVersion("bgms"),
     update_method = update_method,
     target_accept = target_accept,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
@@ -25,49 +152,20 @@ prepare_output_bgm = function (
     learn_mass_matrix = learn_mass_matrix
   )
 
-  num_variables = ncol(x)
-  results = list()
+  num_variables <- ncol(x)
+  results <- list()
 
-  # Basic posterior means
-  results$posterior_mean_main = out$main
-  results$posterior_mean_pairwise = out$pairwise
-
-  # Assign names to posterior mean matrices
-  rownames(results$posterior_mean_main) = data_columnnames
-  col_names <- character(ncol(results$posterior_mean_main))
-  # Default: name by category index
-  col_names[] <- paste0("category ", seq_along(col_names))
-  # Override first two if only Blume-Capel variables exist
-  if (all(!is_ordinal_variable)) {
-    results$posterior_mean_main = results$posterior_mean_main[, 1:2]
-    col_names <- c("linear", "quadratic")
-  } else if (any(!is_ordinal_variable)) {
-    # If mixed, prefix first two with dual meaning
-    col_names[1:2] <- c("category 1 / linear", "category 2 / quadratic")
-  }
-  colnames(results$posterior_mean_main) <- col_names
-
-
-  rownames(results$posterior_mean_pairwise) = data_columnnames
-  colnames(results$posterior_mean_pairwise) = data_columnnames
-
-  if(edge_selection) {
-    results$posterior_mean_indicator = out$inclusion_indicator
-    rownames(results$posterior_mean_indicator) = data_columnnames
-    colnames(results$posterior_mean_indicator) = data_columnnames
-  }
-
-  # Generate variable × category names
-  names_variable_categories = character()
+  # ======= Parameter name generation =======
+  names_variable_categories <- character()
   for (v in seq_len(num_variables)) {
     if (is_ordinal_variable[v]) {
-      cats = seq_len(num_categories[v])
-      names_variable_categories = c(
+      cats <- seq_len(num_categories[v])
+      names_variable_categories <- c(
         names_variable_categories,
         paste0(data_columnnames[v], "(", cats, ")")
       )
     } else {
-      names_variable_categories = c(
+      names_variable_categories <- c(
         names_variable_categories,
         paste0(data_columnnames[v], "(linear)"),
         paste0(data_columnnames[v], "(quadratic)")
@@ -75,45 +173,75 @@ prepare_output_bgm = function (
     }
   }
 
-  # Sample storage
-  if (save_options$save_main && "main_samples" %in% names(out)) {
-    results$main_effect_samples = out$main_samples
-    colnames(results$main_effect_samples) = names_variable_categories
-  }
-
-  if (save_options$save_pairwise && "pairwise_samples" %in% names(out)) {
-    edge_names = character()
-    for (i in 1:(num_variables - 1)) {
-      for (j in (i + 1):num_variables) {
-        edge_names = c(edge_names, paste0(data_columnnames[i], "-", data_columnnames[j]))
-      }
+  edge_names <- character()
+  for (i in 1:(num_variables - 1)) {
+    for (j in (i + 1):num_variables) {
+      edge_names <- c(edge_names, paste0(data_columnnames[i], "-", data_columnnames[j]))
     }
-    results$pairwise_effect_samples = out$pairwise_samples
-    colnames(results$pairwise_effect_samples) = edge_names
   }
 
-  if (edge_selection && save_options$save_indicator && "inclusion_indicator_samples" %in% names(out)) {
-    edge_names = character()
-    for (i in 1:(num_variables - 1)) {
-      for (j in (i + 1):num_variables) {
-        edge_names = c(edge_names, paste0(data_columnnames[i], "-", data_columnnames[j]))
-      }
-    }
-    results$inclusion_indicator_samples = out$inclusion_indicator_samples
-    colnames(results$inclusion_indicator_samples) = edge_names
+  # ======= Summarize MCMC chains =======
+  summary_list <- summarize_fit(out, edge_selection = edge_selection)
+  main_summary <- summary_list$main[, -1]
+  pairwise_summary <- summary_list$pairwise[, -1]
+
+  rownames(main_summary) <- names_variable_categories
+  rownames(pairwise_summary) <- edge_names
+
+  results$posterior_summary_main <- main_summary
+  results$posterior_summary_pairwise <- pairwise_summary
+
+  if (edge_selection) {
+    indicator_summary <- summarize_indicator(out, param_names = edge_names)[, -1]
+    rownames(indicator_summary) <- edge_names
+    results$posterior_summary_indicator <- indicator_summary
   }
 
-  results$arguments = arguments
-  class(results) = "bgms"
+  # ======= Posterior mean matrices (for legacy compatibility) =======
+  results$posterior_mean_main <- matrix(main_summary$mean, nrow = num_variables, byrow = TRUE)
+  rownames(results$posterior_mean_main) <- data_columnnames
+  colnames(results$posterior_mean_main) <- NULL
+
+  results$posterior_mean_pairwise <- matrix(0, nrow = num_variables, ncol = num_variables)
+  results$posterior_mean_pairwise[upper.tri(results$posterior_mean_pairwise)] <- pairwise_summary$mean
+  results$posterior_mean_pairwise[lower.tri(results$posterior_mean_pairwise)] <-
+    t(results$posterior_mean_pairwise)[lower.tri(results$posterior_mean_pairwise)]
+  rownames(results$posterior_mean_pairwise) <- data_columnnames
+  colnames(results$posterior_mean_pairwise) <- data_columnnames
+
+  if (edge_selection) {
+    indicator_means <- indicator_summary$mean
+    results$posterior_mean_indicator <- matrix(0, nrow = num_variables, ncol = num_variables)
+    results$posterior_mean_indicator[upper.tri(results$posterior_mean_indicator)] <- indicator_means
+    results$posterior_mean_indicator[lower.tri(results$posterior_mean_indicator)] <-
+      t(results$posterior_mean_indicator)[lower.tri(results$posterior_mean_indicator)]
+    rownames(results$posterior_mean_indicator) <- data_columnnames
+    colnames(results$posterior_mean_indicator) <- data_columnnames
+  }
 
   # SBM postprocessing
   if (edge_selection && edge_prior == "Stochastic-Block" && "allocations" %in% names(out)) {
-    results$arguments$allocations = out$allocations
-    # Requires that summarySBM() is available in namespace
-    sbm_summary = summarySBM(results, internal_call = TRUE)
-    results$components = sbm_summary$components
-    results$allocations = sbm_summary$allocations
+    results$arguments$allocations <- out$allocations
+    sbm_summary <- summarySBM(results, internal_call = TRUE)
+    results$components <- sbm_summary$components
+    results$allocations <- sbm_summary$allocations
   }
+
+  results$arguments <- arguments
+  class(results) <- "bgms"
+
+  output$raw_samples <- list(
+    main      = lapply(out, function(chain) chain$main_samples),
+    pairwise  = lapply(out, function(chain) chain$pairwise_samples),
+    indicator = if (edge_selection) lapply(out, function(chain) chain$inclusion_indicator_samples) else NULL,
+    nchains   = length(out),
+    niter     = nrow(out[[1]]$main_samples),
+    parameter_names = list(
+      main     = names_variable_categories,
+      pairwise = edge_names,
+      indicator = if (edge_selection) edge_names else NULL
+    )
+  )
 
   return(results)
 }

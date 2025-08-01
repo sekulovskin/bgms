@@ -496,7 +496,7 @@ bgm = function(x,
     }
   }
 
-  chain_results = run_bgm_parallel(
+  out = run_bgm_parallel(
     observations = x, num_categories = num_categories,
     interaction_scale = interaction_scale, edge_prior = edge_prior,
     inclusion_probability = inclusion_probability,
@@ -519,26 +519,24 @@ bgm = function(x,
   )
 
   # Main output handler in the wrapper function
-  # output = prepare_output_bgm (
-  #   out = out, x = x, num_categories = num_categories, iter = iter,
-  #   data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
-  #   is_ordinal_variable = variable_bool,
-  #   save_options = list(save_main = save_main, save_pairwise = save_pairwise,
-  #   save_indicator = save_indicator),
-  #   burnin = burnin, interaction_scale = interaction_scale,
-  #   threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
-  #   na_action = na_action, na_impute = na_impute,
-  #   edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
-  #   beta_bernoulli_alpha = beta_bernoulli_alpha,
-  #   beta_bernoulli_beta = beta_bernoulli_beta,
-  #   dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-  #   variable_type = variable_type,
-  #   update_method = update_method,
-  #   target_accept = target_accept,
-  #   hmc_num_leapfrogs = hmc_num_leapfrogs,
-  #   nuts_max_depth = nuts_max_depth,
-  #   learn_mass_matrix = learn_mass_matrix
-  # )
+  output = prepare_output_bgm (
+    out = out, x = x, num_categories = num_categories, iter = iter,
+    data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
+    is_ordinal_variable = variable_bool,
+    burnin = burnin, interaction_scale = interaction_scale,
+    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
+    na_action = na_action, na_impute = na_impute,
+    edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
+    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
+    variable_type = variable_type,
+    update_method = update_method,
+    target_accept = target_accept,
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix
+  )
 
-  return(chain_results)
+  return(output)
 }

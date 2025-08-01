@@ -75,7 +75,7 @@ public:
 
   arma::vec variance() const {
     static constexpr double prior_weight = 5.0;
-    static constexpr double prior_variance = 1.0;//1e-3;
+    static constexpr double prior_variance = 1e-3;
     double n = static_cast<double>(count);
 
     arma::vec empirical = m2 / std::max(1.0, n - 1.0);

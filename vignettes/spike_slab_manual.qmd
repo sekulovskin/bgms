@@ -1,0 +1,166 @@
+---
+title: "Spike-and-Slab MCMC Summary Diagnostics"
+author: "Maarten Marsman"
+format:
+  html:
+    toc: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+    documentclass: article
+editor: visual
+---
+
+# Spike-and-Slab MCMC Summary Diagnostics
+
+This document describes the summary statistics and convergence diagnostics computed for Bayesian spike-and-slab models implemented in `bgms`. It is structured in a way to support both applied users and methods researchers who want full reproducibility. The design and reporting logic draws inspiration from the Stan reference manual.
+
+------------------------------------------------------------------------
+
+## Overview
+
+We consider two scenarios:
+
+-   **No selection model**: All parameters are always included.
+-   **Selection model**: Parameters are governed by binary inclusion indicators (e.g., spike-and-slab prior).
+
+In both cases, MCMC is used to sample from the posterior distribution, potentially with multiple chains. The `bgm` sampler, for example, produces samples for:
+
+-   `main_samples`: main effects (always continuous)
+-   `pairwise_samples`: pairwise interactions (continuous, may include exact 0s when selection is enabled)
+-   `indicator_samples`: binary indicators for pairwise effects (only present if selection is enabled)
+
+------------------------------------------------------------------------
+
+## Summary Functions
+
+We compute summaries for each parameter using modular R functions. Below we describe their purpose and methodology.
+
+### `summarize_manual()`
+
+**Applies to**: `main_samples` or `pairwise_samples` in the selection disabled `bgm` model.
+
+**Statistics reported**: 
+
+- Posterior mean 
+- Posterior standard deviation 
+- Monte Carlo standard error (MCSE): $sd / \sqrt(\text{n}_\text{eff})$ 
+- Effective sample size $\text{n}_\text{eff}$ using autocorrelation-adjusted estimates 
+- Gelman-Rubin R-hat across chains (if >1 chain)
+
+**Method**: 
+
+- Combines all chains into a 3D array `iterations x chains x parameters` 
+- Computes marginal summaries per parameter 
+- Uses `coda::effectiveSize()` and `coda::gelman.diag()`
+
+------------------------------------------------------------------------
+
+### `summarize_indicator()`
+
+**Applies to**: `indicator_samples`
+
+**Statistics reported**: 
+
+- Mean inclusion probability 
+- Standard deviation 
+- MCSE via Markov 2-state chain estimate 
+- Transition counts: $0 \rightarrow 0$, $0 \rightarrow 1$, $1 \rightarrow 0$, $1 \rightarrow 1$ 
+- Effective sample size from autocorrelation time of 2-state Markov model 
+- R-hat across chains
+
+**Method**: 
+
+- Treats inclusion indicators as binary time series 
+- Estimates transition probabilities $a = \text{n}_{0 \rightarrow 1}$, $b = \text{n}_{1 \rightarrow 0}$ 
+- Computes integrated autocorrelation time: $\tau = \frac{2 - a - b}{a + b}$ 
+- Effective sample size: $\text{n}_{\text{eff}} = \frac{T}{\tau}$, with $T$ total sample size 
+- Estimates MCSE: $\text{sd} / \sqrt{\text{n}_{\text{eff}}}$
+
+------------------------------------------------------------------------
+
+### `summarize_slab()`
+
+**Applies to**: `pairwise_samples`, where values are sometimes 0 due to exclusion
+
+**Statistics reported**: 
+
+- Conditional mean given inclusion (i.e., non-zero samples) 
+- Standard deviation of non-zero values 
+- MCSE using standard ESS 
+- Number of non-zero samples 
+- Effective sample size (ESS) 
+- R-hat across chains (computed on non-zero draws)
+
+**Method**: 
+- Extracts non-zero draws per parameter 
+- Uses standard Monte Carlo diagnostics as in `summarize_manual()`
+
+------------------------------------------------------------------------
+
+### 2.4 `summarize_pair()`
+
+**Applies to**: Combination of `indicator_samples` and `pairwise_samples`
+
+**Statistics reported**: 
+
+- Posterior mean: $\mathbb{E}(\theta) = \mathbb{E}(\theta \mid \gamma = 1) \cdot \hat{P}(\gamma = 1)$ 
+- Posterior standard deviation using delta method 
+- MCSE via variance propagation 
+- Combined effective sample size 
+- R-hat via mixed variance decomposition
+
+**Method**: 
+
+- Combines slab mean and inclusion probability 
+- Uses delta method to propagate uncertainty: $\text{Var}(\hat{\mu}_1, \hat{\mu}_2) \approx \mu_2^2 \cdot \text{Var}(\hat{\mu}_1) + \mu_1^2 \cdot \text{Var}(\hat{\mu}_2)$ 
+- Effective sample size: $\text{ESS} = \frac{\text{Var}}{\text{MCSE}^2}$
+- R-hat combines between-chain and within-chain variance over mixture means
+
+------------------------------------------------------------------------
+
+## Unified Summary: `summarize_fit()`
+
+This function detects whether edge selection is in use (`edge_selection = TRUE/FALSE`) and routes components accordingly:
+
+-   Always uses `summarize_manual()` for main effects
+-   For pairwise effects:
+    -   If no selection: uses `summarize_manual()`
+    -   If selection:
+        -   If all indicators are 1 for a given parameter: fallback to `summarize_manual()`
+        -   Else: use `summarize_pair()` per parameter
+
+The result is a named list:
+
+``` r
+list(
+  main = <summary table>,
+  pairwise = <summary table>
+)
+```
+
+------------------------------------------------------------------------
+
+## Error Handling and Robustness
+
+-   All diagnostic steps use `tryCatch()` to return `NA` on failure
+-   Chains with fewer than 3 non-zero values are excluded from R-hat computation
+-   Transition-based ESS is used for binary indicators
+-   Combined MCSEs and ESSs are computed using propagated variance estimates
+
+------------------------------------------------------------------------
+
+## 5. Output Format
+
+All summary functions return `data.frame` objects with fixed columns. Parameters are labeled using `parameter` or variable names when available.
+
+------------------------------------------------------------------------
+
+## 6. Implementation Details
+
+-   Written in R, using `coda` for ESS and R-hat diagnostics
+-   Chains assumed to be of equal length and aligned across parameters
+-   Optional integration with Quarto or LaTeX for reporting
+
+------------------------------------------------------------------------
