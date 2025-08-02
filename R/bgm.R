@@ -535,7 +535,8 @@ bgm = function(x,
     target_accept = target_accept,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix
+    learn_mass_matrix = learn_mass_matrix,
+    num_chains = chains
   )
 
   if (update_method == "nuts") {

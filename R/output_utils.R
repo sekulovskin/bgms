@@ -4,7 +4,7 @@ prepare_output_bgm <- function(
     na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
     beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
     variable_type, update_method, target_accept, hmc_num_leapfrogs,
-    nuts_max_depth, learn_mass_matrix
+    nuts_max_depth, learn_mass_matrix, num_chains
 ) {
   arguments <- list(
     prepared_data = x,
@@ -30,7 +30,8 @@ prepare_output_bgm <- function(
     target_accept = target_accept,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix
+    learn_mass_matrix = learn_mass_matrix,
+    num_chains = num_chains
   )
 
   num_variables <- ncol(x)
