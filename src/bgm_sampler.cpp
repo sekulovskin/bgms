@@ -488,7 +488,7 @@ void update_parameters_with_hmc(
                                  num_categories, is_ordinal_variable);
     arma::mat rm = observations * current_pair;
 
-    return gradient_log_pseudoposterior_active(
+    return gradient_log_pseudoposterior_active (
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha,
@@ -500,7 +500,7 @@ void update_parameters_with_hmc(
     unvectorize_model_parameters(theta_vec, current_main, current_pair, inclusion_indicator,
                                  num_categories, is_ordinal_variable);
     arma::mat rm = observations * current_pair;
-    return log_pseudoposterior(
+    return log_pseudoposterior (
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
