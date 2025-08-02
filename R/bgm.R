@@ -538,5 +538,10 @@ bgm = function(x,
     learn_mass_matrix = learn_mass_matrix
   )
 
+  if (update_method == "nuts") {
+    nuts_diag = summarize_nuts_diagnostics(out, nuts_max_depth = nuts_max_depth)
+    output$nuts_diag = nuts_diag
+  }
+
   return(output)
 }

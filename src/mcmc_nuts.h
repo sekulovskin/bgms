@@ -26,6 +26,7 @@
  *  - s_prime: Stop flag (1 = continue, 0 = stop expansion).
  *  - alpha: Sum of acceptance probabilities in the subtree.
  *  - n_alpha: Number of proposals contributing to alpha.
+ *  - divergent: Is the transition diverging?
  */
 struct BuildTreeResult {
   arma::vec theta_min;
@@ -37,6 +38,7 @@ struct BuildTreeResult {
   int s_prime;
   double alpha;
   int n_alpha;
+  bool divergent;
 };
 
 

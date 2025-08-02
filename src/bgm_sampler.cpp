@@ -562,7 +562,7 @@ void update_parameters_with_hmc(
  *  - rest_matrix: Recomputed from the updated pairwise_effects.
  *  - adapt: Updated with step size and mass matrix changes if within warmup.
  */
-void update_parameters_with_nuts(
+SamplerResult update_parameters_with_nuts(
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -635,7 +635,9 @@ void update_parameters_with_nuts(
   );
   rest_matrix = observations * pairwise_effects;
 
-  adapt.update(current_state, result.accept_prob, iteration);                   //here
+  adapt.update(current_state, result.accept_prob, iteration);
+
+  return result;
 }
 
 
@@ -827,7 +829,10 @@ void gibbs_update_step_for_graphical_model_parameters (
     RWMAdaptationController& adapt_main,
     RWMAdaptationController& adapt_pairwise,
     const bool learn_mass_matrix,
-    WarmupSchedule const& schedule
+    WarmupSchedule const& schedule,
+    arma::ivec& treedepth_samples,
+    arma::ivec& divergent_samples,
+    arma::vec& energy_samples
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
@@ -878,13 +883,21 @@ void gibbs_update_step_for_graphical_model_parameters (
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration)
     );
   } else if (update_method == "nuts") {
-    update_parameters_with_nuts(
+    SamplerResult result = update_parameters_with_nuts(
       main_effects, pairwise_effects, inclusion_indicator,
       observations, num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, sufficient_pairwise, rest_matrix, nuts_max_depth,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration)
     );
+    if (iteration >= schedule.total_burnin) {
+      int sample_index = iteration - schedule.total_burnin;
+      if (auto diag = std::dynamic_pointer_cast<NUTSDiagnostics>(result.diagnostics)) {
+        treedepth_samples(sample_index) = diag->tree_depth;
+        divergent_samples(sample_index) = diag->divergent ? 1 : 0;
+        energy_samples(sample_index) = diag->energy;
+      }
+    }
   }
 
   /* --- 2b.  proposal-sd tuning during Stage-3b ------------------------------ */
@@ -1003,6 +1016,12 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     allocation_samples.set_size(iter, num_variables);
   }
 
+  // For logging nuts performance
+  arma::ivec treedepth_samples(iter, arma::fill::zeros);
+  arma::ivec divergent_samples(iter, arma::fill::zeros);
+  arma::vec energy_samples(iter, arma::fill::zeros);
+
+
   // Edge update shuffling setup
   arma::uvec v = arma::regspace<arma::uvec>(0, num_pairwise - 1);
   arma::uvec order(num_pairwise);
@@ -1105,7 +1124,8 @@ Rcpp::List run_gibbs_sampler_for_bgm(
         reference_category, iteration, update_method, pairwise_effect_indices,
         sufficient_pairwise,
         hmc_num_leapfrogs, nuts_max_depth, adapt_joint, adapt_main, adapt_pairwise,
-        learn_mass_matrix, warmup_schedule
+        learn_mass_matrix, warmup_schedule,
+        treedepth_samples, divergent_samples, energy_samples
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)
@@ -1178,12 +1198,21 @@ Rcpp::List run_gibbs_sampler_for_bgm(
   Rcpp::List out;
   out["main_samples"] = main_effect_samples;
   out["pairwise_samples"] = pairwise_effect_samples;
-  if(edge_selection) {
+
+  if (update_method == "nuts") {
+    out["treedepth__"] = treedepth_samples;
+    out["divergent__"] = divergent_samples;
+    out["energy__"] = energy_samples;
+  }
+
+  if (edge_selection) {
     out["indicator_samples"] = indicator_samples;
   }
-  if(edge_selection && edge_prior=="Stochastic-Block"){
+
+  if (edge_selection && edge_prior == "Stochastic-Block") {
     out["allocation_samples"] = allocation_samples;
   }
+
   out["chain_id"] = chain_id;
   return out;
 }

@@ -89,16 +89,18 @@ BuildTreeResult build_tree(
     double kin = kinetic_energy(r_new, inv_mass_diag);
     int n_new = 1 * (log_u <= logp - kin);
     int s_new = 1 * (log_u <= Delta_max + logp - kin);
+    bool divergent = (s_new == 0);
     double alpha = std::min(1.0, std::exp(logp - kin - logp0 + kin0));
 
     return {
-      theta_new, r_new, theta_new, r_new, theta_new, n_new, s_new, alpha, 1
+      theta_new, r_new, theta_new, r_new, theta_new, n_new, s_new, alpha, 1, divergent
     };
   } else {
     BuildTreeResult result = build_tree(
       theta, r, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0, memo,
       inv_mass_diag
     );
+    bool divergent = result.divergent;
 
     arma::vec theta_min = result.theta_min;
     arma::vec r_min = result.r_min;
@@ -132,6 +134,7 @@ BuildTreeResult build_tree(
       int s_double_prime = result.s_prime;
       double alpha_double_prime = result.alpha;
       int n_alpha_double_prime = result.n_alpha;
+      divergent = divergent || result.divergent;
 
       double denom = static_cast<double>(n_prime + n_double_prime);
       double prob = static_cast<double>(n_double_prime) / denom;
@@ -147,7 +150,7 @@ BuildTreeResult build_tree(
     }
 
     return {
-      theta_min, r_min, theta_plus, r_plus, theta_prime, n_prime, s_prime, alpha_prime, n_alpha_prime
+      theta_min, r_min, theta_plus, r_plus, theta_prime, n_prime, s_prime, alpha_prime, n_alpha_prime, divergent
     };
   }
 }
@@ -187,6 +190,8 @@ SamplerResult nuts_sampler(
 ) {
   // Here memo is created locally; terminates at end of nuts_sampler() call
   Memoizer memo(log_post, grad);
+  bool any_divergence = false;
+
 
   arma::vec r0 = arma::sqrt(1.0 / inv_mass_diag) % arma::randn(init_theta.n_elem);
   auto logp0 = memo.cached_log_post(init_theta);
@@ -222,6 +227,7 @@ SamplerResult nuts_sampler(
       r_plus = result.r_plus;
     }
 
+    any_divergence = any_divergence || result.divergent;
     alpha = result.alpha;
     n_alpha = result.n_alpha;
 
@@ -239,5 +245,16 @@ SamplerResult nuts_sampler(
 
   double accept_prob = alpha / static_cast<double>(n_alpha);
 
-  return {theta, accept_prob};
+  //Logging NUTS diagnostics
+  auto logp_final = memo.cached_log_post(theta);
+  arma::vec r_final = arma::sqrt(1.0 / inv_mass_diag) % arma::randn(theta.n_elem);
+  double kin_final = kinetic_energy(r_final, inv_mass_diag);
+  double energy = -logp_final + kin_final;
+
+  auto diag = std::make_shared<NUTSDiagnostics>();
+  diag->tree_depth = j;
+  diag->divergent = any_divergence;
+  diag->energy = energy;
+
+  return {theta, accept_prob, diag};
 }

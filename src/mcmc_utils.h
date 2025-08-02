@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <memory>
 
 // (only if <algorithm> didn’t already provide it under C++17)
 #if __cplusplus < 201703L
@@ -24,6 +25,47 @@ namespace std {
 
 
 /**
+ * Struct: DiagnosticsBase
+ *
+ * Abstract base class for sampler-specific diagnostics.
+ *
+ * Allows storing runtime sampler diagnostics (e.g., tree depth, divergence) in
+ * a polymorphic, type-safe way. Each sampler defines its own derived struct
+ * inheriting from this base.
+ *
+ * Notes:
+ *  - Must be used via std::shared_ptr.
+ *  - Enables dynamic_pointer_cast for safe access to sampler-specific fields.
+ *  - The virtual destructor ensures proper cleanup.
+ */
+struct DiagnosticsBase {
+  virtual ~DiagnosticsBase() = default;
+};
+
+
+
+/**
+ * Struct: NUTSDiagnostics
+ *
+ * Diagnostics collected during one iteration of the No-U-Turn Sampler (NUTS).
+ *
+ * Fields:
+ *  - tree_depth: Depth of the final trajectory tree used during this iteration.
+ *  - divergent: Whether a divergence occurred during trajectory simulation.
+ *  - energy: Final Hamiltonian (−log posterior + kinetic energy) of accepted state.
+ *
+ * These diagnostics are used to assess performance and identify issues such as
+ * poor geometry (e.g., divergences or saturated tree depth).
+ */
+struct NUTSDiagnostics : public DiagnosticsBase {
+  int tree_depth;
+  bool divergent;
+  double energy;
+};
+
+
+
+/**
  * Struct: SamplerResult
  *
  * Represents the final outcome of one iteration of the NUTS sampler.
@@ -31,10 +73,12 @@ namespace std {
  * Fields:
  *  - state: Final accepted position (parameter vector).
  *  - accept_prob: Acceptance probability.
+ *  - diagnostics:
  */
 struct SamplerResult {
   arma::vec state;
   double accept_prob;
+  std::shared_ptr<DiagnosticsBase> diagnostics;
 };
 
 
