@@ -2,21 +2,8 @@
 
 #include <RcppArmadillo.h>
 
-// Log posterior for main effect parameters only
-double log_pseudoposterior_thresholds(
-    const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
-    const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta
-);
-
 // Log posterior for a single component of main effect
-double log_pseudoposterior_thresholds_component(
+double log_pseudoposterior_thresholds_component (
     const arma::mat& main_effects,
     const arma::mat& rest_matrix,
     const arma::ivec& num_categories,
@@ -31,35 +18,8 @@ double log_pseudoposterior_thresholds_component(
     const int parameter
 );
 
-// Gradient for thresholds
-arma::vec gradient_log_pseudoposterior_thresholds(
-    const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
-    const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
-    const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta
-);
-
-// Log posterior over all interactions
-double log_pseudoposterior_interactions(
-    const arma::mat& pairwise_effects,
-    const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& inclusion_indicator,
-    const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise
-);
-
 // Log posterior for a single component of interactions
-double log_pseudoposterior_interactions_component(
+double log_pseudoposterior_interactions_component (
     const arma::mat& pairwise_effects,
     const arma::mat& main_effects,
     const arma::imat& observations,
@@ -73,37 +33,8 @@ double log_pseudoposterior_interactions_component(
     const int var2
 );
 
-// Gradient for all interactions
-arma::vec gradient_log_pseudoposterior_interactions(
-    const arma::mat& pairwise_effects,
-    const arma::mat& main_effects,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& inclusion_indicator,
-    const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
-);
-
-// Gradient for a single interaction parameter
-double gradient_log_pseudoposterior_interactions_component(
-    int var1,
-    int var2,
-    const arma::mat& pairwise_effects,
-    const arma::mat& main_effects,
-    const arma::imat& observations,
-    const arma::mat& rest_matrix,
-    const arma::ivec& num_categories,
-    const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
-    const double interaction_scale,
-    const arma::imat& sufficient_pairwise
-);
-
 // Full log posterior
-double log_pseudoposterior(
+double log_pseudoposterior (
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -121,7 +52,7 @@ double log_pseudoposterior(
 );
 
 // Full gradient
-arma::vec gradient_log_pseudoposterior(
+arma::vec gradient_log_pseudoposterior (
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -139,7 +70,7 @@ arma::vec gradient_log_pseudoposterior(
 );
 
 // Full gradient with inactive interactions filtered out
-arma::vec gradient_log_pseudoposterior_active(
+arma::vec gradient_log_pseudoposterior_active (
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -157,7 +88,7 @@ arma::vec gradient_log_pseudoposterior_active(
 );
 
 // Pseudolikelihood ratio for a single variable
-double compute_log_likelihood_ratio_for_variable(
+double compute_log_likelihood_ratio_for_variable (
     int variable,
     const arma::ivec& interacting_score,
     double proposed_state,
@@ -171,7 +102,7 @@ double compute_log_likelihood_ratio_for_variable(
 );
 
 // Pseudolikelihood ratio for an interaction
-double log_pseudolikelihood_ratio_interaction(
+double log_pseudolikelihood_ratio_interaction (
     const arma::mat& pairwise_effects,
     const arma::mat& main_effects,
     const arma::imat& observations,
