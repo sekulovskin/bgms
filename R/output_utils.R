@@ -115,7 +115,7 @@ prepare_output_bgm <- function(
   results$raw_samples <- list(
     main      = lapply(out, function(chain) chain$main_samples),
     pairwise  = lapply(out, function(chain) chain$pairwise_samples),
-    indicator = if (edge_selection) lapply(out, function(chain) chain$inclusion_indicator_samples) else NULL,
+    indicator = if (edge_selection) lapply(out, function(chain) chain$indicator_samples) else NULL,
     nchains   = length(out),
     niter     = nrow(out[[1]]$main_samples),
     parameter_names = list(

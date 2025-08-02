@@ -184,3 +184,68 @@ coef.bgms <- function(object, ...) {
   }
   return(out)
 }
+
+
+
+#' @export
+as_draws.bgms <- function(x, ...) {
+  if (!requireNamespace("posterior", quietly = TRUE)) {
+    stop("Install the 'posterior' package to use this method.")
+  }
+
+  arguments <- extract_arguments(x)
+
+  # Helper to collapse list of chains into matrix and assign names
+  make_matrix_block <- function(samples_list, param_names = NULL) {
+    if (is.null(samples_list) || all(vapply(samples_list, is.null, logical(1)))) {
+      return(NULL)
+    }
+    mat <- do.call(rbind, samples_list)
+    if (!is.null(param_names)) colnames(mat) <- param_names
+    return(mat)
+  }
+
+  # Helper to prefix column names
+  prefix_colnames <- function(mat, prefix) {
+    if (!is.null(mat)) {
+      colnames(mat) <- paste0(prefix, colnames(mat))
+    }
+    mat
+  }
+
+  # Assemble all blocks
+  main_mat <- make_matrix_block(x$raw_samples$main_samples, x$raw_samples$parameter_names$main)
+  pairwise_mat <- make_matrix_block(x$raw_samples$pairwise_samples, x$raw_samples$parameter_names$pairwise)
+  indicator_mat <- make_matrix_block(x$raw_samples$indicator, x$raw_samples$parameter_names$indicator)
+
+  # Apply prefixes to avoid name duplication
+  main_mat <- prefix_colnames(main_mat, "main_")
+  pairwise_mat <- prefix_colnames(pairwise_mat, "pairwise_")
+  indicator_mat <- prefix_colnames(indicator_mat, "indicator_")
+
+  # Issue spike-and-slab warning (only once)
+  if (isTRUE(arguments$edge_selection) && !getOption("bgms.as_draws_warning_given", FALSE)) {
+    warning("This model includes spike-and-slab posteriors (e.g., pairwise effects or indicators).\n",
+            "Posterior summaries and diagnostics for these require special treatment.\n",
+            "See `vignette(\"spike_slab_manual\", package = \"bgms\")` for details.",
+            call. = FALSE)
+    options(bgms.as_draws_warning_given = TRUE)
+  }
+
+  # Combine all available samples
+  all_samples <- cbind(main_mat, pairwise_mat, indicator_mat)
+
+  # Return draws_df
+  posterior::as_draws_df(all_samples)
+}
+
+
+
+
+.warning_issued <- FALSE
+warning_once <- function(msg) {
+  if (!.warning_issued) {
+    warning(msg, call. = FALSE)
+    .warning_issued <<- TRUE
+  }
+}
