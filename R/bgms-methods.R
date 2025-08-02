@@ -116,6 +116,11 @@ summary.bgms <- function(object, ...) {
       main = object$posterior_summary_main,
       pairwise = object$posterior_summary_pairwise
     )
+
+    if (!is.null(object$posterior_summary_indicator)) {
+      out$indicator <- object$posterior_summary_indicator
+    }
+
     class(out) <- "summary.bgms"
     return(out)
   }
@@ -125,6 +130,7 @@ summary.bgms <- function(object, ...) {
           "or use the `easybgm` package for diagnostic summaries and plotting.")
   invisible(NULL)
 }
+
 
 
 
