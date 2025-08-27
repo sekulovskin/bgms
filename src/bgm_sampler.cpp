@@ -1210,7 +1210,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
   }
 
   if (edge_selection && edge_prior == "Stochastic-Block") {
-    out["allocation_samples"] = allocation_samples;
+    out["allocations"] = allocation_samples;
   }
 
   out["chain_id"] = chain_id;

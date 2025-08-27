@@ -121,6 +121,12 @@ summary.bgms <- function(object, ...) {
       out$indicator <- object$posterior_summary_indicator
     }
 
+    if (!is.null(object$posterior_summary_pairwise_allocations)) {
+      out$pairwise_allocations <- object$posterior_summary_pairwise_allocations
+      out$allications_mean <- object$posterior_mean_allocations
+      out$num_blocks <- object$posterior_num_blocks
+    }
+
     class(out) <- "summary.bgms"
     return(out)
   }
@@ -159,6 +165,26 @@ print.summary.bgms <- function(x, digits = 3, ...) {
     cat("\n")
   }
 
+  if (!is.null(x$pairwise_allocations)) {
+    cat("Pairwise node co-clustering proportion:\n")
+    print(round(head(x$pairwise_allocations, 6), digits = digits))
+    if (nrow(x$pairwise_allocations) > 6) cat("... (use `summary(fit)$allocations` to see full output)\n")
+    cat("\n")
+  }
+
+  if (!is.null(x$allications_mean)) {
+    cat("Mean posterior node allocation vector :\n")
+    print(round(head(x$allications_mean, 6), digits = digits))
+    cat("\n")
+  }
+
+  if (!is.null(x$num_blocks)) {
+    cat("Number of blocks and their posterior probability :\n")
+    print(round(head(x$num_blocks, 6), digits = digits))
+    if (nrow(x$num_blocks) > 6) cat("... (use `summary(fit)$posterior_num_blocks` to see full output)\n")
+    cat("\n")
+  }
+
   cat("Use `summary(fit)$<component>` to access full results.\n")
   cat("See the `easybgm` package for other summary and plotting tools.\n")
 }
@@ -188,6 +214,13 @@ coef.bgms <- function(object, ...) {
   if (!is.null(object$posterior_mean_indicator)) {
     out$indicator <- object$posterior_mean_indicator
   }
+
+  if (!is.null(object$posterior_mean_allocations)) {
+    out$mean_allocations <- object$posterior_mean_allocations
+    out$mode_allocations <- object$posterior_mode_allocations
+    out$num_blocks <- object$posterior_num_blocks
+  }
+
   return(out)
 }
 
@@ -223,11 +256,13 @@ as_draws.bgms <- function(x, ...) {
   main_mat <- make_matrix_block(x$raw_samples$main_samples, x$raw_samples$parameter_names$main)
   pairwise_mat <- make_matrix_block(x$raw_samples$pairwise_samples, x$raw_samples$parameter_names$pairwise)
   indicator_mat <- make_matrix_block(x$raw_samples$indicator, x$raw_samples$parameter_names$indicator)
+  allocations_mat <- make_matrix_block(x$raw_samples$allocations, x$raw_samples$parameter_names$allocations)
 
   # Apply prefixes to avoid name duplication
   main_mat <- prefix_colnames(main_mat, "main_")
   pairwise_mat <- prefix_colnames(pairwise_mat, "pairwise_")
   indicator_mat <- prefix_colnames(indicator_mat, "indicator_")
+  allocations_mat <- prefix_colnames(allocations_mat, "allocations_")
 
   # Issue spike-and-slab warning (only once)
   if (isTRUE(arguments$edge_selection) && !getOption("bgms.as_draws_warning_given", FALSE)) {
@@ -239,13 +274,11 @@ as_draws.bgms <- function(x, ...) {
   }
 
   # Combine all available samples
-  all_samples <- cbind(main_mat, pairwise_mat, indicator_mat)
+  all_samples <- cbind(main_mat, pairwise_mat, indicator_mat, allocations_mat)
 
   # Return draws_df
   posterior::as_draws_df(all_samples)
 }
-
-
 
 
 .warning_issued <- FALSE
