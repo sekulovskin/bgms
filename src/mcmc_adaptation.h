@@ -1,7 +1,7 @@
 // mcmc_adaptation.h
 #pragma once
 
-#include <armadillo>
+#include <RcppArmadillo.h>
 #include <cmath>
 #include <algorithm>
 #include <vector>
