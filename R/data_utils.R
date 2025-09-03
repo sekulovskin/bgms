@@ -461,12 +461,11 @@ compute_num_obs_categories = function(x, num_categories, group = NULL) {
     num_obs_categories[[g]] = num_obs_categories_gr
   }
   return(num_obs_categories)
-
 }
 
 # Helper function for computing sufficient statistics for Blume-Capel variables
 compute_sufficient_blume_capel = function(x, reference_category, ordinal_variable, group = NULL) {
-  if (is.null(group)) {  # Two-group design
+  if (is.null(group)) {  # One-group design
     sufficient_stats = matrix(0, nrow = 2, ncol = ncol(x))
     bc_vars = which(!ordinal_variable)
     for (i in bc_vars) {
@@ -487,4 +486,239 @@ compute_sufficient_blume_capel = function(x, reference_category, ordinal_variabl
     }
     return(sufficient_stats)
   }
+}
+
+# Helper function for computing sufficient statistics for pairwise interactions
+compute_sufficient_pairwise <- function(x, group) {
+  result <- vector("list", length(group))
+
+  for (g in unique(group)) {
+    obs <- x[group == g, , drop = FALSE]
+    # cross-product: gives number of co-occurrences of categories
+    result[[g]] <- t(obs) %*% obs
+  }
+
+  result
+}
+
+
+compare2_reformat_data = function(
+    x,
+    group,
+    na_action,
+    variable_bool,
+    reference_category
+) {
+  if(na_action == "listwise") {
+    # Check for missing values in x --------------------------------------------
+    missing_values = sapply(1:nrow(x), function(row){anyNA(x[row, ])})
+    if(sum(missing_values) == nrow(x))
+      stop(paste0("All rows in x contain at least one missing response.\n",
+                  "You could try option na_action = impute."))
+    if(sum(missing_values) > 1)
+      warning(paste0("There were ",
+                     sum(missing_values),
+                     " rows with missing observations in the input matrix x.\n",
+                     "Since na_action = listwise these rows were excluded from the analysis."),
+              call. = FALSE)
+    if(sum(missing_values) == 1)
+      warning(paste0("There was one row with missing observations in the input matrix x.\n",
+                     "Since na_action = listwise this row was excluded from \n",
+                     "the analysis."),
+              call. = FALSE)
+
+    x = x[!missing_values, ]
+    group = group[!missing_values]
+
+    if(nrow(x) < 2 || is.null(nrow(x)))
+      stop(paste0("After removing missing observations from the input matrix x,\n",
+                  "there were less than two rows left in x."))
+
+    unique_g = unique(group)
+    if(length(unique_g) == length(group))
+      stop(paste0("After rows with missing observations were excluded, there were no groups, as \n",
+                  "there were only unique values in the input g left."))
+    if(length(unique_g) == 1)
+      stop(paste0("After rows with missing observations were excluded, there were no groups, as \n",
+                  "there was only one value in the input g left."))
+    g = group
+    for(u in unique_g) {
+      group[g == u] = which(unique_g == u)
+    }
+    tab = tabulate(group)
+
+    if(any(tab < 2))
+      stop(paste0("After rows with missing observations were excluded, one or more groups, only \n",
+                  "had one member in the input g."))
+
+    missing_index = matrix(NA, nrow = 1, ncol = 1)
+    na_impute = FALSE
+  } else {
+    # Check for missing values in x --------------------------------------------
+    num_missings = sum(is.na(x))
+    num_persons = nrow(x)
+    num_variables = ncol(x)
+    if(num_missings > 0) {
+      missing_index = matrix(0, nrow = num_missings, ncol = 2)
+      na_impute = TRUE
+      cntr = 0
+      for(node in 1:num_variables) {
+        mis = which(is.na(x[, node]))
+        if(length(mis) > 0) {
+          for(i in 1:length(mis)) {
+            cntr = cntr + 1
+            missing_index[cntr, 1] = mis[i] - 1                             #c++ index starts at 0
+            missing_index[cntr, 2] = node - 1                               #c++ index starts at 0
+            x[mis[i], node] = sample(x[-mis, node], size = 1)               #start value for imputation
+            #This is non-zero if no zeroes are observed (we then collapse over zero below)
+          }
+        }
+      }
+    } else {
+      missing_index = matrix(NA, nrow = 1, ncol = 1)
+      na_impute = FALSE
+    }
+  }
+
+  check_fail_zero = FALSE
+  num_variables = ncol(x)
+  num_categories = matrix(0,
+                          nrow = num_variables,
+                          ncol = max(group))
+
+  for(node in 1:num_variables) {
+    unq_vls = sort(unique(x[,  node]))
+    mx_vls = length(unq_vls)
+
+    # Check if observed responses are not all unique ---------------------------
+    if(mx_vls == nrow(x))
+      stop(paste0("Only unique responses observed for variable ",
+                  node,
+                  " in the matrix x (group 1). We expect >= 1 observations per category."))
+
+    # Recode data --------------------------------------------------------------
+    if(variable_bool[node]) {#Regular ordinal variable
+      # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
+      observed_scores = matrix(NA,
+                               nrow = mx_vls,
+                               ncol = max(group))
+
+      for(value in unq_vls) {
+        unique_g = unique(group)
+        for(g in unique_g) {
+          observed_scores[which(unq_vls == value), g] =
+            any(x[group == g, node] == value) * 1
+        }
+      }
+
+      xx = x[, node]
+      cntr = -1
+      for(value in unq_vls) {
+        #Collapse categories when not observed in one or more groups.
+        if(sum(observed_scores[which(unq_vls == value), ]) == max(group)) {
+          cntr = cntr + 1 #increment score if category observed in all groups
+        }
+        x[xx == value, node] = max(0, cntr)
+      }
+
+    } else {#Blume-Capel ordinal variable
+      # Check if observations are integer or can be recoded --------------------
+      if (any(abs(unq_vls - round(unq_vls)) > .Machine$double.eps)) {
+        int_unq_vls = unique(as.integer(unq_vls))
+        if(anyNA(int_unq_vls)) {
+          stop(paste0(
+            "The Blume-Capel model assumes that its observations are coded as integers, but \n",
+            "the category scores for node ", node, " were not integer. An attempt to recode \n",
+            "them to integer failed. Please inspect the documentation for the base R function \n",
+            "as.integer(), which bgmCompare uses for recoding category scores."))
+        }
+
+        if(length(int_unq_vls) != length(unq_vls)) {
+          stop(paste0("The Blume-Capel model assumes that its observations are coded as integers. The \n",
+                      "category scores of the observations for node ", node, " were not integers. An \n",
+                      "attempt to recode these observations as integers failed because, after rounding,\n",
+                      "a single integer value was used for several observed score categories."))
+        }
+        x[, node] = as.integer(x[, node])
+      }
+
+      mi = min(x[,node])
+
+      ma = max(x[,node])
+
+      if(reference_category[node] < mi | reference_category[node] > ma)
+        stop(paste0(
+          "The reference category for the Blume-Capel variable ", node, "is outside its \n",
+          "range of observations in the matrices x (and y)."))
+
+      # Check if observations start at zero and recode otherwise ---------------
+      if(mi != 0) {
+        reference_category[node] = reference_category[node] - mi
+        x[, node] = x[, node] - mi
+
+        if(check_fail_zero == FALSE) {
+          check_fail_zero = TRUE
+          failed_zeroes = c(node)
+        } else {
+          failed_zeroes = c(failed_zeroes, node)
+        }
+      }
+
+      check_range = length(unique(x[, node]))
+
+      if(check_range < 3)
+        stop(paste0("The Blume-Capel is only available for variables with more than two categories \n",
+                    "observed. There are two or less categories observed for variable ",
+                    node,
+                    "."))
+    }
+
+
+    # Warn that maximum category value is large --------------------------------
+
+    num_categories[node, ] = max(x[, node])
+
+    if(!variable_bool[node] & max(num_categories[node, ]) > 10) {
+      # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
+      warning(paste0("In the (pseudo) likelihood of Blume-Capel variables, the normalization constant \n",
+                     "is a sum over all possible values of the ordinal variable. The range of \n",
+                     "observed values, possibly after recoding to integers, is assumed to be the \n",
+                     "number of possible response categories.  For node ", node,", in group 1, this \n",
+                     "range was equal to ", max(num_categories[node,]), "which may cause the analysis to take some \n",
+                     "time to run. Note that for the Blume-Capel model, the bgm function does not \n",
+                     "collapse the categories that have no observations between zero and the last \n",
+                     "category. This may explain the large discrepancy between the first and last \n",
+                     "category values."))
+    }
+
+
+    # Check to see if not all responses are in one category --------------------
+    if(any(num_categories[node, ] == 0))
+      stop(paste0("Only one value was observed for variable ",
+                  node,
+                  ", in at least one of the groups."))
+  }
+
+
+  if(check_fail_zero == TRUE) {
+    if(length(failed_zeroes) == 1) {
+      node = failed_zeroes[1]
+      warning(paste0("The bgm function assumes that the observed ordinal variables are integers and \n",
+                     "that the lowest observed category score is zero. The lowest score for node \n",
+                     node, " was recoded to zero for the analysis. Note that bgm also recoded the \n",
+                     "the corresponding reference category score to ", reference_category[node], "."))
+    } else {
+      warning(paste0("The bgm function assumes that the observed ordinal variables are integers and \n",
+                     "that the lowest observed category score is zero. The lowest score for nodes \n",
+                     paste(failed_zeroes, collapse = ","), " were recoded to zero for the analysis. \n",
+                     "Note that bgm also recoded the corresponding reference category scores."))
+    }
+  }
+
+  return(list(x = x,
+              group = group,
+              num_categories = num_categories,
+              reference_category = reference_category,
+              missing_index = missing_index,
+              na_impute = na_impute))
 }

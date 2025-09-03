@@ -11,8 +11,8 @@ double log_pseudoposterior_thresholds_component (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const int variable,
     const int category,
     const int parameter
@@ -44,8 +44,8 @@ double log_pseudoposterior (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const double interaction_scale,
     const arma::imat& sufficient_pairwise,
     const arma::mat& rest_matrix
@@ -62,8 +62,8 @@ arma::vec gradient_log_pseudoposterior (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const double interaction_scale,
     const arma::imat& sufficient_pairwise,
     const arma::mat& rest_matrix
@@ -80,8 +80,8 @@ arma::vec gradient_log_pseudoposterior_active (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const double interaction_scale,
     const arma::imat& sufficient_pairwise,
     const arma::mat& rest_matrix

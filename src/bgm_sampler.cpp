@@ -5,6 +5,7 @@
 #include "bgm_helper.h"
 #include "bgm_logp_and_grad.h"
 #include "bgm_sampler.h"
+#include "common_helpers.h"
 #include "mcmc_adaptation.h"
 #include "mcmc_hmc.h"
 #include "mcmc_leapfrog.h"
@@ -642,6 +643,77 @@ SamplerResult update_parameters_with_nuts(
 
 
 
+
+/* ------------------------------------------------------------------ *
+ Tune the Gaussian s.d. for *weight* proposals only.
+ Runs   ONLY   when  schedule.adapt_proposal_sd(iter) == true,
+ i.e.   Stage-3b,   indicator moves still *OFF*.
+ * ------------------------------------------------------------------ */
+void tune_pairwise_proposal_sd(
+    arma::mat& proposal_sd_pairwise_effects,
+    arma::mat& pairwise_effects,
+    const arma::mat& main_effects,
+    const arma::imat& inclusion_indicator,
+    const arma::imat& observations,
+    arma::mat& rest_matrix,
+    const arma::ivec& num_categories,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& reference_category,
+    const double interaction_scale,
+    const arma::imat& sufficient_pairwise,
+    int iteration,
+    const WarmupSchedule& sched,
+    double target_accept = 0.44,
+    double rm_decay = 0.75
+)
+{
+  if (!sched.adapt_proposal_sd(iteration)) return;
+
+  double t = iteration - sched.stage3b_start + 1;
+  double rm_weight = std::pow(t, -rm_decay);
+
+  const int num_variables = pairwise_effects.n_rows;
+
+  for (int variable1 = 0; variable1 < num_variables - 1; variable1++) {
+    for (int variable2 = variable1 + 1; variable2 < num_variables; variable2++) {
+      double& value = pairwise_effects(variable1, variable2);
+      double proposal_sd = proposal_sd_pairwise_effects(variable1, variable2);
+      double current = value;
+
+      auto log_post = [&](double theta) {
+        pairwise_effects(variable1, variable2) = theta;
+        pairwise_effects(variable2, variable1) = theta;
+
+        return log_pseudoposterior_interactions_component(
+          pairwise_effects, main_effects, observations, num_categories,
+          inclusion_indicator, is_ordinal_variable, reference_category,
+          interaction_scale, sufficient_pairwise, variable1, variable2
+        );
+      };
+
+      SamplerResult result = rwm_sampler(current, proposal_sd, log_post);
+
+      value = result.state[0];
+      pairwise_effects(variable2, variable1) = value;
+
+      if(current != value) {
+        double delta = value - current;
+        rest_matrix.col(variable1) += arma::conv_to<arma::vec>::from(observations.col(variable2)) * delta;
+        rest_matrix.col(variable2) += arma::conv_to<arma::vec>::from(observations.col(variable1)) * delta;
+      }
+
+      proposal_sd = update_proposal_sd_with_robbins_monro(
+        proposal_sd, std::log(result.accept_prob), rm_weight, target_accept
+      );
+
+      proposal_sd_pairwise_effects(variable1, variable2) = proposal_sd;
+      proposal_sd_pairwise_effects(variable2, variable1) = proposal_sd;
+    }
+  }
+}
+
+
+
 /**
  * Function: update_indicator_interaction_pair_with_metropolis
  *
@@ -1090,7 +1162,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
   // --- Main Gibbs sampling loop
   for (int iteration = 0; iteration < total_iter; iteration++) {
     if (iteration % print_every == 0) {
-      tbb::mutex::scoped_lock lock(print_mutex);
+      tbb::mutex::scoped_lock lock(get_print_mutex());
       Rcpp::Rcout
       << "[bgm] chain " << chain_id
       << " iteration " << iteration
@@ -1129,7 +1201,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)
-    if (edge_selection) {
+    if (warmup_schedule.selection_enabled(iteration)) {
       if (edge_prior == "Beta-Bernoulli") {
         int num_edges_included = 0;
         for (int i = 0; i < num_variables - 1; i++)

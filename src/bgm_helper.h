@@ -2,12 +2,6 @@
 
 #include <RcppArmadillo.h>
 
-// Count the number of main effect parameters
-int count_num_main_effects(
-    const arma::ivec& num_categories,
-    const arma::uvec& is_ordinal_variable
-);
-
 // Vectorize threshold matrix
 arma::vec vectorize_thresholds(
     const arma::mat& main_effects,
@@ -48,8 +42,6 @@ arma::vec inv_mass_active(
     const arma::uvec& is_ordinal_variable,
     const bool& selection
 );
-
-
 
 inline void initialise_graph(
     arma::imat& indicator,

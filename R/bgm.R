@@ -312,30 +312,31 @@
 #' @importFrom RcppParallel defaultNumThreads
 #'
 #' @export
-bgm = function(x,
-               variable_type = "ordinal",
-               reference_category,
-               iter = 1e3,
-               burnin = 1e3,
-               interaction_scale = 2.5,
-               threshold_alpha = 0.5,
-               threshold_beta = 0.5,
-               edge_selection = TRUE,
-               edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
-               inclusion_probability = 0.5,
-               beta_bernoulli_alpha = 1,
-               beta_bernoulli_beta = 1,
-               dirichlet_alpha = 1,
-               lambda = 1,
-               na_action = c("listwise", "impute"),
-               display_progress = TRUE,
-               update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
-               target_accept,
-               hmc_num_leapfrogs = 100,
-               nuts_max_depth = 10,
-               learn_mass_matrix = FALSE,
-               chains = 4,
-               cores = parallel::detectCores()
+bgm = function(
+    x,
+    variable_type = "ordinal",
+    reference_category,
+    iter = 1e3,
+    burnin = 1e3,
+    interaction_scale = 2.5,
+    threshold_alpha = 0.5,
+    threshold_beta = 0.5,
+    edge_selection = TRUE,
+    edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
+    inclusion_probability = 0.5,
+    beta_bernoulli_alpha = 1,
+    beta_bernoulli_beta = 1,
+    dirichlet_alpha = 1,
+    lambda = 1,
+    na_action = c("listwise", "impute"),
+    display_progress = TRUE,
+    update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
+    target_accept,
+    hmc_num_leapfrogs = 100,
+    nuts_max_depth = 10,
+    learn_mass_matrix = FALSE,
+    chains = 4,
+    cores = parallel::detectCores()
 ) {
   # Check update method
   update_method_input = update_method
@@ -393,23 +394,16 @@ bgm = function(x,
   inclusion_probability = model$inclusion_probability
 
   #Check Gibbs input -----------------------------------------------------------
-  if(abs(iter - round(iter)) > .Machine$double.eps)
-    stop("Parameter ``iter'' needs to be a positive integer.")
-  if(iter <= 0)
-    stop("Parameter ``iter'' needs to be a positive integer.")
-  if(abs(burnin - round(burnin)) > .Machine$double.eps || burnin < 0)
-    stop("Parameter ``burnin'' needs to be a non-negative integer.")
-  if(burnin <= 0)
-    stop("Parameter ``burnin'' needs to be a positive integer.")
+  check_positive_integer(iter, "iter")
+  check_non_negative_integer(burnin, "burnin")
   if(burnin < 1e3)
     warning("The burnin parameter is set to a low value. This may lead to unreliable results. Reset to a minimum of 1000 iterations.")
   burnin = max(burnin, 1e3) # Set minimum burnin to 1000 iterations
-  if(abs(hmc_num_leapfrogs - round(hmc_num_leapfrogs)) > .Machine$double.eps)
-    stop("Parameter ``hmc_num_leapfrogs'' needs to be a positive integer.")
+
+  check_positive_integer(hmc_num_leapfrogs, "hmc_num_leapfrogs")
   hmc_num_leapfrogs = max(hmc_num_leapfrogs, 1) # Set minimum hmc_num_leapfrogs to 1
 
-  if(abs(nuts_max_depth - round(nuts_max_depth)) > .Machine$double.eps)
-    stop("Parameter ``nuts_max_depth'' needs to be a positive integer.")
+  check_positive_integer(nuts_max_depth, "nuts_max_depth")
   nuts_max_depth = max(nuts_max_depth, 1) # Set minimum nuts_max_depth to 1
 
   #Check na_action -------------------------------------------------------------
@@ -421,9 +415,7 @@ bgm = function(x,
                 "."))
 
   #Check display_progress ------------------------------------------------------
-  display_progress = as.logical(display_progress)
-  if(is.na(display_progress))
-    stop("The display_progress argument should equal TRUE or FALSE.")
+  display_progress = check_logical(display_progress, "display_progress")
 
   #Format the data input -------------------------------------------------------
   data = reformat_data(x = x,

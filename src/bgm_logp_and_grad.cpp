@@ -1,6 +1,7 @@
 #include <RcppArmadillo.h>
 #include "bgm_helper.h"
 #include "bgm_logp_and_grad.h"
+#include "common_helpers.h"
 using namespace Rcpp;
 
 
@@ -18,7 +19,7 @@ using namespace Rcpp;
  *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
  *  - reference_category: Reference category per variable (for Blume-Capel).
  *  - is_ordinal_variable: Logical vector (1 = ordinal, 0 = Blume-Capel).
- *  - threshold_alpha, threshold_beta: Prior hyperparameters.
+ *  - main_alpha, main_beta: Prior hyperparameters.
  *  - variable: Which variable to compute the log pseudo-posterior for
  *  - category: If ordinal, which category to compute the log pseudo-posterior for
  *  - parameter: If Blume-Capel, which parameter to compute the log pseudo-posterior for (0 = linear, 1 = quadratic)
@@ -34,8 +35,8 @@ double log_pseudoposterior_thresholds_component (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const int variable,
     const int category,
     const int parameter
@@ -44,7 +45,7 @@ double log_pseudoposterior_thresholds_component (
   double log_posterior = 0.0;
 
   auto log_beta_prior = [&](double threshold_param) {
-    return threshold_param * threshold_alpha - std::log1p (std::exp (threshold_param)) * (threshold_alpha + threshold_beta);
+    return threshold_param * main_alpha - std::log1p (std::exp (threshold_param)) * (main_alpha + main_beta);
   };
 
   const int num_cats = num_categories(variable);
@@ -218,7 +219,7 @@ double log_pseudoposterior_interactions_component (
  *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel main effects.
  *  - reference_category: Reference categories per variable.
  *  - is_ordinal_variable: Logical vector indicating ordinal variables.
- *  - threshold_alpha, threshold_beta: Prior hyperparameters for main effects.
+ *  - main_alpha, main_beta: Prior hyperparameters for main effects.
  *  - interaction_scale: Scale parameter for Cauchy prior over interactions.
  *  - sufficient_pairwise: Sufficient statistics for pairwise interactions.
  *  - rest_matrix: Matrix of residual predictors.
@@ -236,8 +237,8 @@ double log_pseudoposterior (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const double interaction_scale,
     const arma::imat& sufficient_pairwise,
     const arma::mat& rest_matrix
@@ -250,7 +251,7 @@ double log_pseudoposterior (
 
   // Calculate the contribution from the data and the prior
   auto log_beta_prior = [&](double threshold_param) {
-    return threshold_param * threshold_alpha - std::log1p (std::exp (threshold_param)) * (threshold_alpha + threshold_beta);
+    return threshold_param * main_alpha - std::log1p (std::exp (threshold_param)) * (main_alpha + main_beta);
   };
 
   for (int variable = 0; variable < num_variables; variable++) {
@@ -338,7 +339,7 @@ double log_pseudoposterior (
  *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel main effects.
  *  - reference_category: Reference categories per variable (BC variables).
  *  - is_ordinal_variable: Logical vector for ordinal variables.
- *  - threshold_alpha, threshold_beta: Beta prior parameters for main effects.
+ *  - main_alpha, main_beta: Beta prior parameters for main effects.
  *  - interaction_scale: Scale of the Cauchy prior on interactions.
  *  - sufficient_pairwise: Sufficient statistics for pairwise effects.
  *  - rest_matrix: Residual predictor matrix for likelihood computation.
@@ -356,8 +357,8 @@ arma::vec gradient_log_pseudoposterior (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const double interaction_scale,
     const arma::imat& sufficient_pairwise,
     const arma::mat& rest_matrix
@@ -493,14 +494,14 @@ arma::vec gradient_log_pseudoposterior (
       const int num_cats = num_categories(variable);
       for (int cat = 0; cat < num_cats; cat++) {
         const double p = 1.0 / (1.0 + std::exp (-main_effects(variable, cat)));
-        gradient(offset + cat) += threshold_alpha - (threshold_alpha + threshold_beta) * p;
+        gradient(offset + cat) += main_alpha - (main_alpha + main_beta) * p;
       }
       offset += num_cats;
     } else {
       for (int i = 0; i < 2; i++) {
         const double threshold_param = main_effects(variable, i);
         const double p = 1.0 / (1.0 + std::exp (-threshold_param));
-        gradient(offset + i) += threshold_alpha - (threshold_alpha + threshold_beta) * p;
+        gradient(offset + i) += main_alpha - (main_alpha + main_beta) * p;
       }
       offset += 2;
     }
@@ -541,7 +542,7 @@ arma::vec gradient_log_pseudoposterior (
  *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
  *  - reference_category: Reference category index per variable.
  *  - is_ordinal_variable: Logical vector of ordinal variable flags.
- *  - threshold_alpha, threshold_beta: Prior parameters for main effects.
+ *  - main_alpha, main_beta: Prior parameters for main effects.
  *  - interaction_scale: Cauchy scale for interaction prior.
  *  - sufficient_pairwise: Sufficient statistics for interactions.
  *  - rest_matrix: Matrix of residual predictor terms.
@@ -559,8 +560,8 @@ arma::vec gradient_log_pseudoposterior_active (
     const arma::imat& sufficient_blume_capel,
     const arma::ivec& reference_category,
     const arma::uvec& is_ordinal_variable,
-    const double threshold_alpha,
-    const double threshold_beta,
+    const double main_alpha,
+    const double main_beta,
     const double interaction_scale,
     const arma::imat& sufficient_pairwise,
     const arma::mat& rest_matrix
@@ -570,7 +571,7 @@ arma::vec gradient_log_pseudoposterior_active (
   arma::vec full_gradient = gradient_log_pseudoposterior(
     main_effects, pairwise_effects, inclusion_indicator, observations,
     num_categories, num_obs_categories, sufficient_blume_capel,
-    reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
+    reference_category, is_ordinal_variable, main_alpha, main_beta,
     interaction_scale, sufficient_pairwise, rest_matrix
   );
 

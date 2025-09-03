@@ -9,8 +9,6 @@
 using namespace Rcpp;
 using namespace RcppParallel;
 
-tbb::mutex print_mutex;
-
 struct GibbsChainRunner : public Worker {
   const int num_chains;
   const arma::imat observations;
