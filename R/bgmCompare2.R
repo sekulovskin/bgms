@@ -1,3 +1,4 @@
+#' @export
 bgmCompare2 = function(
     x,
     y,
