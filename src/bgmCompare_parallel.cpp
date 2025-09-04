@@ -15,7 +15,7 @@ using namespace RcppParallel;
 // -----------------------------------------------------------------------------
 // Worker: runs chains [begin, end) in parallel.
 // -----------------------------------------------------------------------------
-struct GibbsChainRunner : public Worker {
+struct GibbsCompareChainRunner : public Worker {
   // immutable shared inputs (masters)
   const arma::imat observations_master;
   const int num_groups;
@@ -57,7 +57,7 @@ struct GibbsChainRunner : public Worker {
   // shared output (one slot per chain index)
   Rcpp::List& output;
 
-  GibbsChainRunner(
+  GibbsCompareChainRunner(
     arma::imat observations_master_,
     const int num_groups_,
     const std::vector<arma::imat>& num_obs_categories_cpp_master_,
@@ -240,7 +240,7 @@ Rcpp::List run_bgmCompare_parallel(
   Rcpp::List out(num_chains);
 
   // Build worker
-  GibbsChainRunner worker(
+  GibbsCompareChainRunner worker(
       observations, num_groups,
       num_obs_categories_cpp,
       sufficient_blume_capel_cpp,
