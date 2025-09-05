@@ -98,7 +98,7 @@ void impute_missing_values_for_graphical_model (
     }
 
     // Sample from categorical distribution via inverse transform
-    const double u = rng () * cumsum;
+    const double u = runif (rng) * cumsum;
     int sampled_score = 0;
     while (u > category_probabilities[sampled_score]) {
       sampled_score++;
@@ -1176,7 +1176,8 @@ Rcpp::List run_gibbs_sampler_for_bgm(
   for (int iteration = 0; iteration < total_iter; iteration++) {
     if (iteration % print_every == 0) {
       tbb::mutex::scoped_lock lock(get_print_mutex());
-      Rcpp::Rcout
+      //Rcpp::Rcout
+      std::cout
       << "[bgm] chain " << chain_id
       << " iteration " << iteration
       << " / " << total_iter
