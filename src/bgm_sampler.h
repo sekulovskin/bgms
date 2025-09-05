@@ -1,5 +1,6 @@
 #pragma once
-
+#include <dqrng.h>
+#include <xoshiro.h>
 #include <RcppArmadillo.h>
 
 Rcpp::List run_gibbs_sampler_for_bgm(
@@ -31,5 +32,6 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     arma::imat sufficient_pairwise,
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
-    const bool learn_mass_matrix
+    const bool learn_mass_matrix,
+    dqrng::xoshiro256plus& rng
 );

@@ -1,5 +1,7 @@
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include "rng_utils.h"
+
 using namespace Rcpp;
 
 // ----------------------------------------------------------------------------|
@@ -30,7 +32,8 @@ arma::uvec table_cpp(arma::uvec x) {
 // ----------------------------------------------------------------------------|
 arma::mat add_row_col_block_prob_matrix(arma::mat X,
                                             double beta_alpha,
-                                            double beta_beta) {
+                                            double beta_beta,
+                                            dqrng::xoshiro256plus& rng) {
   arma::uword dim = X.n_rows;
   arma::mat Y(dim+1,dim+1,arma::fill::zeros);
 
@@ -41,10 +44,10 @@ arma::mat add_row_col_block_prob_matrix(arma::mat X,
   }
 
   for(arma::uword i = 0; i < dim; i++) {
-    Y(dim, i) = R::rbeta(beta_alpha, beta_beta);
+    Y(dim, i) = rbeta(rng, beta_alpha, beta_beta);
     Y(i, dim) = Y(dim, i);
   }
-  Y(dim, dim) = R::rbeta(beta_alpha, beta_beta);
+  Y(dim, dim) = rbeta(rng, beta_alpha, beta_beta);
 
   return Y;
 }
@@ -155,9 +158,10 @@ inline void update_sumG(double &sumG,
 // ----------------------------------------------------------------------------|
 // Sample the cluster assignment in sample_block_allocations_mfm_sbm()
 // ----------------------------------------------------------------------------|
-arma::uword sample_cluster(arma::vec cluster_prob) {
+arma::uword sample_cluster(arma::vec cluster_prob,
+                           dqrng::xoshiro256plus& rng) {
   arma::vec cum_prob = arma::cumsum(cluster_prob);
-  double u = R::runif(0, arma::max(cum_prob));
+  double u = runif(rng) * arma::max(cum_prob);
 
   for (arma::uword i = 0; i < cum_prob.n_elem; i++) {
     if (u <= cum_prob(i)) {
@@ -177,7 +181,8 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
                                         arma::umat indicator,
                                         arma::uword dirichlet_alpha,
                                         double beta_bernoulli_alpha,
-                                        double beta_bernoulli_beta) {
+                                        double beta_bernoulli_beta,
+                                        dqrng::xoshiro256plus& rng) {
   arma::uword old;
   arma::uword cluster;
   arma::uword no_clusters;
@@ -186,7 +191,7 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
   double logmarg;
 
   // Generate a randomized order using Rcpp's sample function
-  arma::uvec indices = arma::randperm(no_variables); //arma::randperm() Generate a vector with a random permutation of integers from 0 to no_variables-1
+  arma::uvec indices = arma_randperm(rng, no_variables);
 
   for (arma::uword idx = 0; idx < no_variables; idx++) {
     arma::uword node = indices(idx);
@@ -239,7 +244,7 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
       }
 
       //Choose the cluster number for node
-      cluster = sample_cluster(cluster_prob);
+      cluster = sample_cluster(cluster_prob, rng);
 
       //if the sampled cluster is the new added cluster or the old one
       if (cluster == no_clusters) {
@@ -292,14 +297,14 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
 
 
       //Choose the cluster number for node
-      cluster = sample_cluster(cluster_prob);
+      cluster = sample_cluster(cluster_prob, rng);
 
       cluster_assign(node) = cluster;
 
       if (cluster == no_clusters) {
         block_probs = add_row_col_block_prob_matrix(block_probs,
                                                     beta_bernoulli_alpha,
-                                                    beta_bernoulli_beta);
+                                                    beta_bernoulli_beta, rng);
       }
     }
   }
@@ -314,7 +319,8 @@ arma::mat block_probs_mfm_sbm(arma::uvec cluster_assign,
                                   arma::umat indicator,
                                   arma::uword no_variables,
                                   double beta_bernoulli_alpha,
-                                  double beta_bernoulli_beta) {
+                                  double beta_bernoulli_beta,
+                                  dqrng::xoshiro256plus& rng) {
 
   arma::uvec cluster_size = table_cpp(cluster_assign);
   arma::uword no_clusters = cluster_size.n_elem;
@@ -336,7 +342,7 @@ arma::mat block_probs_mfm_sbm(arma::uvec cluster_assign,
         update_sumG(sumG, cluster_assign, indicator, s, r, no_variables);
         size = static_cast<double>(cluster_size(s)) * static_cast<double>(cluster_size(r));
       }
-      block_probs(r, s) = R::rbeta(sumG + beta_bernoulli_alpha, size - sumG + beta_bernoulli_beta);
+      block_probs(r, s) = rbeta(rng, sumG + beta_bernoulli_alpha, size - sumG + beta_bernoulli_beta);
       block_probs(s, r) = block_probs(r, s);
     }
   }

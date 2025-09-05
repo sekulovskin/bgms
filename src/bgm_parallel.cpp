@@ -1,104 +1,155 @@
-// [[Rcpp::depends(RcppParallel, RcppArmadillo)]]
+// [[Rcpp::depends(RcppParallel, RcppArmadillo, dqrng)]]
 #include <RcppParallel.h>
 #include <RcppArmadillo.h>
+#include <dqrng.h>
+#include <xoshiro.h>
 #include "bgm_sampler.h"
 #include <tbb/global_control.h>
-#include <tbb/mutex.h>
-#include "print_mutex.h"
+#include <vector>
+#include <string>
 
 using namespace Rcpp;
 using namespace RcppParallel;
 
-struct GibbsChainRunner : public Worker {
-  const int num_chains;
-  const arma::imat observations;
-  const arma::ivec num_categories;
-  const double interaction_scale;
-  const std::string edge_prior;
-  const arma::mat inclusion_probability;
-  const double beta_bernoulli_alpha;
-  const double beta_bernoulli_beta;
-  const double dirichlet_alpha;
-  const double lambda;
-  const arma::imat interaction_index_matrix;
-  const int iter;
-  const int burnin;
-  const arma::imat num_obs_categories;
-  const arma::imat sufficient_blume_capel;
-  const double threshold_alpha;
-  const double threshold_beta;
-  const bool na_impute;
-  const arma::imat missing_index;
-  const arma::uvec is_ordinal_variable;
-  const arma::ivec reference_category;
-  const bool edge_selection;
-  const std::string update_method;
-  const arma::imat pairwise_effect_indices;
-  const double target_accept;
-  const arma::imat sufficient_pairwise;
-  const int hmc_num_leapfrogs;
-  const int nuts_max_depth;
-  const bool learn_mass_matrix;
+// -----------------------------------------------------------------------------
+// Wrapper to silence Clang warning
+// -----------------------------------------------------------------------------
+struct SafeRNG {
+  dqrng::xoshiro256plus eng;
 
-  Rcpp::List& output;
+  SafeRNG() : eng() {}
+  SafeRNG(const dqrng::xoshiro256plus& other) : eng(other) {}
+  SafeRNG& operator=(const dqrng::xoshiro256plus& other) {
+    eng = other;
+    return *this;
+  }
+};
+
+// -----------------------------------------------------------------------------
+// Result struct
+// -----------------------------------------------------------------------------
+struct ChainResult {
+  bool error;
+  std::string error_msg;
+  int chain_id;
+  Rcpp::List result;
+};
+
+// -----------------------------------------------------------------------------
+// Worker struct
+// -----------------------------------------------------------------------------
+struct GibbsChainRunner : public Worker {
+  // inputs
+  const arma::imat& observations;
+  const arma::ivec& num_categories;
+  double interaction_scale;
+  const std::string& edge_prior;
+  const arma::mat& inclusion_probability;
+  double beta_bernoulli_alpha;
+  double beta_bernoulli_beta;
+  double dirichlet_alpha;
+  double lambda;
+  const arma::imat& interaction_index_matrix;
+  int iter;
+  int burnin;
+  const arma::imat& num_obs_categories;
+  const arma::imat& sufficient_blume_capel;
+  double threshold_alpha;
+  double threshold_beta;
+  bool na_impute;
+  const arma::imat& missing_index;
+  const arma::uvec& is_ordinal_variable;
+  const arma::ivec& reference_category;
+  bool edge_selection;
+  const std::string& update_method;
+  const arma::imat& pairwise_effect_indices;
+  double target_accept;
+  const arma::imat& sufficient_pairwise;
+  int hmc_num_leapfrogs;
+  int nuts_max_depth;
+  bool learn_mass_matrix;
+
+  // Wrapped RNG engines
+  const std::vector<SafeRNG>& chain_rngs;
+
+  // output buffer
+  std::vector<ChainResult>& results;
 
   GibbsChainRunner(
-    int num_chains,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const double interaction_scale,
+    double interaction_scale,
     const std::string& edge_prior,
     const arma::mat& inclusion_probability,
-    const double beta_bernoulli_alpha,
-    const double beta_bernoulli_beta,
-    const double dirichlet_alpha,
-    const double lambda,
+    double beta_bernoulli_alpha,
+    double beta_bernoulli_beta,
+    double dirichlet_alpha,
+    double lambda,
     const arma::imat& interaction_index_matrix,
-    const int iter,
-    const int burnin,
+    int iter,
+    int burnin,
     const arma::imat& num_obs_categories,
     const arma::imat& sufficient_blume_capel,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const bool na_impute,
+    double threshold_alpha,
+    double threshold_beta,
+    bool na_impute,
     const arma::imat& missing_index,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const bool edge_selection,
+    bool edge_selection,
     const std::string& update_method,
     const arma::imat& pairwise_effect_indices,
-    const double target_accept,
+    double target_accept,
     const arma::imat& sufficient_pairwise,
-    const int hmc_num_leapfrogs,
-    const int nuts_max_depth,
-    const bool learn_mass_matrix,
-    Rcpp::List& output
+    int hmc_num_leapfrogs,
+    int nuts_max_depth,
+    bool learn_mass_matrix,
+    const std::vector<SafeRNG>& chain_rngs,
+    std::vector<ChainResult>& results
   ) :
-    num_chains(num_chains),
-    observations(observations), num_categories(num_categories),
-    interaction_scale(interaction_scale), edge_prior(edge_prior),
+    observations(observations),
+    num_categories(num_categories),
+    interaction_scale(interaction_scale),
+    edge_prior(edge_prior),
     inclusion_probability(inclusion_probability),
-    beta_bernoulli_alpha(beta_bernoulli_alpha), beta_bernoulli_beta(beta_bernoulli_beta),
-    dirichlet_alpha(dirichlet_alpha), lambda(lambda),
+    beta_bernoulli_alpha(beta_bernoulli_alpha),
+    beta_bernoulli_beta(beta_bernoulli_beta),
+    dirichlet_alpha(dirichlet_alpha),
+    lambda(lambda),
     interaction_index_matrix(interaction_index_matrix),
-    iter(iter), burnin(burnin),
-    num_obs_categories(num_obs_categories), sufficient_blume_capel(sufficient_blume_capel),
-    threshold_alpha(threshold_alpha), threshold_beta(threshold_beta),
-    na_impute(na_impute), missing_index(missing_index),
-    is_ordinal_variable(is_ordinal_variable), reference_category(reference_category),
-    edge_selection(edge_selection), update_method(update_method),
-    pairwise_effect_indices(pairwise_effect_indices), target_accept(target_accept),
+    iter(iter),
+    burnin(burnin),
+    num_obs_categories(num_obs_categories),
+    sufficient_blume_capel(sufficient_blume_capel),
+    threshold_alpha(threshold_alpha),
+    threshold_beta(threshold_beta),
+    na_impute(na_impute),
+    missing_index(missing_index),
+    is_ordinal_variable(is_ordinal_variable),
+    reference_category(reference_category),
+    edge_selection(edge_selection),
+    update_method(update_method),
+    pairwise_effect_indices(pairwise_effect_indices),
+    target_accept(target_accept),
     sufficient_pairwise(sufficient_pairwise),
-    hmc_num_leapfrogs(hmc_num_leapfrogs), nuts_max_depth(nuts_max_depth),
-    learn_mass_matrix(learn_mass_matrix), output(output) {}
+    hmc_num_leapfrogs(hmc_num_leapfrogs),
+    nuts_max_depth(nuts_max_depth),
+    learn_mass_matrix(learn_mass_matrix),
+    chain_rngs(chain_rngs),
+    results(results)
+  {}
 
   void operator()(std::size_t begin, std::size_t end) {
     for (std::size_t i = begin; i < end; ++i) {
+      ChainResult out;
+      out.chain_id = static_cast<int>(i + 1);
+      out.error = false;
+
       try {
-        RNGScope scope;
+        dqrng::xoshiro256plus rng = chain_rngs[i].eng;
 
         Rcpp::List result = run_gibbs_sampler_for_bgm(
-          i + 1, // chain_id
+          out.chain_id,
           observations,
           num_categories,
           interaction_scale,
@@ -126,68 +177,100 @@ struct GibbsChainRunner : public Worker {
           sufficient_pairwise,
           hmc_num_leapfrogs,
           nuts_max_depth,
-          learn_mass_matrix
+          learn_mass_matrix,
+          rng
         );
-
-        output[i] = result;
+        out.result = result;
 
       } catch (std::exception& e) {
-        output[i] = Rcpp::List::create(
-          Rcpp::Named("error") = e.what(),
-          Rcpp::Named("chain_id") = i + 1
-        );
+        out.error = true;
+        out.error_msg = e.what();
+      } catch (...) {
+        out.error = true;
+        out.error_msg = "Unknown error";
       }
+
+      results[i] = out;
     }
   }
 };
+
+// -----------------------------------------------------------------------------
+// Main entry point
+// -----------------------------------------------------------------------------
 
 // [[Rcpp::export]]
 Rcpp::List run_bgm_parallel(
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const double interaction_scale,
+    double interaction_scale,
     const std::string& edge_prior,
     const arma::mat& inclusion_probability,
-    const double beta_bernoulli_alpha,
-    const double beta_bernoulli_beta,
-    const double dirichlet_alpha,
-    const double lambda,
+    double beta_bernoulli_alpha,
+    double beta_bernoulli_beta,
+    double dirichlet_alpha,
+    double lambda,
     const arma::imat& interaction_index_matrix,
-    const int iter,
-    const int burnin,
+    int iter,
+    int burnin,
     const arma::imat& num_obs_categories,
     const arma::imat& sufficient_blume_capel,
-    const double threshold_alpha,
-    const double threshold_beta,
-    const bool na_impute,
+    double threshold_alpha,
+    double threshold_beta,
+    bool na_impute,
     const arma::imat& missing_index,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const bool edge_selection,
+    bool edge_selection,
     const std::string& update_method,
     const arma::imat& pairwise_effect_indices,
-    const double target_accept,
+    double target_accept,
     const arma::imat& sufficient_pairwise,
-    const int hmc_num_leapfrogs,
-    const int nuts_max_depth,
-    const bool learn_mass_matrix,
-    const int num_chains,
-    const int nThreads
+    int hmc_num_leapfrogs,
+    int nuts_max_depth,
+    bool learn_mass_matrix,
+    int num_chains,
+    int nThreads,
+    uint64_t seed   // 👈 new
 ) {
-  Rcpp::List output(num_chains);
+  std::vector<ChainResult> results(num_chains);
+
+  // Prepare one independent RNG per chain via jump()
+  std::vector<SafeRNG> chain_rngs(num_chains);
+  chain_rngs[0].eng = dqrng::xoshiro256plus(seed);
+
+  for (int c = 1; c < num_chains; ++c) {
+    chain_rngs[c].eng = chain_rngs[c-1].eng;
+    chain_rngs[c].eng.jump();
+  }
 
   GibbsChainRunner worker(
-      num_chains, observations, num_categories, interaction_scale, edge_prior, inclusion_probability,
-      beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda,
-      interaction_index_matrix, iter, burnin, num_obs_categories, sufficient_blume_capel,
-      threshold_alpha, threshold_beta, na_impute, missing_index, is_ordinal_variable,
-      reference_category, edge_selection, update_method, pairwise_effect_indices, target_accept,
-      sufficient_pairwise, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix, output
+      observations, num_categories, interaction_scale, edge_prior,
+      inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta,
+      dirichlet_alpha, lambda, interaction_index_matrix, iter, burnin,
+      num_obs_categories, sufficient_blume_capel, threshold_alpha, threshold_beta,
+      na_impute, missing_index, is_ordinal_variable, reference_category,
+      edge_selection, update_method, pairwise_effect_indices, target_accept,
+      sufficient_pairwise, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix,
+      chain_rngs, results
   );
 
   {
     tbb::global_control control(tbb::global_control::max_allowed_parallelism, nThreads);
     parallelFor(0, num_chains, worker);
+  }
+
+  // gather results
+  Rcpp::List output(num_chains);
+  for (int i = 0; i < num_chains; ++i) {
+    if (results[i].error) {
+      output[i] = Rcpp::List::create(
+        Rcpp::Named("error") = results[i].error_msg,
+        Rcpp::Named("chain_id") = results[i].chain_id
+      );
+    } else {
+      output[i] = results[i].result;
+    }
   }
 
   return output;

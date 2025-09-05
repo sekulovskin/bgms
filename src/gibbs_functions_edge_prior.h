@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rng_utils.h"
 #include <RcppArmadillo.h>
 
 // ----------------------------------------------------------------------------|
@@ -20,7 +21,8 @@ arma::uvec block_allocations_mfm_sbm(arma::uvec cluster_assign,
                                                 arma::umat indicator,
                                                 arma::uword dirichlet_alpha,
                                                 double beta_bernoulli_alpha,
-                                                double beta_bernoulli_beta);
+                                                double beta_bernoulli_beta,
+                                                dqrng::xoshiro256plus& rng);
 
 // ----------------------------------------------------------------------------|
 // Sample the block parameters for the MFM - SBM
@@ -29,4 +31,5 @@ arma::mat block_probs_mfm_sbm(arma::uvec cluster_assign,
                                         arma::umat indicator,
                                         arma::uword no_variables,
                                         double beta_bernoulli_alpha,
-                                        double beta_bernoulli_beta);
+                                        double beta_bernoulli_beta,
+                                        dqrng::xoshiro256plus& rng);

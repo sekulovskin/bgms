@@ -1,4 +1,4 @@
-CXX_STD = CXX11
+CXX_STD = CXX14
 
 ## Pull in the include-paths for RcppParallel
 PKG_CPPFLAGS = \

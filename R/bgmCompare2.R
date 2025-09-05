@@ -24,7 +24,8 @@ bgmCompare2 = function(
     nuts_max_depth = 10,
     learn_mass_matrix = FALSE,
     chains = 4,
-    cores = parallel::detectCores()
+    cores = parallel::detectCores(),
+    seed = NULL
 ) {
   # Check update method
   update_method_input = update_method
@@ -188,6 +189,15 @@ bgmCompare2 = function(
   projection = eigen(V)$vectors[, -num_groups]
   if (num_groups == 2) {
     projection = matrix(projection, ncol = 1) / sqrt(2)
+  }
+
+  if (!is.null(seed)) {
+    if (!is.numeric(seed) || any(is.na(seed)) || any(seed < 0)) {
+      stop("Argument 'seed' must be a non-negative integer or vector of non-negative integers.")
+    }
+    # Force to integer type
+    seed <- as.integer(seed)
+    dqrng::dqset.seed(seed)
   }
 
   # Call the Rcpp function

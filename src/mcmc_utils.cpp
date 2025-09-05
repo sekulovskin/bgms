@@ -3,6 +3,7 @@
 #include <functional>
 #include "mcmc_leapfrog.h"
 #include "mcmc_utils.h"
+#include "rng_utils.h"
 using namespace Rcpp;
 
 
@@ -50,6 +51,7 @@ double heuristic_initial_step_size(
     const arma::vec& theta,
     const std::function<double(const arma::vec&)>& log_post,
     const std::function<arma::vec(const arma::vec&)>& grad,
+    dqrng::xoshiro256plus& rng,
     double target_acceptance,
     double init_step,
     int max_attempts
@@ -57,7 +59,7 @@ double heuristic_initial_step_size(
   arma::vec inv_mass_diag = arma::ones<arma::vec>(theta.n_elem);
 
   double eps = init_step;
-  arma::vec r = arma::randn(theta.n_elem);
+  arma::vec r = arma_rnorm_vec(rng, theta.n_elem);
 
   double logp0 = log_post(theta);
   double kin0 = kinetic_energy(r, inv_mass_diag);

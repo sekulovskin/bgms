@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RcppArmadillo.h>
+#include "rng_utils.h"
 
 // Vectorize threshold matrix
 arma::vec vectorize_thresholds(
@@ -48,13 +49,14 @@ inline void initialise_graph(
     arma::mat&  pairwise,
     const arma::mat& incl_prob,
     arma::mat&  rest,
-    const arma::imat& X
+    const arma::imat& X,
+    dqrng::xoshiro256plus& rng
 ) {
   int V = indicator.n_rows;
   for (int i = 0; i < V-1; ++i) {
     for (int j = i+1; j < V; ++j) {
       double p = incl_prob(i,j);
-      int draw = (R::unif_rand() < p) ? 1 : 0;
+      int draw = (runif(rng) < p) ? 1 : 0;
       indicator(i,j) = indicator(j,i) = draw;
       if (!draw)
         pairwise(i,j) = pairwise(j,i) = 0.0;

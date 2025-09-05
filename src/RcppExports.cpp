@@ -12,16 +12,16 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // run_bgmCompare_parallel
-Rcpp::List run_bgmCompare_parallel(arma::imat observations, const int num_groups, Rcpp::List num_obs_categories, Rcpp::List sufficient_blume_capel, Rcpp::List sufficient_pairwise, const arma::ivec& num_categories, const double main_alpha, const double main_beta, const double pairwise_scale, const double difference_scale, const double difference_selection_alpha, const double difference_selection_beta, const std::string difference_prior, const int iter, const int burnin, const bool na_impute, const arma::imat& missing_data_indices, const arma::uvec& is_ordinal_variable, const arma::ivec& baseline_category, const bool difference_selection, const arma::imat main_effect_indices, const arma::imat pairwise_effect_indices, const double target_accept, const int nuts_max_depth, const bool learn_mass_matrix, const arma::mat projection, const arma::ivec& group_membership, const arma::imat& group_indices, const arma::imat& interaction_index_matrix, const arma::mat& inclusion_probability, const int num_chains, const int nThreads);
+Rcpp::List run_bgmCompare_parallel(const arma::imat& observations, const int num_groups, const std::vector<arma::imat>& num_obs_categories, const std::vector<arma::imat>& sufficient_blume_capel, const std::vector<arma::mat>& sufficient_pairwise, const arma::ivec& num_categories, const double main_alpha, const double main_beta, const double pairwise_scale, const double difference_scale, const double difference_selection_alpha, const double difference_selection_beta, const std::string& difference_prior, const int iter, const int burnin, const bool na_impute, const arma::imat& missing_data_indices, const arma::uvec& is_ordinal_variable, const arma::ivec& baseline_category, const bool difference_selection, const arma::imat& main_effect_indices, const arma::imat& pairwise_effect_indices, const double target_accept, const int nuts_max_depth, const bool learn_mass_matrix, const arma::mat& projection, const arma::ivec& group_membership, const arma::imat& group_indices, const arma::imat& interaction_index_matrix, const arma::mat& inclusion_probability, const int num_chains, const int nThreads);
 RcppExport SEXP _bgms_run_bgmCompare_parallel(SEXP observationsSEXP, SEXP num_groupsSEXP, SEXP num_obs_categoriesSEXP, SEXP sufficient_blume_capelSEXP, SEXP sufficient_pairwiseSEXP, SEXP num_categoriesSEXP, SEXP main_alphaSEXP, SEXP main_betaSEXP, SEXP pairwise_scaleSEXP, SEXP difference_scaleSEXP, SEXP difference_selection_alphaSEXP, SEXP difference_selection_betaSEXP, SEXP difference_priorSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP na_imputeSEXP, SEXP missing_data_indicesSEXP, SEXP is_ordinal_variableSEXP, SEXP baseline_categorySEXP, SEXP difference_selectionSEXP, SEXP main_effect_indicesSEXP, SEXP pairwise_effect_indicesSEXP, SEXP target_acceptSEXP, SEXP nuts_max_depthSEXP, SEXP learn_mass_matrixSEXP, SEXP projectionSEXP, SEXP group_membershipSEXP, SEXP group_indicesSEXP, SEXP interaction_index_matrixSEXP, SEXP inclusion_probabilitySEXP, SEXP num_chainsSEXP, SEXP nThreadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::imat >::type observations(observationsSEXP);
+    Rcpp::traits::input_parameter< const arma::imat& >::type observations(observationsSEXP);
     Rcpp::traits::input_parameter< const int >::type num_groups(num_groupsSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type num_obs_categories(num_obs_categoriesSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type sufficient_blume_capel(sufficient_blume_capelSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type sufficient_pairwise(sufficient_pairwiseSEXP);
+    Rcpp::traits::input_parameter< const std::vector<arma::imat>& >::type num_obs_categories(num_obs_categoriesSEXP);
+    Rcpp::traits::input_parameter< const std::vector<arma::imat>& >::type sufficient_blume_capel(sufficient_blume_capelSEXP);
+    Rcpp::traits::input_parameter< const std::vector<arma::mat>& >::type sufficient_pairwise(sufficient_pairwiseSEXP);
     Rcpp::traits::input_parameter< const arma::ivec& >::type num_categories(num_categoriesSEXP);
     Rcpp::traits::input_parameter< const double >::type main_alpha(main_alphaSEXP);
     Rcpp::traits::input_parameter< const double >::type main_beta(main_betaSEXP);
@@ -29,7 +29,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const double >::type difference_scale(difference_scaleSEXP);
     Rcpp::traits::input_parameter< const double >::type difference_selection_alpha(difference_selection_alphaSEXP);
     Rcpp::traits::input_parameter< const double >::type difference_selection_beta(difference_selection_betaSEXP);
-    Rcpp::traits::input_parameter< const std::string >::type difference_prior(difference_priorSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type difference_prior(difference_priorSEXP);
     Rcpp::traits::input_parameter< const int >::type iter(iterSEXP);
     Rcpp::traits::input_parameter< const int >::type burnin(burninSEXP);
     Rcpp::traits::input_parameter< const bool >::type na_impute(na_imputeSEXP);
@@ -37,12 +37,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::uvec& >::type is_ordinal_variable(is_ordinal_variableSEXP);
     Rcpp::traits::input_parameter< const arma::ivec& >::type baseline_category(baseline_categorySEXP);
     Rcpp::traits::input_parameter< const bool >::type difference_selection(difference_selectionSEXP);
-    Rcpp::traits::input_parameter< const arma::imat >::type main_effect_indices(main_effect_indicesSEXP);
-    Rcpp::traits::input_parameter< const arma::imat >::type pairwise_effect_indices(pairwise_effect_indicesSEXP);
+    Rcpp::traits::input_parameter< const arma::imat& >::type main_effect_indices(main_effect_indicesSEXP);
+    Rcpp::traits::input_parameter< const arma::imat& >::type pairwise_effect_indices(pairwise_effect_indicesSEXP);
     Rcpp::traits::input_parameter< const double >::type target_accept(target_acceptSEXP);
     Rcpp::traits::input_parameter< const int >::type nuts_max_depth(nuts_max_depthSEXP);
     Rcpp::traits::input_parameter< const bool >::type learn_mass_matrix(learn_mass_matrixSEXP);
-    Rcpp::traits::input_parameter< const arma::mat >::type projection(projectionSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type projection(projectionSEXP);
     Rcpp::traits::input_parameter< const arma::ivec& >::type group_membership(group_membershipSEXP);
     Rcpp::traits::input_parameter< const arma::imat& >::type group_indices(group_indicesSEXP);
     Rcpp::traits::input_parameter< const arma::imat& >::type interaction_index_matrix(interaction_index_matrixSEXP);
@@ -53,123 +53,44 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// run_gibbs_sampler_for_bgmCompare
-Rcpp::List run_gibbs_sampler_for_bgmCompare(int chain_id, arma::imat observations, const int num_groups, Rcpp::List num_obs_categories, Rcpp::List sufficient_blume_capel, Rcpp::List sufficient_pairwise, const arma::ivec& num_categories, const double main_alpha, const double main_beta, const double pairwise_scale, const double difference_scale, const double difference_selection_alpha, const double difference_selection_beta, const std::string difference_prior, const int iter, const int burnin, const bool na_impute, const arma::imat& missing_data_indices, const arma::uvec& is_ordinal_variable, const arma::ivec& baseline_category, const bool difference_selection, const arma::imat main_effect_indices, const arma::imat pairwise_effect_indices, const double target_accept, const int nuts_max_depth, const bool learn_mass_matrix, const arma::mat projection, const arma::ivec& group_membership, const arma::imat& group_indices, const arma::imat& interaction_index_matrix, arma::mat inclusion_probability);
-RcppExport SEXP _bgms_run_gibbs_sampler_for_bgmCompare(SEXP chain_idSEXP, SEXP observationsSEXP, SEXP num_groupsSEXP, SEXP num_obs_categoriesSEXP, SEXP sufficient_blume_capelSEXP, SEXP sufficient_pairwiseSEXP, SEXP num_categoriesSEXP, SEXP main_alphaSEXP, SEXP main_betaSEXP, SEXP pairwise_scaleSEXP, SEXP difference_scaleSEXP, SEXP difference_selection_alphaSEXP, SEXP difference_selection_betaSEXP, SEXP difference_priorSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP na_imputeSEXP, SEXP missing_data_indicesSEXP, SEXP is_ordinal_variableSEXP, SEXP baseline_categorySEXP, SEXP difference_selectionSEXP, SEXP main_effect_indicesSEXP, SEXP pairwise_effect_indicesSEXP, SEXP target_acceptSEXP, SEXP nuts_max_depthSEXP, SEXP learn_mass_matrixSEXP, SEXP projectionSEXP, SEXP group_membershipSEXP, SEXP group_indicesSEXP, SEXP interaction_index_matrixSEXP, SEXP inclusion_probabilitySEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type chain_id(chain_idSEXP);
-    Rcpp::traits::input_parameter< arma::imat >::type observations(observationsSEXP);
-    Rcpp::traits::input_parameter< const int >::type num_groups(num_groupsSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type num_obs_categories(num_obs_categoriesSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type sufficient_blume_capel(sufficient_blume_capelSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type sufficient_pairwise(sufficient_pairwiseSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type num_categories(num_categoriesSEXP);
-    Rcpp::traits::input_parameter< const double >::type main_alpha(main_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type main_beta(main_betaSEXP);
-    Rcpp::traits::input_parameter< const double >::type pairwise_scale(pairwise_scaleSEXP);
-    Rcpp::traits::input_parameter< const double >::type difference_scale(difference_scaleSEXP);
-    Rcpp::traits::input_parameter< const double >::type difference_selection_alpha(difference_selection_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type difference_selection_beta(difference_selection_betaSEXP);
-    Rcpp::traits::input_parameter< const std::string >::type difference_prior(difference_priorSEXP);
-    Rcpp::traits::input_parameter< const int >::type iter(iterSEXP);
-    Rcpp::traits::input_parameter< const int >::type burnin(burninSEXP);
-    Rcpp::traits::input_parameter< const bool >::type na_impute(na_imputeSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type missing_data_indices(missing_data_indicesSEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type is_ordinal_variable(is_ordinal_variableSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type baseline_category(baseline_categorySEXP);
-    Rcpp::traits::input_parameter< const bool >::type difference_selection(difference_selectionSEXP);
-    Rcpp::traits::input_parameter< const arma::imat >::type main_effect_indices(main_effect_indicesSEXP);
-    Rcpp::traits::input_parameter< const arma::imat >::type pairwise_effect_indices(pairwise_effect_indicesSEXP);
-    Rcpp::traits::input_parameter< const double >::type target_accept(target_acceptSEXP);
-    Rcpp::traits::input_parameter< const int >::type nuts_max_depth(nuts_max_depthSEXP);
-    Rcpp::traits::input_parameter< const bool >::type learn_mass_matrix(learn_mass_matrixSEXP);
-    Rcpp::traits::input_parameter< const arma::mat >::type projection(projectionSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type group_membership(group_membershipSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type group_indices(group_indicesSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type interaction_index_matrix(interaction_index_matrixSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type inclusion_probability(inclusion_probabilitySEXP);
-    rcpp_result_gen = Rcpp::wrap(run_gibbs_sampler_for_bgmCompare(chain_id, observations, num_groups, num_obs_categories, sufficient_blume_capel, sufficient_pairwise, num_categories, main_alpha, main_beta, pairwise_scale, difference_scale, difference_selection_alpha, difference_selection_beta, difference_prior, iter, burnin, na_impute, missing_data_indices, is_ordinal_variable, baseline_category, difference_selection, main_effect_indices, pairwise_effect_indices, target_accept, nuts_max_depth, learn_mass_matrix, projection, group_membership, group_indices, interaction_index_matrix, inclusion_probability));
-    return rcpp_result_gen;
-END_RCPP
-}
 // run_bgm_parallel
-Rcpp::List run_bgm_parallel(const arma::imat& observations, const arma::ivec& num_categories, const double interaction_scale, const std::string& edge_prior, const arma::mat& inclusion_probability, const double beta_bernoulli_alpha, const double beta_bernoulli_beta, const double dirichlet_alpha, const double lambda, const arma::imat& interaction_index_matrix, const int iter, const int burnin, const arma::imat& num_obs_categories, const arma::imat& sufficient_blume_capel, const double threshold_alpha, const double threshold_beta, const bool na_impute, const arma::imat& missing_index, const arma::uvec& is_ordinal_variable, const arma::ivec& reference_category, const bool edge_selection, const std::string& update_method, const arma::imat& pairwise_effect_indices, const double target_accept, const arma::imat& sufficient_pairwise, const int hmc_num_leapfrogs, const int nuts_max_depth, const bool learn_mass_matrix, const int num_chains, const int nThreads);
-RcppExport SEXP _bgms_run_bgm_parallel(SEXP observationsSEXP, SEXP num_categoriesSEXP, SEXP interaction_scaleSEXP, SEXP edge_priorSEXP, SEXP inclusion_probabilitySEXP, SEXP beta_bernoulli_alphaSEXP, SEXP beta_bernoulli_betaSEXP, SEXP dirichlet_alphaSEXP, SEXP lambdaSEXP, SEXP interaction_index_matrixSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP num_obs_categoriesSEXP, SEXP sufficient_blume_capelSEXP, SEXP threshold_alphaSEXP, SEXP threshold_betaSEXP, SEXP na_imputeSEXP, SEXP missing_indexSEXP, SEXP is_ordinal_variableSEXP, SEXP reference_categorySEXP, SEXP edge_selectionSEXP, SEXP update_methodSEXP, SEXP pairwise_effect_indicesSEXP, SEXP target_acceptSEXP, SEXP sufficient_pairwiseSEXP, SEXP hmc_num_leapfrogsSEXP, SEXP nuts_max_depthSEXP, SEXP learn_mass_matrixSEXP, SEXP num_chainsSEXP, SEXP nThreadsSEXP) {
+Rcpp::List run_bgm_parallel(const arma::imat& observations, const arma::ivec& num_categories, double interaction_scale, const std::string& edge_prior, const arma::mat& inclusion_probability, double beta_bernoulli_alpha, double beta_bernoulli_beta, double dirichlet_alpha, double lambda, const arma::imat& interaction_index_matrix, int iter, int burnin, const arma::imat& num_obs_categories, const arma::imat& sufficient_blume_capel, double threshold_alpha, double threshold_beta, bool na_impute, const arma::imat& missing_index, const arma::uvec& is_ordinal_variable, const arma::ivec& reference_category, bool edge_selection, const std::string& update_method, const arma::imat& pairwise_effect_indices, double target_accept, const arma::imat& sufficient_pairwise, int hmc_num_leapfrogs, int nuts_max_depth, bool learn_mass_matrix, int num_chains, int nThreads, uint64_t seed);
+RcppExport SEXP _bgms_run_bgm_parallel(SEXP observationsSEXP, SEXP num_categoriesSEXP, SEXP interaction_scaleSEXP, SEXP edge_priorSEXP, SEXP inclusion_probabilitySEXP, SEXP beta_bernoulli_alphaSEXP, SEXP beta_bernoulli_betaSEXP, SEXP dirichlet_alphaSEXP, SEXP lambdaSEXP, SEXP interaction_index_matrixSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP num_obs_categoriesSEXP, SEXP sufficient_blume_capelSEXP, SEXP threshold_alphaSEXP, SEXP threshold_betaSEXP, SEXP na_imputeSEXP, SEXP missing_indexSEXP, SEXP is_ordinal_variableSEXP, SEXP reference_categorySEXP, SEXP edge_selectionSEXP, SEXP update_methodSEXP, SEXP pairwise_effect_indicesSEXP, SEXP target_acceptSEXP, SEXP sufficient_pairwiseSEXP, SEXP hmc_num_leapfrogsSEXP, SEXP nuts_max_depthSEXP, SEXP learn_mass_matrixSEXP, SEXP num_chainsSEXP, SEXP nThreadsSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::imat& >::type observations(observationsSEXP);
     Rcpp::traits::input_parameter< const arma::ivec& >::type num_categories(num_categoriesSEXP);
-    Rcpp::traits::input_parameter< const double >::type interaction_scale(interaction_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type interaction_scale(interaction_scaleSEXP);
     Rcpp::traits::input_parameter< const std::string& >::type edge_prior(edge_priorSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type inclusion_probability(inclusion_probabilitySEXP);
-    Rcpp::traits::input_parameter< const double >::type beta_bernoulli_alpha(beta_bernoulli_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type beta_bernoulli_beta(beta_bernoulli_betaSEXP);
-    Rcpp::traits::input_parameter< const double >::type dirichlet_alpha(dirichlet_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type beta_bernoulli_alpha(beta_bernoulli_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type beta_bernoulli_beta(beta_bernoulli_betaSEXP);
+    Rcpp::traits::input_parameter< double >::type dirichlet_alpha(dirichlet_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
     Rcpp::traits::input_parameter< const arma::imat& >::type interaction_index_matrix(interaction_index_matrixSEXP);
-    Rcpp::traits::input_parameter< const int >::type iter(iterSEXP);
-    Rcpp::traits::input_parameter< const int >::type burnin(burninSEXP);
+    Rcpp::traits::input_parameter< int >::type iter(iterSEXP);
+    Rcpp::traits::input_parameter< int >::type burnin(burninSEXP);
     Rcpp::traits::input_parameter< const arma::imat& >::type num_obs_categories(num_obs_categoriesSEXP);
     Rcpp::traits::input_parameter< const arma::imat& >::type sufficient_blume_capel(sufficient_blume_capelSEXP);
-    Rcpp::traits::input_parameter< const double >::type threshold_alpha(threshold_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type threshold_beta(threshold_betaSEXP);
-    Rcpp::traits::input_parameter< const bool >::type na_impute(na_imputeSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type missing_index(missing_indexSEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type is_ordinal_variable(is_ordinal_variableSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type reference_category(reference_categorySEXP);
-    Rcpp::traits::input_parameter< const bool >::type edge_selection(edge_selectionSEXP);
-    Rcpp::traits::input_parameter< const std::string& >::type update_method(update_methodSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type pairwise_effect_indices(pairwise_effect_indicesSEXP);
-    Rcpp::traits::input_parameter< const double >::type target_accept(target_acceptSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type sufficient_pairwise(sufficient_pairwiseSEXP);
-    Rcpp::traits::input_parameter< const int >::type hmc_num_leapfrogs(hmc_num_leapfrogsSEXP);
-    Rcpp::traits::input_parameter< const int >::type nuts_max_depth(nuts_max_depthSEXP);
-    Rcpp::traits::input_parameter< const bool >::type learn_mass_matrix(learn_mass_matrixSEXP);
-    Rcpp::traits::input_parameter< const int >::type num_chains(num_chainsSEXP);
-    Rcpp::traits::input_parameter< const int >::type nThreads(nThreadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(run_bgm_parallel(observations, num_categories, interaction_scale, edge_prior, inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda, interaction_index_matrix, iter, burnin, num_obs_categories, sufficient_blume_capel, threshold_alpha, threshold_beta, na_impute, missing_index, is_ordinal_variable, reference_category, edge_selection, update_method, pairwise_effect_indices, target_accept, sufficient_pairwise, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix, num_chains, nThreads));
-    return rcpp_result_gen;
-END_RCPP
-}
-// run_gibbs_sampler_for_bgm
-Rcpp::List run_gibbs_sampler_for_bgm(int chain_id, arma::imat observations, const arma::ivec& num_categories, const double interaction_scale, const std::string& edge_prior, arma::mat inclusion_probability, const double beta_bernoulli_alpha, const double beta_bernoulli_beta, const double dirichlet_alpha, const double lambda, const arma::imat& interaction_index_matrix, const int iter, const int burnin, arma::imat num_obs_categories, arma::imat sufficient_blume_capel, const double threshold_alpha, const double threshold_beta, const bool na_impute, const arma::imat& missing_index, const arma::uvec& is_ordinal_variable, const arma::ivec& reference_category, bool edge_selection, const std::string& update_method, const arma::imat pairwise_effect_indices, const double target_accept, arma::imat sufficient_pairwise, const int hmc_num_leapfrogs, const int nuts_max_depth, const bool learn_mass_matrix);
-RcppExport SEXP _bgms_run_gibbs_sampler_for_bgm(SEXP chain_idSEXP, SEXP observationsSEXP, SEXP num_categoriesSEXP, SEXP interaction_scaleSEXP, SEXP edge_priorSEXP, SEXP inclusion_probabilitySEXP, SEXP beta_bernoulli_alphaSEXP, SEXP beta_bernoulli_betaSEXP, SEXP dirichlet_alphaSEXP, SEXP lambdaSEXP, SEXP interaction_index_matrixSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP num_obs_categoriesSEXP, SEXP sufficient_blume_capelSEXP, SEXP threshold_alphaSEXP, SEXP threshold_betaSEXP, SEXP na_imputeSEXP, SEXP missing_indexSEXP, SEXP is_ordinal_variableSEXP, SEXP reference_categorySEXP, SEXP edge_selectionSEXP, SEXP update_methodSEXP, SEXP pairwise_effect_indicesSEXP, SEXP target_acceptSEXP, SEXP sufficient_pairwiseSEXP, SEXP hmc_num_leapfrogsSEXP, SEXP nuts_max_depthSEXP, SEXP learn_mass_matrixSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type chain_id(chain_idSEXP);
-    Rcpp::traits::input_parameter< arma::imat >::type observations(observationsSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type num_categories(num_categoriesSEXP);
-    Rcpp::traits::input_parameter< const double >::type interaction_scale(interaction_scaleSEXP);
-    Rcpp::traits::input_parameter< const std::string& >::type edge_prior(edge_priorSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type inclusion_probability(inclusion_probabilitySEXP);
-    Rcpp::traits::input_parameter< const double >::type beta_bernoulli_alpha(beta_bernoulli_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type beta_bernoulli_beta(beta_bernoulli_betaSEXP);
-    Rcpp::traits::input_parameter< const double >::type dirichlet_alpha(dirichlet_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type lambda(lambdaSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type interaction_index_matrix(interaction_index_matrixSEXP);
-    Rcpp::traits::input_parameter< const int >::type iter(iterSEXP);
-    Rcpp::traits::input_parameter< const int >::type burnin(burninSEXP);
-    Rcpp::traits::input_parameter< arma::imat >::type num_obs_categories(num_obs_categoriesSEXP);
-    Rcpp::traits::input_parameter< arma::imat >::type sufficient_blume_capel(sufficient_blume_capelSEXP);
-    Rcpp::traits::input_parameter< const double >::type threshold_alpha(threshold_alphaSEXP);
-    Rcpp::traits::input_parameter< const double >::type threshold_beta(threshold_betaSEXP);
-    Rcpp::traits::input_parameter< const bool >::type na_impute(na_imputeSEXP);
+    Rcpp::traits::input_parameter< double >::type threshold_alpha(threshold_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type threshold_beta(threshold_betaSEXP);
+    Rcpp::traits::input_parameter< bool >::type na_impute(na_imputeSEXP);
     Rcpp::traits::input_parameter< const arma::imat& >::type missing_index(missing_indexSEXP);
     Rcpp::traits::input_parameter< const arma::uvec& >::type is_ordinal_variable(is_ordinal_variableSEXP);
     Rcpp::traits::input_parameter< const arma::ivec& >::type reference_category(reference_categorySEXP);
     Rcpp::traits::input_parameter< bool >::type edge_selection(edge_selectionSEXP);
     Rcpp::traits::input_parameter< const std::string& >::type update_method(update_methodSEXP);
-    Rcpp::traits::input_parameter< const arma::imat >::type pairwise_effect_indices(pairwise_effect_indicesSEXP);
-    Rcpp::traits::input_parameter< const double >::type target_accept(target_acceptSEXP);
-    Rcpp::traits::input_parameter< arma::imat >::type sufficient_pairwise(sufficient_pairwiseSEXP);
-    Rcpp::traits::input_parameter< const int >::type hmc_num_leapfrogs(hmc_num_leapfrogsSEXP);
-    Rcpp::traits::input_parameter< const int >::type nuts_max_depth(nuts_max_depthSEXP);
-    Rcpp::traits::input_parameter< const bool >::type learn_mass_matrix(learn_mass_matrixSEXP);
-    rcpp_result_gen = Rcpp::wrap(run_gibbs_sampler_for_bgm(chain_id, observations, num_categories, interaction_scale, edge_prior, inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda, interaction_index_matrix, iter, burnin, num_obs_categories, sufficient_blume_capel, threshold_alpha, threshold_beta, na_impute, missing_index, is_ordinal_variable, reference_category, edge_selection, update_method, pairwise_effect_indices, target_accept, sufficient_pairwise, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix));
+    Rcpp::traits::input_parameter< const arma::imat& >::type pairwise_effect_indices(pairwise_effect_indicesSEXP);
+    Rcpp::traits::input_parameter< double >::type target_accept(target_acceptSEXP);
+    Rcpp::traits::input_parameter< const arma::imat& >::type sufficient_pairwise(sufficient_pairwiseSEXP);
+    Rcpp::traits::input_parameter< int >::type hmc_num_leapfrogs(hmc_num_leapfrogsSEXP);
+    Rcpp::traits::input_parameter< int >::type nuts_max_depth(nuts_max_depthSEXP);
+    Rcpp::traits::input_parameter< bool >::type learn_mass_matrix(learn_mass_matrixSEXP);
+    Rcpp::traits::input_parameter< int >::type num_chains(num_chainsSEXP);
+    Rcpp::traits::input_parameter< int >::type nThreads(nThreadsSEXP);
+    Rcpp::traits::input_parameter< uint64_t >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(run_bgm_parallel(observations, num_categories, interaction_scale, edge_prior, inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta, dirichlet_alpha, lambda, interaction_index_matrix, iter, burnin, num_obs_categories, sufficient_blume_capel, threshold_alpha, threshold_beta, na_impute, missing_index, is_ordinal_variable, reference_category, edge_selection, update_method, pairwise_effect_indices, target_accept, sufficient_pairwise, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix, num_chains, nThreads, seed));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -268,9 +189,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bgms_run_bgmCompare_parallel", (DL_FUNC) &_bgms_run_bgmCompare_parallel, 32},
-    {"_bgms_run_gibbs_sampler_for_bgmCompare", (DL_FUNC) &_bgms_run_gibbs_sampler_for_bgmCompare, 31},
-    {"_bgms_run_bgm_parallel", (DL_FUNC) &_bgms_run_bgm_parallel, 30},
-    {"_bgms_run_gibbs_sampler_for_bgm", (DL_FUNC) &_bgms_run_gibbs_sampler_for_bgm, 29},
+    {"_bgms_run_bgm_parallel", (DL_FUNC) &_bgms_run_bgm_parallel, 31},
     {"_bgms_sample_omrf_gibbs", (DL_FUNC) &_bgms_sample_omrf_gibbs, 6},
     {"_bgms_sample_bcomrf_gibbs", (DL_FUNC) &_bgms_sample_bcomrf_gibbs, 8},
     {"_bgms_compare_anova_gibbs_sampler", (DL_FUNC) &_bgms_compare_anova_gibbs_sampler, 34},

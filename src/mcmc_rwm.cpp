@@ -3,6 +3,7 @@
 #include <functional>
 #include "mcmc_utils.h"
 #include "mcmc_rwm.h"
+#include "rng_utils.h"
 using namespace Rcpp;
 
 
@@ -28,13 +29,14 @@ using namespace Rcpp;
 SamplerResult rwm_sampler(
     double current_state,
     double step_size,
-    const std::function<double(double)>& log_post
+    const std::function<double(double)>& log_post,
+    dqrng::xoshiro256plus& rng
 ) {
-  double proposed_state = R::rnorm(current_state, step_size);
+  double proposed_state = rnorm(rng, current_state, step_size);
   double log_accept = log_post(proposed_state) - log_post(current_state);
   double accept_prob = std::min(1.0, std::exp(log_accept));
 
-  double state = (R::unif_rand() < accept_prob) ? proposed_state : current_state;
+  double state = (runif(rng) < accept_prob) ? proposed_state : current_state;
 
   arma::vec State(1);
   State[0] = state;

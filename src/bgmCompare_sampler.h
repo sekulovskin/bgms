@@ -1,5 +1,6 @@
 #pragma once
-
+#include <dqrng.h>
+#include <xoshiro.h>
 #include <RcppArmadillo.h>
 
 Rcpp::List run_gibbs_sampler_for_bgmCompare(
@@ -33,5 +34,6 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
     const arma::ivec& group_membership,//new
     const arma::imat& group_indices,//new
     const arma::imat& interaction_index_matrix,//new
-    arma::mat inclusion_probability
+    arma::mat inclusion_probability,
+    dqrng::xoshiro256plus& rng
 );

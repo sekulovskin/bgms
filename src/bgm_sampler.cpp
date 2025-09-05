@@ -1,7 +1,5 @@
-#define ARMA_NO_DEBUG
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
-#include <tbb/mutex.h>
 #include "bgm_helper.h"
 #include "bgm_logp_and_grad.h"
 #include "bgm_sampler.h"
@@ -14,6 +12,7 @@
 #include "mcmc_utils.h"
 #include "print_mutex.h"
 #include "gibbs_functions_edge_prior.h"
+#include "rng_utils.h"
 
 using namespace Rcpp;
 
@@ -50,7 +49,8 @@ void impute_missing_values_for_graphical_model (
     const arma::imat& missing_index,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    arma::imat& sufficient_pairwise
+    arma::imat& sufficient_pairwise,
+    dqrng::xoshiro256plus& rng
 ) {
   const int num_variables = observations.n_cols;
   const int num_missings = missing_index.n_rows;
@@ -98,7 +98,7 @@ void impute_missing_values_for_graphical_model (
     }
 
     // Sample from categorical distribution via inverse transform
-    const double u = R::unif_rand () * cumsum;
+    const double u = rng () * cumsum;
     int sampled_score = 0;
     while (u > category_probabilities[sampled_score]) {
       sampled_score++;
@@ -192,7 +192,8 @@ double find_reasonable_initial_step_size(
     const double threshold_beta,
     const double interaction_scale,
     const double target_acceptance,
-    const arma::imat& sufficient_pairwise
+    const arma::imat& sufficient_pairwise,
+    dqrng::xoshiro256plus& rng
 ) {
   arma::vec theta = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -227,7 +228,7 @@ double find_reasonable_initial_step_size(
     );
   };
 
-  return heuristic_initial_step_size(theta, log_post, grad, target_acceptance);
+  return heuristic_initial_step_size(theta, log_post, grad, rng, target_acceptance);
 }
 
 
@@ -276,7 +277,8 @@ void update_main_effects_with_metropolis (
     const arma::mat& rest_matrix,
     arma::mat& proposal_sd_main,
     RWMAdaptationController& adapter,
-    const int iteration
+    const int iteration,
+    dqrng::xoshiro256plus& rng
 ) {
   const int num_vars = observations.n_cols;
   arma::umat index_mask_main = arma::ones<arma::umat>(proposal_sd_main.n_rows, proposal_sd_main.n_cols);
@@ -298,7 +300,7 @@ void update_main_effects_with_metropolis (
           );
         };
 
-        SamplerResult result = rwm_sampler(current, proposal_sd, log_post);
+        SamplerResult result = rwm_sampler(current, proposal_sd, log_post, rng);
 
         current = result.state[0];
         accept_prob_main(variable, category) = result.accept_prob;
@@ -318,7 +320,7 @@ void update_main_effects_with_metropolis (
           );
         };
 
-        SamplerResult result = rwm_sampler(current, proposal_sd, log_post);
+        SamplerResult result = rwm_sampler(current, proposal_sd, log_post, rng);
         current = result.state[0];
         accept_prob_main(variable, parameter) = result.accept_prob;
       }
@@ -378,7 +380,8 @@ void update_pairwise_effects_with_metropolis (
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
     const int iteration,
-    const arma::imat& sufficient_pairwise
+    const arma::imat& sufficient_pairwise,
+    dqrng::xoshiro256plus& rng
 ) {
   arma::mat accept_prob_pairwise = arma::zeros<arma::mat>(num_variables, num_variables);
   arma::umat index_mask_pairwise = arma::zeros<arma::umat>(num_variables, num_variables);
@@ -401,7 +404,7 @@ void update_pairwise_effects_with_metropolis (
           );
         };
 
-        SamplerResult result = rwm_sampler(current, proposal_sd, log_post);
+        SamplerResult result = rwm_sampler(current, proposal_sd, log_post, rng);
 
         value = result.state[0];
         pairwise_effects(variable2, variable1) = value;
@@ -474,7 +477,8 @@ void update_parameters_with_hmc(
     const int iteration,
     HMCAdaptationController& adapt,
     const bool learn_mass_matrix,
-    const bool selection
+    const bool selection,
+    dqrng::xoshiro256plus& rng
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -516,7 +520,7 @@ void update_parameters_with_hmc(
 
   SamplerResult result = hmc_sampler(
     current_state, adapt.current_step_size(), log_post, grad, num_leapfrogs,
-    active_inv_mass
+    active_inv_mass, rng
   );
 
   current_state = result.state;
@@ -582,7 +586,8 @@ SamplerResult update_parameters_with_nuts(
     const int iteration,
     HMCAdaptationController& adapt,
     const bool learn_mass_matrix,
-    const bool selection
+    const bool selection,
+    dqrng::xoshiro256plus& rng
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -626,7 +631,7 @@ SamplerResult update_parameters_with_nuts(
 
   SamplerResult result = nuts_sampler(
     current_state, adapt.current_step_size(), log_post, grad,
-    active_inv_mass, nuts_max_depth
+    active_inv_mass, rng, nuts_max_depth
   );
 
   current_state = result.state;
@@ -663,6 +668,7 @@ void tune_pairwise_proposal_sd(
     const arma::imat& sufficient_pairwise,
     int iteration,
     const WarmupSchedule& sched,
+    dqrng::xoshiro256plus& rng,
     double target_accept = 0.44,
     double rm_decay = 0.75
 )
@@ -691,7 +697,7 @@ void tune_pairwise_proposal_sd(
         );
       };
 
-      SamplerResult result = rwm_sampler(current, proposal_sd, log_post);
+      SamplerResult result = rwm_sampler(current, proposal_sd, log_post, rng);
 
       value = result.state[0];
       pairwise_effects(variable2, variable1) = value;
@@ -755,7 +761,8 @@ void update_indicator_interaction_pair_with_metropolis (
     const arma::mat& inclusion_probability,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& reference_category,
-    const arma::imat& sufficient_pairwise
+    const arma::imat& sufficient_pairwise,
+    dqrng::xoshiro256plus& rng
 ) {
   for (int cntr = 0; cntr < num_interactions; cntr++) {
     const int variable1 = index(cntr, 1);
@@ -765,7 +772,7 @@ void update_indicator_interaction_pair_with_metropolis (
 
     // Propose a new state: either add a new edge or remove an existing one
     const bool proposing_addition = (indicator(variable1, variable2) == 0);
-    const double proposed_state = proposing_addition ? R::rnorm(current_state, proposal_sd(variable1, variable2)) : 0.0;
+    const double proposed_state = proposing_addition ? rnorm(rng, current_state, proposal_sd(variable1, variable2)) : 0.0;
 
     // Compute log pseudo-likelihood ratio
     double log_accept = log_pseudolikelihood_ratio_interaction (
@@ -789,7 +796,7 @@ void update_indicator_interaction_pair_with_metropolis (
     }
 
     // Metropolis-Hastings accept step
-    if (std::log (R::unif_rand()) < log_accept) {
+    if (std::log (runif(rng)) < log_accept) {
       const int updated_indicator = 1 - indicator(variable1, variable2);
       indicator(variable1, variable2) = updated_indicator;
       indicator(variable2, variable1) = updated_indicator;
@@ -904,14 +911,15 @@ void gibbs_update_step_for_graphical_model_parameters (
     WarmupSchedule const& schedule,
     arma::ivec& treedepth_samples,
     arma::ivec& divergent_samples,
-    arma::vec& energy_samples
+    arma::vec& energy_samples,
+    dqrng::xoshiro256plus& rng
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
   if (schedule.selection_enabled(iteration) && iteration == schedule.stage3c_start) {
     initialise_graph(
       inclusion_indicator, pairwise_effects, inclusion_probability, rest_matrix,
-      observations
+      observations, rng
     );
   }
 
@@ -921,7 +929,8 @@ void gibbs_update_step_for_graphical_model_parameters (
         pairwise_effects, main_effects, inclusion_indicator, observations,
         num_categories, proposal_sd_pairwise, interaction_scale, index,
         num_pairwise, num_persons, rest_matrix, inclusion_probability,
-        is_ordinal_variable, reference_category, sufficient_pairwise
+        is_ordinal_variable, reference_category, sufficient_pairwise,
+        rng
     );
   }
 
@@ -931,7 +940,8 @@ void gibbs_update_step_for_graphical_model_parameters (
         pairwise_effects, main_effects, inclusion_indicator, observations,
         num_categories, proposal_sd_pairwise, adapt_pairwise, interaction_scale,
         num_persons, num_variables, rest_matrix,
-        is_ordinal_variable, reference_category, iteration, sufficient_pairwise
+        is_ordinal_variable, reference_category, iteration, sufficient_pairwise,
+        rng
     );
   }
 
@@ -941,7 +951,8 @@ void gibbs_update_step_for_graphical_model_parameters (
         main_effects, observations, num_categories, num_obs_categories,
         sufficient_blume_capel, reference_category, is_ordinal_variable,
         num_persons, threshold_alpha, threshold_beta, rest_matrix,
-        proposal_sd_main, adapt_main, iteration
+        proposal_sd_main, adapt_main, iteration,
+        rng
     );
   }
 
@@ -952,7 +963,8 @@ void gibbs_update_step_for_graphical_model_parameters (
       num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, rest_matrix, sufficient_pairwise, hmc_num_leapfrogs,
-      iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration)
+      iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
+      rng
     );
   } else if (update_method == "nuts") {
     SamplerResult result = update_parameters_with_nuts(
@@ -960,7 +972,8 @@ void gibbs_update_step_for_graphical_model_parameters (
       observations, num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
       interaction_scale, sufficient_pairwise, rest_matrix, nuts_max_depth,
-      iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration)
+      iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
+      rng
     );
     if (iteration >= schedule.total_burnin) {
       int sample_index = iteration - schedule.total_burnin;
@@ -977,7 +990,7 @@ void gibbs_update_step_for_graphical_model_parameters (
     proposal_sd_pairwise, pairwise_effects, main_effects, inclusion_indicator,
     observations, rest_matrix, num_categories, is_ordinal_variable,
     reference_category, interaction_scale, sufficient_pairwise,
-    iteration, schedule
+    iteration, schedule, rng
   );
 }
 
@@ -1028,7 +1041,6 @@ void gibbs_update_step_for_graphical_model_parameters (
  *    - (optional) "main_samples", "pairwise_samples", "inclusion_indicator_samples"
  *    - (optional) "allocations": Cluster allocations (if SBM used)
  */
-// [[Rcpp::export]]
 Rcpp::List run_gibbs_sampler_for_bgm(
     int chain_id,
     arma::imat observations,
@@ -1058,7 +1070,8 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     arma::imat sufficient_pairwise,
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
-    const bool learn_mass_matrix
+    const bool learn_mass_matrix,
+    dqrng::xoshiro256plus& rng
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -1110,12 +1123,12 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     cluster_allocations[0] = 0;
     cluster_allocations[1] = 1;
     for (int i = 2; i < num_variables; i++) {
-      cluster_allocations[i] = (R::unif_rand() > 0.5) ? 1 : 0;
+      cluster_allocations[i] = (runif(rng) > 0.5) ? 1 : 0;
     }
 
     cluster_prob = block_probs_mfm_sbm(
       cluster_allocations, arma::conv_to<arma::umat>::from(inclusion_indicator),
-      num_variables, beta_bernoulli_alpha, beta_bernoulli_beta
+      num_variables, beta_bernoulli_alpha, beta_bernoulli_beta, rng
     );
 
     for (int i = 0; i < num_variables - 1; i++) {
@@ -1139,7 +1152,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
       main_effects, pairwise_effects, inclusion_indicator, observations,
       num_categories, num_obs_categories, sufficient_blume_capel,
       reference_category, is_ordinal_variable, threshold_alpha, threshold_beta,
-      interaction_scale, target_accept, sufficient_pairwise
+      interaction_scale, target_accept, sufficient_pairwise, rng
     );
   }
 
@@ -1171,7 +1184,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     }
 
     // Shuffle update order of edge indices
-    order = arma::randperm(num_pairwise);
+    order = arma_randperm(rng, num_pairwise);
     for (int i = 0; i < num_pairwise; i++) {
       index.row(i) = interaction_index_matrix.row(order(i));
     }
@@ -1182,7 +1195,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
           pairwise_effects, main_effects, observations, num_obs_categories,
           sufficient_blume_capel, num_categories, rest_matrix,
           missing_index, is_ordinal_variable, reference_category,
-          sufficient_pairwise
+          sufficient_pairwise, rng
       );
     }
 
@@ -1197,7 +1210,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
         sufficient_pairwise,
         hmc_num_leapfrogs, nuts_max_depth, adapt_joint, adapt_main, adapt_pairwise,
         learn_mass_matrix, warmup_schedule,
-        treedepth_samples, divergent_samples, energy_samples
+        treedepth_samples, divergent_samples, energy_samples, rng
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)
@@ -1208,7 +1221,7 @@ Rcpp::List run_gibbs_sampler_for_bgm(
           for (int j = i + 1; j < num_variables; j++)
             num_edges_included += inclusion_indicator(i, j);
 
-        double prob = R::rbeta(
+        double prob = rbeta(rng,
           beta_bernoulli_alpha + num_edges_included,
           beta_bernoulli_beta + num_pairwise - num_edges_included
         );
@@ -1221,13 +1234,13 @@ Rcpp::List run_gibbs_sampler_for_bgm(
         cluster_allocations = block_allocations_mfm_sbm(
           cluster_allocations, num_variables, log_Vn, cluster_prob,
           arma::conv_to<arma::umat>::from(inclusion_indicator), dirichlet_alpha,
-          beta_bernoulli_alpha, beta_bernoulli_beta
+          beta_bernoulli_alpha, beta_bernoulli_beta, rng
         );
 
         cluster_prob = block_probs_mfm_sbm(
           cluster_allocations,
           arma::conv_to<arma::umat>::from(inclusion_indicator), num_variables,
-          beta_bernoulli_alpha, beta_bernoulli_beta
+          beta_bernoulli_alpha, beta_bernoulli_beta, rng
         );
 
         for (int i = 0; i < num_variables - 1; i++) {

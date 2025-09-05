@@ -336,7 +336,8 @@ bgm = function(
     nuts_max_depth = 10,
     learn_mass_matrix = FALSE,
     chains = 4,
-    cores = parallel::detectCores()
+    cores = parallel::detectCores(),
+    seed = NULL
 ) {
   # Check update method
   update_method_input = update_method
@@ -488,6 +489,18 @@ bgm = function(
     }
   }
 
+  #Setting the seed
+  if (missing(seed) || is.null(seed)) {
+    # Draw a random seed if none provided
+    seed <- sample.int(.Machine$integer.max, 1)
+  }
+
+  if (!is.numeric(seed) || length(seed) != 1 || is.na(seed) || seed < 0) {
+    stop("Argument 'seed' must be a single non-negative integer.")
+  }
+
+  seed <- as.integer(seed)
+
   out = run_bgm_parallel(
     observations = x, num_categories = num_categories,
     interaction_scale = interaction_scale, edge_prior = edge_prior,
@@ -507,7 +520,7 @@ bgm = function(
     target_accept = target_accept, sufficient_pairwise = sufficient_pairwise,
     hmc_num_leapfrogs = hmc_num_leapfrogs, nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix, num_chains = chains,
-    nThreads = cores
+    nThreads = cores, seed = seed
   )
 
   # Main output handler in the wrapper function

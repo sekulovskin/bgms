@@ -1,7 +1,5 @@
-#define ARMA_NO_DEBUG
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
-#include <tbb/mutex.h>
 #include "bgmCompare_helper.h"
 #include "bgmCompare_logp_and_grad.h"
 #include "bgmCompare_sampler.h"
@@ -13,6 +11,7 @@
 #include "mcmc_rwm.h"
 #include "mcmc_utils.h"
 #include "print_mutex.h"
+#include "rng_utils.h"
 
 using namespace Rcpp;
 
@@ -63,7 +62,8 @@ List impute_missing_data_for_graphical_model(
     const arma::imat& num_categories,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& baseline_category
+    const arma::ivec& baseline_category,
+    dqrng::xoshiro256plus& rng
 ) {
   const int num_variables = observations.n_cols;
   const int num_missings = missing_data_indices.n_rows;
@@ -125,7 +125,7 @@ List impute_missing_data_for_graphical_model(
     }
 
     // Sample a new value based on computed probabilities
-    u = cumsum * R::unif_rand();
+    u = cumsum * runif(rng);
     score = 0;
     while (u > category_response_probabilities[score]) {
       score++;
@@ -233,7 +233,8 @@ double find_reasonable_initial_step_size(
     const double difference_scale,
     const double main_alpha,
     const double main_beta,
-    const double target_acceptance
+    const double target_acceptance,
+    dqrng::xoshiro256plus& rng
 ) {
   arma::vec theta = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator, main_effect_indices,
@@ -286,7 +287,7 @@ double find_reasonable_initial_step_size(
     );
   };
 
-  return heuristic_initial_step_size(theta, log_post, grad, target_acceptance);
+  return heuristic_initial_step_size(theta, log_post, grad, rng, target_acceptance);
 }
 
 
@@ -348,7 +349,8 @@ SamplerResult update_parameters_with_nuts(
     const int iteration,
     HMCAdaptationController& adapt,
     const bool learn_mass_matrix,
-    const bool selection
+    const bool selection,
+    dqrng::xoshiro256plus& rng
 ) {
   arma::vec current_state = vectorize_model_parameters(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -411,7 +413,7 @@ SamplerResult update_parameters_with_nuts(
 
   SamplerResult result = nuts_sampler(
     current_state, adapt.current_step_size(), log_post, grad,
-    active_inv_mass, nuts_max_depth
+    active_inv_mass, rng, nuts_max_depth
   );
 
   current_state = result.state;
@@ -479,7 +481,7 @@ SamplerResult update_parameters_with_nuts(
 //
 //     // Propose a new state: either add a new edge or remove an existing one
 //     const bool proposing_addition = (indicator(variable1, variable2) == 0);
-//     const double proposed_state = proposing_addition ? R::rnorm(current_state, proposal_sd(variable1, variable2)) : 0.0;
+//     const double proposed_state = proposing_addition ? rnorm(rng, current_state, proposal_sd(variable1, variable2)) : 0.0;
 //
 //     // Compute log pseudo-likelihood ratio
 //     double log_accept = log_pseudolikelihood_ratio_interaction (
@@ -503,7 +505,7 @@ SamplerResult update_parameters_with_nuts(
 //     }
 //
 //     // Metropolis-Hastings accept step
-//     if (std::log (R::unif_rand()) < log_accept) {
+//     if (std::log (runif(rng)) < log_accept) {
 //       const int updated_indicator = 1 - indicator(variable1, variable2);
 //       indicator(variable1, variable2) = updated_indicator;
 //       indicator(variable2, variable1) = updated_indicator;
@@ -610,7 +612,8 @@ void gibbs_update_step_for_graphical_model_parameters (
     const arma::mat& projection,
     const int num_groups,
     const arma::imat group_indices,
-    double difference_scale
+    double difference_scale,
+    dqrng::xoshiro256plus& rng
 ) {
 
   SamplerResult result = update_parameters_with_nuts(
@@ -620,7 +623,7 @@ void gibbs_update_step_for_graphical_model_parameters (
     sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
     baseline_category, pairwise_scale, difference_scale, main_alpha,
     main_beta, nuts_max_depth, iteration, adapt, learn_mass_matrix,
-    schedule.selection_enabled(iteration)
+    schedule.selection_enabled(iteration), rng
   );
 
   if (iteration >= schedule.total_burnin) {
@@ -635,7 +638,6 @@ void gibbs_update_step_for_graphical_model_parameters (
 
 
 
-// [[Rcpp::export]]
 Rcpp::List run_gibbs_sampler_for_bgmCompare(
     int chain_id,
     arma::imat observations,
@@ -667,7 +669,8 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
     const arma::ivec& group_membership,//new
     const arma::imat& group_indices,//new
     const arma::imat& interaction_index_matrix,//new
-    arma::mat inclusion_probability//new
+    arma::mat inclusion_probability,//new
+    dqrng::xoshiro256plus& rng
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -708,7 +711,7 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
     observations, num_groups, group_indices, num_obs_categories,
     sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
     baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
-    target_accept
+    target_accept, rng
   );
 
   // --- Warmup scheduling + adaptation controller
@@ -733,7 +736,7 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
     }
 
     // Shuffle update order of edge indices
-    order = arma::randperm(num_pair);
+    order = arma_randperm(rng, num_pair);
     for (int i = 0; i < num_pair; i++) {
       index.row(i) = interaction_index_matrix.row(order(i));
     }
@@ -746,7 +749,7 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
           observations, num_groups, group_membership, group_indices,
           num_obs_categories, sufficient_blume_capel, sufficient_pairwise,
           num_categories, missing_data_indices, is_ordinal_variable,
-          baseline_category
+          baseline_category, rng
       );
     }
 
@@ -758,7 +761,8 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
         iteration, pairwise_effect_indices, sufficient_pairwise, nuts_max_depth,
         adapt_joint, learn_mass_matrix, warmup_schedule, treedepth_samples,
         divergent_samples, energy_samples,
-        main_effect_indices, projection, num_groups, group_indices, difference_scale//new line of args
+        main_effect_indices, projection, num_groups, group_indices, difference_scale,//new line of args
+        rng
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)
@@ -775,7 +779,7 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
         for(int i = 0; i < num_variables; i++) {
           sumG += inclusion_indicator(i, i);
         }
-        double prob = R::rbeta(difference_selection_alpha + sumG,
+        double prob = rbeta(rng, difference_selection_alpha + sumG,
                                difference_selection_beta + num_pair + num_variables - sumG);
         std::fill(inclusion_probability.begin(), inclusion_probability.end(), prob);
       }

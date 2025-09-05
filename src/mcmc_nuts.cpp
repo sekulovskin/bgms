@@ -5,6 +5,7 @@
 #include "mcmc_nuts.h"
 #include "mcmc_utils.h"
 #include <Rcpp.h>
+#include "rng_utils.h"
 using namespace Rcpp;
 
 
@@ -75,7 +76,8 @@ BuildTreeResult build_tree(
     const double logp0,
     const double kin0,
     Memoizer& memo,
-    const arma::vec& inv_mass_diag
+    const arma::vec& inv_mass_diag,
+    dqrng::xoshiro256plus& rng
 ) {
   constexpr double Delta_max = 1000.0;
 
@@ -98,7 +100,7 @@ BuildTreeResult build_tree(
   } else {
     BuildTreeResult result = build_tree(
       theta, r, log_u, v, j - 1, step_size, theta_0, r0, logp0, kin0, memo,
-      inv_mass_diag
+      inv_mass_diag, rng
     );
     bool divergent = result.divergent;
 
@@ -116,14 +118,14 @@ BuildTreeResult build_tree(
       if (v == -1) {
         result = build_tree(
           theta_min, r_min, log_u, v, j - 1, step_size, theta_0, r0, logp0,
-          kin0, memo, inv_mass_diag
+          kin0, memo, inv_mass_diag, rng
         );
         theta_min = result.theta_min;
         r_min = result.r_min;
       } else {
         result = build_tree(
           theta_plus, r_plus, log_u, v, j - 1, step_size, theta_0, r0, logp0,
-          kin0, memo, inv_mass_diag
+          kin0, memo, inv_mass_diag, rng
         );
         theta_plus = result.theta_plus;
         r_plus = result.r_plus;
@@ -139,7 +141,7 @@ BuildTreeResult build_tree(
       double denom = static_cast<double>(n_prime + n_double_prime);
       double prob = static_cast<double>(n_double_prime) / denom;
 
-      if (R::unif_rand() < prob) {
+      if (runif(rng) < prob) {
         theta_prime = theta_double_prime;
       }
       alpha_prime += alpha_double_prime;
@@ -186,6 +188,7 @@ SamplerResult nuts_sampler(
     const std::function<double(const arma::vec&)>& log_post,
     const std::function<arma::vec(const arma::vec&)>& grad,
     const arma::vec& inv_mass_diag,
+    dqrng::xoshiro256plus& rng,
     int max_depth
 ) {
   // Here memo is created locally; terminates at end of nuts_sampler() call
@@ -193,11 +196,11 @@ SamplerResult nuts_sampler(
   bool any_divergence = false;
 
 
-  arma::vec r0 = arma::sqrt(1.0 / inv_mass_diag) % arma::randn(init_theta.n_elem);
+  arma::vec r0 = arma::sqrt(1.0 / inv_mass_diag) % arma_rnorm_vec(rng, init_theta.n_elem);
   auto logp0 = memo.cached_log_post(init_theta);
   double kin0 = kinetic_energy(r0, inv_mass_diag);
   double joint0 = logp0 - kin0;
-  double log_u = log(R::unif_rand()) + joint0;
+  double log_u = log(runif(rng)) + joint0;
   arma::vec theta_min = init_theta, r_min = r0;
   arma::vec theta_plus = init_theta, r_plus = r0;
   arma::vec theta = init_theta;
@@ -208,20 +211,20 @@ SamplerResult nuts_sampler(
   int n_alpha = 1;
 
   while (s == 1 && j < max_depth) {
-    int v = R::unif_rand() < 0.5 ? -1 : 1;
+    int v = runif(rng) < 0.5 ? -1 : 1;
 
     BuildTreeResult result;
     if (v == -1) {
       result = build_tree(
         theta_min, r_min, log_u, v, j, step_size, init_theta, r0, logp0, kin0,
-        memo, inv_mass_diag
+        memo, inv_mass_diag, rng
       );
       theta_min = result.theta_min;
       r_min = result.r_min;
     } else {
       result = build_tree(
         theta_plus, r_plus, log_u, v, j, step_size, init_theta, r0, logp0, kin0,
-        memo, inv_mass_diag
+        memo, inv_mass_diag, rng
       );
       theta_plus = result.theta_plus;
       r_plus = result.r_plus;
@@ -233,7 +236,7 @@ SamplerResult nuts_sampler(
 
     if (result.s_prime == 1) {
       double prob = static_cast<double>(result.n_prime) / static_cast<double>(n);
-      if (R::unif_rand() < prob) {
+      if (runif(rng) < prob) {
         theta = result.theta_prime;
       }
     }
@@ -247,7 +250,7 @@ SamplerResult nuts_sampler(
 
   //Logging NUTS diagnostics
   auto logp_final = memo.cached_log_post(theta);
-  arma::vec r_final = arma::sqrt(1.0 / inv_mass_diag) % arma::randn(theta.n_elem);
+  arma::vec r_final = arma::sqrt(1.0 / inv_mass_diag) % arma_rnorm_vec(rng, theta.n_elem);
   double kin_final = kinetic_energy(r_final, inv_mass_diag);
   double energy = -logp_final + kin_final;
 
