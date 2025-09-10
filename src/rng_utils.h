@@ -1,3 +1,4 @@
+// [[Rcpp::depends(BH)]]
 #pragma once
 
 #include <RcppArmadillo.h>
