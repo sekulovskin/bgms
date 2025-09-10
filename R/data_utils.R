@@ -490,7 +490,7 @@ compute_sufficient_blume_capel = function(x, reference_category, ordinal_variabl
 
 # Helper function for computing sufficient statistics for pairwise interactions
 compute_sufficient_pairwise <- function(x, group) {
-  result <- vector("list", length(group))
+  result <- vector("list", length(unique(group)))
 
   for (g in unique(group)) {
     obs <- x[group == g, , drop = FALSE]

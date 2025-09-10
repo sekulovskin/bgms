@@ -12,6 +12,7 @@
 #include "mcmc_utils.h"
 #include "print_mutex.h"
 #include "rng_utils.h"
+#include "sampler_output.h"
 
 using namespace Rcpp;
 
@@ -613,8 +614,17 @@ void gibbs_update_step_for_graphical_model_parameters (
     const int num_groups,
     const arma::imat group_indices,
     double difference_scale,
-    dqrng::xoshiro256plus& rng
+    dqrng::xoshiro256plus& rng,
+    arma::mat& inclusion_probability
 ) {
+
+  // Step 0: Initialise random graph structure when edge_selection = TRUE
+  if (schedule.selection_enabled(iteration) && iteration == schedule.stage3c_start) {
+    initialise_graph(
+      inclusion_indicator, main_effects, pairwise_effects, main_effect_indices,
+      pairwise_effect_indices, inclusion_probability, rng
+    );
+  }
 
   SamplerResult result = update_parameters_with_nuts(
     main_effects, pairwise_effects, main_effect_indices,
@@ -638,13 +648,13 @@ void gibbs_update_step_for_graphical_model_parameters (
 
 
 
-Rcpp::List run_gibbs_sampler_for_bgmCompare(
+SamplerOutput run_gibbs_sampler_for_bgmCompare(
     int chain_id,
     arma::imat observations,
     const int num_groups,
-    Rcpp::List num_obs_categories,
-    Rcpp::List sufficient_blume_capel,
-    Rcpp::List sufficient_pairwise,
+    std::vector<arma::imat> num_obs_categories,
+    std::vector<arma::imat> sufficient_blume_capel,
+    std::vector<arma::mat> sufficient_pairwise,
     const arma::ivec& num_categories,
     const double main_alpha,
     const double main_beta,
@@ -652,7 +662,7 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
     const double difference_scale,//new
     const double difference_selection_alpha,//new
     const double difference_selection_beta,//new
-    const std::string difference_prior,//new
+    const std::string& difference_prior,//new
     const int iter,
     const int burnin,
     const bool na_impute,
@@ -705,11 +715,15 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
 
   // --- Optional HMC/NUTS warmup stage
   double initial_step_size = 1.0;
+  Rcpp::List num_obs_list(num_obs_categories.begin(), num_obs_categories.end());
+  Rcpp::List suff_blume_list(sufficient_blume_capel.begin(), sufficient_blume_capel.end());
+  Rcpp::List suff_pair_list(sufficient_pairwise.begin(), sufficient_pairwise.end());
+
   initial_step_size = find_reasonable_initial_step_size(
     main_effects, pairwise_effects, main_effect_indices,
     pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-    observations, num_groups, group_indices, num_obs_categories,
-    sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+    observations, num_groups, group_indices, num_obs_list,
+    suff_blume_list, suff_pair_list, is_ordinal_variable,
     baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
     target_accept, rng
   );
@@ -728,7 +742,8 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
   for (int iteration = 0; iteration < total_iter; iteration++) {
     if (iteration % print_every == 0) {
       tbb::mutex::scoped_lock lock(get_print_mutex());
-      Rcpp::Rcout
+      //Rcpp::Rcout
+      std::cout
       << "[bgm] chain " << chain_id
       << " iteration " << iteration
       << " / " << total_iter
@@ -743,26 +758,40 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
 
     // Optional imputation
     if (na_impute) {
+      Rcpp::List num_obs_list(num_obs_categories.begin(), num_obs_categories.end());
+      Rcpp::List suff_blume_list(sufficient_blume_capel.begin(), sufficient_blume_capel.end());
+      Rcpp::List suff_pair_list(sufficient_pairwise.begin(), sufficient_pairwise.end());
+
       impute_missing_data_for_graphical_model (
           main_effects, pairwise_effects, main_effect_indices,
           pairwise_effect_indices, inclusion_indicator, projection,
           observations, num_groups, group_membership, group_indices,
-          num_obs_categories, sufficient_blume_capel, sufficient_pairwise,
+          num_obs_list, suff_blume_list, suff_pair_list,
           num_categories, missing_data_indices, is_ordinal_variable,
           baseline_category, rng
       );
+
+      for (int g = 0; g < num_groups; ++g) {
+        num_obs_categories[g]     = Rcpp::as<arma::imat>(num_obs_list[g]);
+        sufficient_blume_capel[g] = Rcpp::as<arma::imat>(suff_blume_list[g]);
+        sufficient_pairwise[g]    = Rcpp::as<arma::mat>(suff_pair_list[g]);
+      }
     }
 
     // Main Gibbs update step for parameters
+    Rcpp::List num_obs_list(num_obs_categories.begin(), num_obs_categories.end());
+    Rcpp::List suff_blume_list(sufficient_blume_capel.begin(), sufficient_blume_capel.end());
+    Rcpp::List suff_pair_list(sufficient_pairwise.begin(), sufficient_pairwise.end());
+
     gibbs_update_step_for_graphical_model_parameters (
-        observations, num_categories, pairwise_scale, num_obs_categories,
-        sufficient_blume_capel, main_alpha, main_beta, inclusion_indicator,
+        observations, num_categories, pairwise_scale, num_obs_list,
+        suff_blume_list, main_alpha, main_beta, inclusion_indicator,
         pairwise_effects, main_effects, is_ordinal_variable, baseline_category,
-        iteration, pairwise_effect_indices, sufficient_pairwise, nuts_max_depth,
+        iteration, pairwise_effect_indices, suff_pair_list, nuts_max_depth,
         adapt_joint, learn_mass_matrix, warmup_schedule, treedepth_samples,
         divergent_samples, energy_samples,
         main_effect_indices, projection, num_groups, group_indices, difference_scale,//new line of args
-        rng
+        rng, inclusion_probability
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)
@@ -779,8 +808,9 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
         for(int i = 0; i < num_variables; i++) {
           sumG += inclusion_indicator(i, i);
         }
-        double prob = rbeta(rng, difference_selection_alpha + sumG,
-                               difference_selection_beta + num_pair + num_variables - sumG);
+        double prob = rbeta(rng,
+                            difference_selection_alpha + sumG,
+                            difference_selection_beta + num_pair + num_variables - sumG);
         std::fill(inclusion_probability.begin(), inclusion_probability.end(), prob);
       }
     }
@@ -818,18 +848,16 @@ Rcpp::List run_gibbs_sampler_for_bgmCompare(
     }
   }
 
-  Rcpp::List out;
-  out["main_samples"] = main_effect_samples;
-  out["pairwise_samples"] = pairwise_effect_samples;
-
-  out["treedepth__"] = treedepth_samples;
-  out["divergent__"] = divergent_samples;
-  out["energy__"] = energy_samples;
-
+  SamplerOutput out;
+  out.chain_id = chain_id;
+  out.main_samples = main_effect_samples;
+  out.pairwise_samples = pairwise_effect_samples;
+  out.treedepth_samples = treedepth_samples;
+  out.divergent_samples = divergent_samples;
+  out.energy_samples = energy_samples;
+  out.has_indicator = difference_selection;
   if (difference_selection) {
-    out["indicator_samples"] = indicator_samples;
+    out.indicator_samples = indicator_samples;
   }
-
-  out["chain_id"] = chain_id;
   return out;
 }
