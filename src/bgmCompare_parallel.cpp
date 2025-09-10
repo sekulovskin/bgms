@@ -235,14 +235,15 @@ Rcpp::List run_bgmCompare_parallel(
     const arma::imat& interaction_index_matrix,
     const arma::mat& inclusion_probability,
     int num_chains,
-    int nThreads
+    int nThreads,
+    int seed
 ) {
   std::vector<ChainResultCompare> results(num_chains);
 
   // per-chain seeds
   std::vector<SafeRNG> chain_rngs(num_chains);
   for (int c = 0; c < num_chains; ++c) {
-    chain_rngs[c] = SafeRNG(/*seed +*/ c); // TODO: this needs a seed passed by the user!
+    chain_rngs[c] = SafeRNG(seed + c);
   }
 
 

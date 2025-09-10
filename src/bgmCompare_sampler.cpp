@@ -1,5 +1,4 @@
 #include <RcppArmadillo.h>
-#include <Rcpp.h>
 #include "bgmCompare_helper.h"
 #include "bgmCompare_logp_and_grad.h"
 #include "bgmCompare_sampler.h"
@@ -46,7 +45,7 @@ using namespace Rcpp;
  *    - `sufficient_blume_capel`: Updated sufficient statistics for Blume-Capel variables.
  *    - `residual_matrix`: Updated residual effects matrix.
  */
-List impute_missing_data_for_graphical_model(
+void impute_missing_data_for_graphical_model(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -57,9 +56,9 @@ List impute_missing_data_for_graphical_model(
     const int num_groups,
     const arma::ivec& group_membership,
     const arma::imat& group_indices,
-    List& num_obs_categories,
-    List& sufficient_blume_capel,
-    List& sufficient_pairwise,
+    std::vector<arma::imat>& num_obs_categories,
+    std::vector<arma::imat>& sufficient_blume_capel,
+    std::vector<arma::mat>& sufficient_pairwise,
     const arma::imat& num_categories,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
@@ -168,15 +167,13 @@ List impute_missing_data_for_graphical_model(
     }
   }
 
-  return List::create(Named("observations") = observations,
-                      Named("num_obs_categories") = num_obs_categories,
-                      Named("sufficient_blume_capel") = sufficient_blume_capel);
+  return;
 }
 
 
 
 /**
- * Function: find_reasonable_initial_step_size
+ * Function: find_reasonable_initial_step_size_cmp
  *
  * Heuristically finds a reasonable initial step size for leapfrog-based MCMC algorithms
  * (such as HMC and NUTS), following the procedure described in:
@@ -214,7 +211,7 @@ List impute_missing_data_for_graphical_model(
  *  - This function is suitable for both NUTS and standard HMC algorithms.
  *  - It is typically called once before warm-up/adaptation.
  */
-double find_reasonable_initial_step_size(
+double find_reasonable_initial_step_size_cmp(
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -225,9 +222,9 @@ double find_reasonable_initial_step_size(
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const Rcpp::List& num_obs_categories,
-    const Rcpp::List& sufficient_blume_capel,
-    const Rcpp::List& sufficient_pairwise,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::mat>& sufficient_pairwise,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
@@ -337,9 +334,9 @@ SamplerResult update_parameters_with_nuts(
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const Rcpp::List& num_obs_categories,
-    const Rcpp::List& sufficient_blume_capel,
-    const Rcpp::List& sufficient_pairwise,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::mat>& sufficient_pairwise,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
@@ -586,12 +583,12 @@ SamplerResult update_parameters_with_nuts(
  *  - sqrt_inv_fisher_main
  *  - sqrt_inv_fisher_pairwise
  */
-void gibbs_update_step_for_graphical_model_parameters (
+void gibbs_update_step_for_graphical_model_parameters_cmp (
     const arma::imat& observations,
     const arma::ivec& num_categories,
     const double pairwise_scale,
-    const Rcpp::List& num_obs_categories,
-    const Rcpp::List& sufficient_blume_capel,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
     const double main_alpha,
     const double main_beta,
     arma::imat& inclusion_indicator,
@@ -601,7 +598,7 @@ void gibbs_update_step_for_graphical_model_parameters (
     const arma::ivec& baseline_category,
     const int iteration,
     const arma::imat& pairwise_effect_indices,
-    const Rcpp::List& sufficient_pairwise,
+    const std::vector<arma::mat>& sufficient_pairwise,
     const int nuts_max_depth,
     HMCAdaptationController& adapt,
     const bool learn_mass_matrix,
@@ -652,9 +649,11 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
     int chain_id,
     arma::imat observations,
     const int num_groups,
-    std::vector<arma::imat> num_obs_categories,
-    std::vector<arma::imat> sufficient_blume_capel,
-    std::vector<arma::mat> sufficient_pairwise,
+    // TODO for Maarten: this will crash horribly when imputing in parallel
+    // each thread needs an individual copy of the three objects below
+    std::vector<arma::imat>& num_obs_categories,
+    std::vector<arma::imat>& sufficient_blume_capel,
+    std::vector<arma::mat>& sufficient_pairwise,
     const arma::ivec& num_categories,
     const double main_alpha,
     const double main_beta,
@@ -715,15 +714,12 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
 
   // --- Optional HMC/NUTS warmup stage
   double initial_step_size = 1.0;
-  Rcpp::List num_obs_list(num_obs_categories.begin(), num_obs_categories.end());
-  Rcpp::List suff_blume_list(sufficient_blume_capel.begin(), sufficient_blume_capel.end());
-  Rcpp::List suff_pair_list(sufficient_pairwise.begin(), sufficient_pairwise.end());
 
-  initial_step_size = find_reasonable_initial_step_size(
+  initial_step_size = find_reasonable_initial_step_size_cmp(
     main_effects, pairwise_effects, main_effect_indices,
     pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-    observations, num_groups, group_indices, num_obs_list,
-    suff_blume_list, suff_pair_list, is_ordinal_variable,
+    observations, num_groups, group_indices, num_obs_categories,
+    sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
     baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
     target_accept, rng
   );
@@ -758,36 +754,23 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
 
     // Optional imputation
     if (na_impute) {
-      Rcpp::List num_obs_list(num_obs_categories.begin(), num_obs_categories.end());
-      Rcpp::List suff_blume_list(sufficient_blume_capel.begin(), sufficient_blume_capel.end());
-      Rcpp::List suff_pair_list(sufficient_pairwise.begin(), sufficient_pairwise.end());
 
       impute_missing_data_for_graphical_model (
           main_effects, pairwise_effects, main_effect_indices,
           pairwise_effect_indices, inclusion_indicator, projection,
           observations, num_groups, group_membership, group_indices,
-          num_obs_list, suff_blume_list, suff_pair_list,
+          num_obs_categories, sufficient_blume_capel, sufficient_pairwise,
           num_categories, missing_data_indices, is_ordinal_variable,
           baseline_category, rng
       );
-
-      for (int g = 0; g < num_groups; ++g) {
-        num_obs_categories[g]     = Rcpp::as<arma::imat>(num_obs_list[g]);
-        sufficient_blume_capel[g] = Rcpp::as<arma::imat>(suff_blume_list[g]);
-        sufficient_pairwise[g]    = Rcpp::as<arma::mat>(suff_pair_list[g]);
-      }
     }
 
     // Main Gibbs update step for parameters
-    Rcpp::List num_obs_list(num_obs_categories.begin(), num_obs_categories.end());
-    Rcpp::List suff_blume_list(sufficient_blume_capel.begin(), sufficient_blume_capel.end());
-    Rcpp::List suff_pair_list(sufficient_pairwise.begin(), sufficient_pairwise.end());
-
-    gibbs_update_step_for_graphical_model_parameters (
-        observations, num_categories, pairwise_scale, num_obs_list,
-        suff_blume_list, main_alpha, main_beta, inclusion_indicator,
+    gibbs_update_step_for_graphical_model_parameters_cmp (
+        observations, num_categories, pairwise_scale, num_obs_categories,
+        sufficient_blume_capel, main_alpha, main_beta, inclusion_indicator,
         pairwise_effects, main_effects, is_ordinal_variable, baseline_category,
-        iteration, pairwise_effect_indices, suff_pair_list, nuts_max_depth,
+        iteration, pairwise_effect_indices, sufficient_pairwise, nuts_max_depth,
         adapt_joint, learn_mass_matrix, warmup_schedule, treedepth_samples,
         divergent_samples, energy_samples,
         main_effect_indices, projection, num_groups, group_indices, difference_scale,//new line of args
@@ -858,6 +841,8 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
   out.has_indicator = difference_selection;
   if (difference_selection) {
     out.indicator_samples = indicator_samples;
+  } else {
+    out.indicator_samples = arma::imat();
   }
   return out;
 }

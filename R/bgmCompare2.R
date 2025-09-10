@@ -229,7 +229,8 @@ bgmCompare2 = function(
     group_indices = group_indices,
     interaction_index_matrix = Index,
     inclusion_probability = model$inclusion_probability_difference,
-    num_chains = chains, nThreads = cores
+    num_chains = chains, nThreads = cores,
+    seed = seed
   )
 
   # Main output handler in the wrapper function
