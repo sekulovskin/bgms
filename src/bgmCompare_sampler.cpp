@@ -670,12 +670,12 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const bool difference_selection,//new
-    const arma::imat main_effect_indices,
-    const arma::imat pairwise_effect_indices,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
     const double target_accept,
     const int nuts_max_depth,
     const bool learn_mass_matrix,
-    const arma::mat projection,//new
+    const arma::mat& projection,//new
     const arma::ivec& group_membership,//new
     const arma::imat& group_indices,//new
     const arma::imat& interaction_index_matrix,//new
