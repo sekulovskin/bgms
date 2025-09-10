@@ -75,7 +75,7 @@ inline void initialise_graph(
     const arma::imat& main_indices,
     const arma::imat& pairwise_indices,
     const arma::mat& incl_prob,
-    dqrng::xoshiro256plus& rng
+    SafeRNG& rng
 ) {
   int V = indicator.n_rows;
   int G = main.n_cols;

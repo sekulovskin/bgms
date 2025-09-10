@@ -4,7 +4,7 @@
 
 struct SafeRNG;
 
-Rcpp::List run_gibbs_sampler_for_bgmCompare(
+SamplerOutput run_gibbs_sampler_for_bgmCompare(
     int chain_id,
     arma::imat observations,
     const int num_groups,
