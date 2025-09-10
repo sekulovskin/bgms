@@ -196,7 +196,7 @@ bgmCompare2 = function(
       stop("Argument 'seed' must be a non-negative integer or vector of non-negative integers.")
     }
     # Force to integer type
-    seed <- as.integer(seed)
+    seed = as.integer(seed)
     dqrng::dqset.seed(seed)
   }
 
@@ -225,43 +225,13 @@ bgmCompare2 = function(
     nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix,
     projection = projection,
-    group_membership = sorted_group - 1,  ######################################
+    group_membership = sorted_group - 1,
     group_indices = group_indices,
     interaction_index_matrix = Index,
     inclusion_probability = model$inclusion_probability_difference,
-    num_chains = chains, nThreads = cores
+    num_chains = chains, nThreads = cores,
+    seed = seed
   )
-
-  # out = run_gibbs_sampler_for_bgmCompare(
-  #   chain_id = 1,
-  #   observations = observations,
-  #   num_groups = num_groups,
-  #   num_obs_categories = num_obs_categories,
-  #   sufficient_blume_capel = sufficient_blume_capel,
-  #   sufficient_pairwise = sufficient_pairwise,
-  #   num_categories = num_categories[, 1],
-  #   main_alpha = threshold_alpha,
-  #   main_beta = threshold_beta,
-  #   pairwise_scale = interaction_scale,
-  #   difference_scale = difference_scale,
-  #   difference_selection_alpha = beta_bernoulli_alpha,
-  #   difference_selection_beta = beta_bernoulli_beta,
-  #   difference_prior = model$difference_prior, iter = iter, burnin = burnin,
-  #   na_impute = na_impute, missing_data_indices = missing_index,
-  #   is_ordinal_variable = ordinal_variable,
-  #   baseline_category = reference_category,
-  #   difference_selection = difference_selection,
-  #   main_effect_indices = main_effect_indices,
-  #   pairwise_effect_indices = pairwise_effect_indices,
-  #   target_accept = target_accept,
-  #   nuts_max_depth = nuts_max_depth,
-  #   learn_mass_matrix = learn_mass_matrix,
-  #   projection = projection,
-  #   group_membership = sorted_group - 1,  ######################################
-  #   group_indices = group_indices,
-  #   interaction_index_matrix = Index,
-  #   inclusion_probability = model$inclusion_probability_difference)
-
 
   # Main output handler in the wrapper function
   # output = prepare_output_bgmCompare2(

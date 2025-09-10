@@ -737,8 +737,10 @@ check_compare2_model = function(
         if(difference_inclusion_probability >= 1)
           stop("The inclusion probability for differences cannot equal or exceed the value one.")
 
-       inclusion_probability_difference = inclusion_probability_difference +
-         difference_probability
+       inclusion_probability_difference = matrix(difference_probability,
+                                                 nrow = ncol(x),
+                                                 ncol = ncol(x))
+
       } else {
         if(!inherits(difference_probability, what = "matrix") &&
            !inherits(difference_probability, what = "data.frame"))
@@ -765,8 +767,9 @@ check_compare2_model = function(
           stop("One or more inclusion probabilities for differences are one or larger.")
       }
     } else {
-      inclusion_probability_difference = inclusion_probability_difference + 0.5
-
+      inclusion_probability_difference = matrix(0.5,
+                                                nrow = ncol(x),
+                                                ncol = ncol(x))
       if(beta_bernoulli_alpha <= 0 || beta_bernoulli_beta <= 0)
         stop("The scale parameters of the beta distribution for the differences need to be positive.")
       if(!is.finite(beta_bernoulli_alpha) || !is.finite(beta_bernoulli_beta))

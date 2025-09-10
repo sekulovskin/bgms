@@ -29,7 +29,8 @@ bgm(
   nuts_max_depth = 10,
   learn_mass_matrix = FALSE,
   chains = 4,
-  cores = parallel::detectCores()
+  cores = parallel::detectCores(),
+  seed = NULL
 )
 }
 \arguments{

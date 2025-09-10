@@ -16,9 +16,9 @@ double log_pseudoposterior(
     const arma::imat& observations,
     const arma::imat& group_indices,
     const arma::ivec& num_categories,
-    const Rcpp::List& num_obs_categories_group,
-    const Rcpp::List& sufficient_blume_capel_group,
-    const Rcpp::List& sufficient_pairwise_group,
+    const std::vector<arma::imat>& num_obs_categories_group,
+    const std::vector<arma::imat>& sufficient_blume_capel_group,
+    const std::vector<arma::mat>&  sufficient_pairwise_group,
     const int num_groups,
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
@@ -34,8 +34,8 @@ double log_pseudoposterior(
 
   // --- per group ---
   for (int group = 0; group < num_groups; ++group) {
-    const arma::imat num_obs_categories = Rcpp::as<arma::imat>(num_obs_categories_group[group]);
-    const arma::imat sufficient_blume_capel = Rcpp::as<arma::imat>(sufficient_blume_capel_group[group]);
+    const arma::imat num_obs_categories = num_obs_categories_group[group];
+    const arma::imat sufficient_blume_capel = sufficient_blume_capel_group[group];
 
     arma::mat main_group(num_variables, max_num_categories, arma::fill::zeros);
     arma::mat pairwise_group(num_variables, num_variables, arma::fill::zeros);
@@ -81,7 +81,7 @@ double log_pseudoposterior(
     const int r0 = group_indices(group, 0);
     const int r1 = group_indices(group, 1);
     const arma::mat obs = arma::conv_to<arma::mat>::from(observations.rows(r0, r1));
-    const arma::mat sufficient_pairwise = Rcpp::as<arma::mat>(sufficient_pairwise_group[group]);
+    const arma::mat sufficient_pairwise = sufficient_pairwise_group[group];
 
     log_pp += arma::accu(pairwise_group % sufficient_pairwise); // trace(X' * W * X) = sum(W %*% (X'X))
 
@@ -170,9 +170,9 @@ arma::vec gradient(
     const arma::imat& observations,
     const arma::imat& group_indices,
     const arma::ivec& num_categories,
-    const Rcpp::List& num_obs_categories_group,
-    const Rcpp::List& sufficient_blume_capel_group,
-    const Rcpp::List& sufficient_pairwise_group,
+    const std::vector<arma::imat>& num_obs_categories_group,
+    const std::vector<arma::imat>& sufficient_blume_capel_group,
+    const std::vector<arma::mat>&  sufficient_pairwise_group,
     const int num_groups,
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
@@ -214,10 +214,8 @@ arma::vec gradient(
   // -------------------------------
   for (int g = 0; g < num_groups; ++g) {
     // list access
-    SEXP s1 = num_obs_categories_group[g];
-    SEXP s2 = sufficient_blume_capel_group[g];
-    arma::imat num_obs_categories      = Rcpp::as<arma::imat>(s1);
-    arma::imat sufficient_blume_capel  = Rcpp::as<arma::imat>(s2);
+    arma::imat num_obs_categories      = num_obs_categories_group[g];
+    arma::imat sufficient_blume_capel  = sufficient_blume_capel_group[g];
 
     // Main effects
     for (int v = 0; v < num_variables; ++v) {
@@ -260,9 +258,7 @@ arma::vec gradient(
     }
 
     // Pairwise (observed)
-    SEXP s3 = sufficient_pairwise_group[g];
-    arma::mat sufficient_pairwise = Rcpp::as<arma::mat>(s3);
-
+    arma::mat sufficient_pairwise = sufficient_pairwise_group[g];
     for (int v1 = 0; v1 < num_variables - 1; ++v1) {
       for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
         const int row = pairwise_effect_indices(v1, v2);

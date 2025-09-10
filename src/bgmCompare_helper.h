@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RcppArmadillo.h>
+#include "rng_utils.h"
 
 
 
@@ -66,3 +67,39 @@ arma::vec inv_mass_active(
     const arma::imat& pairwise_effect_indices,
     const bool& selection
 );
+
+inline void initialise_graph(
+    arma::imat& indicator,
+    arma::mat& main,
+    arma::mat& pairwise,
+    const arma::imat& main_indices,
+    const arma::imat& pairwise_indices,
+    const arma::mat& incl_prob,
+    SafeRNG& rng
+) {
+  int V = indicator.n_rows;
+  int G = main.n_cols;
+  for (int i = 0; i < V-1; ++i) {
+    for (int j = i+1; j < V; ++j) {
+      double p = incl_prob(i,j);
+      int draw = (runif(rng) < p) ? 1 : 0;
+      indicator(i,j) = indicator(j,i) = draw;
+      if (!draw) {
+        int row = pairwise_indices(i, j);
+        pairwise.row(row).cols(1, G-1) = 0.0;
+      }
+    }
+  }
+  for(int i = 0; i < V; i++) {
+    double p = incl_prob(i,i);
+    int draw = (runif(rng) < p) ? 1 : 0;
+    indicator(i,i) = draw;
+    if(!draw) {
+      int start = main_indices(i,0);
+      int end = main_indices(i,1);
+      for(int row = start; row < end; row++) {
+        main.row(row).cols(1, G-1) = 0.0;
+      }
+    }
+  }
+};

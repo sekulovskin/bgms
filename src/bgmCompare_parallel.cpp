@@ -13,11 +13,11 @@ using namespace RcppParallel;
 // -----------------------------------------------------------------------------
 // Result struct
 // -----------------------------------------------------------------------------
-struct ChainResult {
+struct ChainResultCompare {
   bool error;
   std::string error_msg;
   int chain_id;
-  Rcpp::List result;
+  SamplerOutput result;
 };
 
 // -----------------------------------------------------------------------------
@@ -27,9 +27,9 @@ struct GibbsCompareChainRunner : public Worker {
   // inputs
   const arma::imat& observations;
   const int num_groups;
-  const std::vector<arma::imat>& num_obs_categories_cpp_master;
-  const std::vector<arma::imat>& sufficient_blume_capel_cpp_master;
-  const std::vector<arma::mat>&  sufficient_pairwise_cpp_master;
+  const std::vector<arma::imat>& num_obs_categories_master;
+  const std::vector<arma::imat>& sufficient_blume_capel_master;
+  const std::vector<arma::mat>&  sufficient_pairwise_master;
   const arma::ivec& num_categories;
   const double main_alpha;
   const double main_beta;
@@ -60,47 +60,47 @@ struct GibbsCompareChainRunner : public Worker {
   const std::vector<SafeRNG>& chain_rngs;
 
   // output
-  std::vector<ChainResult>& results;
+  std::vector<ChainResultCompare>& results;
 
   GibbsCompareChainRunner(
     const arma::imat& observations,
-    const int num_groups,
-    const std::vector<arma::imat>& num_obs_categories_cpp_master,
-    const std::vector<arma::imat>& sufficient_blume_capel_cpp_master,
-    const std::vector<arma::mat>&  sufficient_pairwise_cpp_master,
+    int num_groups,
+    const std::vector<arma::imat>& num_obs_categories_master,
+    const std::vector<arma::imat>& sufficient_blume_capel_master,
+    const std::vector<arma::mat>&  sufficient_pairwise_master,
     const arma::ivec& num_categories,
-    const double main_alpha,
-    const double main_beta,
-    const double pairwise_scale,
-    const double difference_scale,
-    const double difference_selection_alpha,
-    const double difference_selection_beta,
+    double main_alpha,
+    double main_beta,
+    double pairwise_scale,
+    double difference_scale,
+    double difference_selection_alpha,
+    double difference_selection_beta,
     const std::string& difference_prior,
-    const int iter,
-    const int burnin,
-    const bool na_impute,
+    int iter,
+    int burnin,
+    bool na_impute,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const bool difference_selection,
+    bool difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
-    const double target_accept,
-    const int nuts_max_depth,
-    const bool learn_mass_matrix,
+    double target_accept,
+    int nuts_max_depth,
+    bool learn_mass_matrix,
     const arma::mat& projection,
     const arma::ivec& group_membership,
     const arma::imat& group_indices,
     const arma::imat& interaction_index_matrix,
     const arma::mat& inclusion_probability_master,
     const std::vector<SafeRNG>& chain_rngs,
-    std::vector<ChainResult>& results
+    std::vector<ChainResultCompare>& results
   ) :
     observations(observations),
     num_groups(num_groups),
-    num_obs_categories_cpp_master(num_obs_categories_cpp_master),
-    sufficient_blume_capel_cpp_master(sufficient_blume_capel_cpp_master),
-    sufficient_pairwise_cpp_master(sufficient_pairwise_cpp_master),
+    num_obs_categories_master(num_obs_categories_master),
+    sufficient_blume_capel_master(sufficient_blume_capel_master),
+    sufficient_pairwise_master(sufficient_pairwise_master),
     num_categories(num_categories),
     main_alpha(main_alpha),
     main_beta(main_beta),
@@ -132,7 +132,7 @@ struct GibbsCompareChainRunner : public Worker {
 
   void operator()(std::size_t begin, std::size_t end) {
     for (std::size_t i = begin; i < end; ++i) {
-      ChainResult out;
+      ChainResultCompare out;
       out.chain_id = static_cast<int>(i + 1);
       out.error = false;
 
@@ -141,19 +141,14 @@ struct GibbsCompareChainRunner : public Worker {
         SafeRNG rng(chain_rngs[i]);
 
         // make per-chain copies
-        std::vector<arma::imat> num_obs_categories_cpp = num_obs_categories_cpp_master;
-        std::vector<arma::imat> sufficient_blume_capel_cpp = sufficient_blume_capel_cpp_master;
-        std::vector<arma::mat>  sufficient_pairwise_cpp = sufficient_pairwise_cpp_master;
+        std::vector<arma::imat> num_obs_categories = num_obs_categories_master;
+        std::vector<arma::imat> sufficient_blume_capel = sufficient_blume_capel_master;
+        std::vector<arma::mat>  sufficient_pairwise = sufficient_pairwise_master;
         arma::mat inclusion_probability = inclusion_probability_master;
         arma::imat observations_copy = observations;
 
-        // convert vectors -> Rcpp::List
-        Rcpp::List num_obs_categories(num_obs_categories_cpp.begin(), num_obs_categories_cpp.end());
-        Rcpp::List sufficient_blume_capel(sufficient_blume_capel_cpp.begin(), sufficient_blume_capel_cpp.end());
-        Rcpp::List sufficient_pairwise(sufficient_pairwise_cpp.begin(), sufficient_pairwise_cpp.end());
-
-        // run sampler
-        Rcpp::List result = run_gibbs_sampler_for_bgmCompare(
+        // run sampler (pure C++)
+        SamplerOutput result = run_gibbs_sampler_for_bgmCompare(
           out.chain_id,
           observations_copy,
           num_groups,
@@ -185,7 +180,7 @@ struct GibbsCompareChainRunner : public Worker {
           group_indices,
           interaction_index_matrix,
           inclusion_probability,
-          rng   // <- pass generator
+          rng
         );
 
         out.result = result;
@@ -210,44 +205,45 @@ struct GibbsCompareChainRunner : public Worker {
 // [[Rcpp::export]]
 Rcpp::List run_bgmCompare_parallel(
     const arma::imat& observations,
-    const int num_groups,
+    int num_groups,
     const std::vector<arma::imat>& num_obs_categories,
     const std::vector<arma::imat>& sufficient_blume_capel,
     const std::vector<arma::mat>&  sufficient_pairwise,
     const arma::ivec& num_categories,
-    const double main_alpha,
-    const double main_beta,
-    const double pairwise_scale,
-    const double difference_scale,
-    const double difference_selection_alpha,
-    const double difference_selection_beta,
+    double main_alpha,
+    double main_beta,
+    double pairwise_scale,
+    double difference_scale,
+    double difference_selection_alpha,
+    double difference_selection_beta,
     const std::string& difference_prior,
-    const int iter,
-    const int burnin,
-    const bool na_impute,
+    int iter,
+    int burnin,
+    bool na_impute,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const bool difference_selection,
+    bool difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
-    const double target_accept,
-    const int nuts_max_depth,
-    const bool learn_mass_matrix,
+    double target_accept,
+    int nuts_max_depth,
+    bool learn_mass_matrix,
     const arma::mat& projection,
     const arma::ivec& group_membership,
     const arma::imat& group_indices,
     const arma::imat& interaction_index_matrix,
     const arma::mat& inclusion_probability,
-    const int num_chains,
-    const int nThreads
+    int num_chains,
+    int nThreads,
+    int seed
 ) {
-  std::vector<ChainResult> results(num_chains);
+  std::vector<ChainResultCompare> results(num_chains);
 
   // per-chain seeds
   std::vector<SafeRNG> chain_rngs(num_chains);
   for (int c = 0; c < num_chains; ++c) {
-    chain_rngs[c] = SafeRNG(/*seed +*/ c); // TODO: this needs a seed passed by the user!
+    chain_rngs[c] = SafeRNG(seed + c);
   }
 
 
@@ -268,6 +264,7 @@ Rcpp::List run_bgmCompare_parallel(
     parallelFor(0, num_chains, worker);
   }
 
+  // wrap results back into Rcpp::List
   Rcpp::List output(num_chains);
   for (int i = 0; i < num_chains; ++i) {
     if (results[i].error) {
@@ -276,7 +273,19 @@ Rcpp::List run_bgmCompare_parallel(
         Rcpp::Named("chain_id") = results[i].chain_id
       );
     } else {
-      output[i] = results[i].result;
+      const auto& r = results[i].result;
+      Rcpp::List chain_out = Rcpp::List::create(
+        Rcpp::Named("main_samples") = r.main_samples,
+        Rcpp::Named("pairwise_samples") = r.pairwise_samples,
+        Rcpp::Named("treedepth__") = r.treedepth_samples,
+        Rcpp::Named("divergent__") = r.divergent_samples,
+        Rcpp::Named("energy__") = r.energy_samples,
+        Rcpp::Named("chain_id") = r.chain_id
+      );
+      if (r.has_indicator) {
+        chain_out["indicator_samples"] = r.indicator_samples;
+      }
+      output[i] = chain_out;
     }
   }
 
