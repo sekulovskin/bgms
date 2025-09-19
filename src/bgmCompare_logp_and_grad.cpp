@@ -672,9 +672,9 @@ double log_pseudoposterior_pair_component(
     const double suff_pair = sufficient_pairwise(variable1, variable2);
 
     if(h == 0) {
-      log_pp += suff_pair * pairwise_effects(idx, h);
+      log_pp += 2.0 * suff_pair * pairwise_effects(idx, h);
     } else {
-      log_pp += suff_pair * proj_g(h-1) * pairwise_effects(idx, h);
+      log_pp += 2.0 * suff_pair * proj_g(h-1) * pairwise_effects(idx, h);
     }
 
     // ---- pseudolikelihood normalizing constants (per variable) ----
