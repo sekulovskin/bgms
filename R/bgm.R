@@ -492,7 +492,7 @@ bgm = function(
   #Setting the seed
   if (missing(seed) || is.null(seed)) {
     # Draw a random seed if none provided
-    seed <- sample.int(.Machine$integer.max, 1)
+    seed = sample.int(.Machine$integer.max, 1)
   }
 
   if (!is.numeric(seed) || length(seed) != 1 || is.na(seed) || seed < 0) {

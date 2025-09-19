@@ -52,7 +52,7 @@ double log_pseudoposterior(
       main_group(v, arma::span(0, me.n_elem - 1)) = me.t();
 
       // upper triangle incl. base value; mirror to keep symmetry
-      for (int u = v; u < num_variables; ++u) {
+      for (int u = v; u < num_variables; ++u) { // Combines with loop over v
         if(u == v) continue;
         double w = compute_group_pairwise_effects(
           v, u, num_groups, pairwise_effects, pairwise_effect_indices,
@@ -63,10 +63,10 @@ double log_pseudoposterior(
       }
 
     // ---- data contribution pseudolikelihood (linear terms) ----
-      const int nc = num_categories(v);
+      const int num_cats = num_categories(v);
       if (is_ordinal_variable(v)) {
         // use group-specific main_effects
-        for (int c = 0; c < nc; ++c) {
+        for (int c = 0; c < num_cats; ++c) {
           const double val = main_group(v, c);
           log_pp += static_cast<double>(num_obs_categories(c, v)) * val;
         }
@@ -88,11 +88,11 @@ double log_pseudoposterior(
     // ---- pseudolikelihood normalizing constants (per variable) ----
     const arma::mat rest_matrix = obs * pairwise_group;
     for (int v = 0; v < num_variables; ++v) {
-      const int nc = num_categories(v);
+      const int num_cats = num_categories(v);
       const arma::vec rest_score = rest_matrix.col(v);
 
       // bound to stabilize exp; use group-specific params consistently
-      arma::vec bound = nc * rest_score;
+      arma::vec bound = num_cats * rest_score;
       bound = arma::clamp(bound, 0.0, arma::datum::inf);
 
       arma::vec denom(rest_score.n_elem, arma::fill::zeros);
@@ -101,7 +101,7 @@ double log_pseudoposterior(
         // base term exp(-bound)
         denom = arma::exp(-bound);
         // main_effects from main_group
-        for (int c = 0; c < nc; ++c) {
+        for (int c = 0; c < num_cats; ++c) {
           const double th = main_group(v, c);
           const arma::vec exponent = th + (c + 1) * rest_score - bound;
           denom += arma::exp(exponent);
@@ -111,7 +111,7 @@ double log_pseudoposterior(
         const double lin_effect  = main_group(v, 0);
         const double quad_effect = main_group(v, 1);
         const int ref = baseline_category(v);
-        for (int c = 0; c <= nc; ++c) {
+        for (int c = 0; c <= num_cats; ++c) {
           const int centered = c - ref;
           const double quad = quad_effect * centered * centered;
           const double lin  = lin_effect * c;
@@ -293,7 +293,7 @@ arma::vec gradient(
       );
       main_group(v, arma::span(0, me.n_elem - 1)) = me.t();
 
-      for (int u = v; u < num_variables; ++u) {
+      for (int u = v; u < num_variables; ++u) { // Combines with loop over v
         if(u == v) continue;
         double w = compute_group_pairwise_effects(
           v, u, num_groups, pairwise_effects, pairwise_effect_indices,
@@ -468,4 +468,263 @@ arma::vec gradient(
   }
 
   return grad;
+}
+
+
+
+double log_pseudoposterior_main_component(
+    const arma::mat& main_effects,
+    const arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const std::vector<arma::imat>& num_obs_categories_group,
+    const std::vector<arma::imat>& sufficient_blume_capel_group,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const double main_alpha,
+    const double main_beta,
+    const double difference_scale,
+    int variable,
+    int category, // for ordinal variables only
+    int par, // for Blume-Capel variables only
+    int h // Overall = 0, differences are 1, ....
+) {
+  if(h > 0 && inclusion_indicator(variable, variable) == 0) {
+    return 0.0; // No contribution if differences not included
+  }
+
+  const int num_variables = observations.n_cols;
+  const int max_num_categories = num_categories.max();
+  double log_pp = 0.0;
+
+  // --- per group ---
+  for (int group = 0; group < num_groups; ++group) {
+    const arma::imat num_obs_categories = num_obs_categories_group[group];
+    const arma::imat sufficient_blume_capel = sufficient_blume_capel_group[group];
+
+    arma::mat main_group(num_variables, max_num_categories, arma::fill::zeros);
+    arma::mat pairwise_group(num_variables, num_variables, arma::fill::zeros);
+
+    const arma::vec proj_g = projection.row(group).t(); // length = num_groups-1
+
+    // ---- build group-specific main & pairwise effects ----
+    arma::vec me = compute_group_main_effects(
+      variable, num_groups, main_effects, main_effect_indices, proj_g
+    );
+
+    // store into row v (padded with zeros if variable has < max_num_categories params)
+    main_group(variable, arma::span(0, me.n_elem - 1)) = me.t();
+
+    // upper triangle incl. base value; mirror to keep symmetry
+    for (int u = 0; u < num_variables; u++) {
+      if(u == variable) continue;
+      double w = compute_group_pairwise_effects(
+        variable, u, num_groups, pairwise_effects, pairwise_effect_indices,
+        inclusion_indicator, proj_g
+      );
+      pairwise_group(variable, u) = w;
+      pairwise_group(u, variable) = w;
+    }
+
+    // ---- data contribution pseudolikelihood (linear terms) ----
+    if (is_ordinal_variable(variable)) {
+      const double val = main_group(variable, category);
+      log_pp += static_cast<double>(num_obs_categories(category, variable)) *
+        val;
+    } else {
+      log_pp += static_cast<double>(sufficient_blume_capel(par, variable)) *
+        main_group(variable, par);
+    }
+
+    // ---- data contribution pseudolikelihood (quadratic terms) ----
+    const int r0 = group_indices(group, 0);
+    const int r1 = group_indices(group, 1);
+    const arma::mat obs = arma::conv_to<arma::mat>::from(observations.rows(r0, r1));
+
+    // ---- pseudolikelihood normalizing constants (per variable) ----
+    const arma::vec rest_score = obs * pairwise_group.col(variable);
+    const int num_cats = num_categories(variable);
+
+    // bound to stabilize exp; use group-specific params consistently
+    arma::vec bound = num_cats * rest_score;
+    bound = arma::clamp(bound, 0.0, arma::datum::inf);
+
+    arma::vec denom(rest_score.n_elem, arma::fill::zeros);
+    if (is_ordinal_variable(variable)) {
+      // base term exp(-bound)
+      denom = arma::exp(-bound);
+      // main_effects from main_group
+      for (int cat = 0; cat < num_cats; cat++) {
+        const double th = main_group(variable, cat);
+        const arma::vec exponent = th + (cat + 1) * rest_score - bound;
+        denom += arma::exp(exponent);
+      }
+    } else {
+      // linear/quadratic main effects from main_group
+      const double lin_effect  = main_group(variable, 0);
+      const double quad_effect = main_group(variable, 1);
+      const int ref = baseline_category(variable);
+      for (int cat = 0; cat <= num_cats; cat++) {
+        const int centered = cat - ref;
+        const double quad = quad_effect * centered * centered;
+        const double lin  = lin_effect * cat;
+        const arma::vec exponent = lin + quad + cat * rest_score - bound;
+        denom += arma::exp(exponent);
+      }
+    }
+    // - sum_i [ bound_i + log denom_i ]
+    log_pp -= arma::accu(bound + arma::log(denom));
+  }
+
+  // ---- priors ----
+  if (h == 0) {
+    // overall
+    auto log_beta_prior = [&](double x) {
+      return x * main_alpha - std::log1p(std::exp(x)) * (main_alpha + main_beta);
+    };
+
+    // Main effects prior
+    if(is_ordinal_variable(variable)) {
+      int r = main_effect_indices(variable, 0) + category;
+      log_pp += log_beta_prior(main_effects(r, 0));
+    } else {
+      int r = main_effect_indices(variable, 0) + par;
+      log_pp += log_beta_prior(main_effects(r, 0));
+    }
+  } else {
+    if(is_ordinal_variable(variable)) {
+      int r = main_effect_indices(variable, 0) + category;
+      log_pp += R::dcauchy(main_effects(r, h), 0.0, difference_scale, true);
+    } else {
+      int r = main_effect_indices(variable, 0) + par;
+      log_pp += R::dcauchy(main_effects(r, h), 0.0, difference_scale, true);
+    }
+  }
+
+  return log_pp;
+}
+
+
+
+double log_pseudoposterior_pair_component(
+    const arma::mat& main_effects,
+    const arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const std::vector<arma::mat>&  sufficient_pairwise_group,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const double interaction_scale,
+    const double difference_scale,
+    int variable1,
+    int variable2,
+    int h // Overall = 0, differences are 1, ....
+) {
+  if(h > 0 && inclusion_indicator(variable1, variable2) == 0) {
+    return 0.0; // No contribution if differences not included
+  }
+
+  const int num_variables = observations.n_cols;
+  const int max_num_categories = num_categories.max();
+  double log_pp = 0.0;
+  int idx = pairwise_effect_indices(variable1, variable2);
+
+  // --- per group ---
+  for (int group = 0; group < num_groups; ++group) {
+    arma::mat main_group(num_variables, max_num_categories, arma::fill::zeros);
+    arma::mat pairwise_group(num_variables, num_variables, arma::fill::zeros);
+
+    const arma::vec proj_g = projection.row(group).t(); // length = num_groups-1
+
+    // ---- build group-specific main & pairwise effects ----
+    for (int v : {variable1, variable2}) { // Only populate two rows
+      arma::vec me = compute_group_main_effects(
+        v, num_groups, main_effects, main_effect_indices, proj_g
+      );
+      main_group(v, arma::span(0, me.n_elem - 1)) = me.t();
+    }
+    for (int v = 0; v < num_variables; v++) {
+      for (int u = v; u < num_variables; ++u) { // Combines with loop over v
+        if(u == v) continue;
+        double w = compute_group_pairwise_effects(
+          v, u, num_groups, pairwise_effects, pairwise_effect_indices,
+          inclusion_indicator, proj_g
+        );
+        pairwise_group(v, u) = w;
+        pairwise_group(u, v) = w;
+      }
+    }
+
+    // ---- data contribution pseudolikelihood ----
+    const arma::mat sufficient_pairwise = sufficient_pairwise_group[group];
+    const double suff_pair = sufficient_pairwise(variable1, variable2);
+
+    if(h == 0) {
+      log_pp += suff_pair * pairwise_effects(idx, h);
+    } else {
+      log_pp += suff_pair * proj_g(h-1) * pairwise_effects(idx, h);
+    }
+
+    // ---- pseudolikelihood normalizing constants (per variable) ----
+    const int r0 = group_indices(group, 0);
+    const int r1 = group_indices(group, 1);
+    const arma::mat obs = arma::conv_to<arma::mat>::from(observations.rows(r0, r1));
+    const arma::mat rest_matrix = obs * pairwise_group;
+
+    for (int v : {variable1, variable2}) {
+      const int num_cats = num_categories(v);
+      const arma::vec rest_score = rest_matrix.col(v);
+
+      // bound to stabilize exp; use group-specific params consistently
+      arma::vec bound = num_cats * rest_score;
+      bound = arma::clamp(bound, 0.0, arma::datum::inf);
+
+      arma::vec denom(rest_score.n_elem, arma::fill::zeros);
+
+      if (is_ordinal_variable(v)) {
+        // base term exp(-bound)
+        denom = arma::exp(-bound);
+        // main_effects from main_group
+        for (int c = 0; c < num_cats; ++c) {
+          const double th = main_group(v, c);
+          const arma::vec exponent = th + (c + 1) * rest_score - bound;
+          denom += arma::exp(exponent);
+        }
+      } else {
+        // linear/quadratic main effects from main_group
+        const double lin_effect  = main_group(v, 0);
+        const double quad_effect = main_group(v, 1);
+        const int ref = baseline_category(v);
+        for (int c = 0; c <= num_cats; ++c) {
+          const int centered = c - ref;
+          const double quad = quad_effect * centered * centered;
+          const double lin  = lin_effect * c;
+          const arma::vec exponent = lin + quad + c * rest_score - bound;
+          denom += arma::exp(exponent);
+        }
+      }
+      // - sum_i [ bound_i + log denom_i ]
+      log_pp -= arma::accu(bound + arma::log(denom));
+    }
+  }
+
+  // ---- priors ----
+  if (h == 0) {
+    log_pp += R::dcauchy(pairwise_effects(idx, 0), 0.0, interaction_scale, true);
+  } else {
+    log_pp += R::dcauchy(pairwise_effects(idx, h), 0.0, difference_scale, true);
+  }
+  return log_pp;
 }

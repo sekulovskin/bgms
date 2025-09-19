@@ -55,10 +55,10 @@ struct GibbsCompareChainRunner : public Worker {
   const arma::imat& group_indices;
   const arma::imat& interaction_index_matrix;
   const arma::mat& inclusion_probability_master;
-
   // RNG seeds
   const std::vector<SafeRNG>& chain_rngs;
-
+  const std::string& update_method;
+  const int hmc_num_leapfrogs;
   // output
   std::vector<ChainResultCompare>& results;
 
@@ -94,6 +94,8 @@ struct GibbsCompareChainRunner : public Worker {
     const arma::imat& interaction_index_matrix,
     const arma::mat& inclusion_probability_master,
     const std::vector<SafeRNG>& chain_rngs,
+    const std::string& update_method,
+    const int hmc_num_leapfrogs,
     std::vector<ChainResultCompare>& results
   ) :
     observations(observations),
@@ -127,6 +129,8 @@ struct GibbsCompareChainRunner : public Worker {
     interaction_index_matrix(interaction_index_matrix),
     inclusion_probability_master(inclusion_probability_master),
     chain_rngs(chain_rngs),
+    update_method(update_method),
+    hmc_num_leapfrogs(hmc_num_leapfrogs),
     results(results)
   {}
 
@@ -180,7 +184,9 @@ struct GibbsCompareChainRunner : public Worker {
           group_indices,
           interaction_index_matrix,
           inclusion_probability,
-          rng
+          rng,
+          update_method,
+          hmc_num_leapfrogs
         );
 
         out.result = result;
@@ -236,7 +242,9 @@ Rcpp::List run_bgmCompare_parallel(
     const arma::mat& inclusion_probability,
     int num_chains,
     int nThreads,
-    int seed
+    int seed,
+    const std::string& update_method,
+    int hmc_num_leapfrogs
 ) {
   std::vector<ChainResultCompare> results(num_chains);
 
@@ -256,7 +264,8 @@ Rcpp::List run_bgmCompare_parallel(
       baseline_category, difference_selection, main_effect_indices,
       pairwise_effect_indices, target_accept, nuts_max_depth, learn_mass_matrix,
       projection, group_membership, group_indices, interaction_index_matrix,
-      inclusion_probability, chain_rngs, results
+      inclusion_probability, chain_rngs, update_method, hmc_num_leapfrogs,
+      results
   );
 
   {

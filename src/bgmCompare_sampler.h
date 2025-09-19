@@ -1,6 +1,8 @@
 #pragma once
+
 #include <RcppArmadillo.h>
 #include "sampler_output.h"
+#include <string>
 
 struct SafeRNG;
 
@@ -36,5 +38,7 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
     const arma::imat& group_indices,
     const arma::imat& interaction_index_matrix,
     arma::mat inclusion_probability,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const std::string& update_method,
+    const int hmc_num_leapfrogs
 );

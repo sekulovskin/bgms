@@ -191,14 +191,18 @@ bgmCompare2 = function(
     projection = matrix(projection, ncol = 1) / sqrt(2)
   }
 
-  if (!is.null(seed)) {
-    if (!is.numeric(seed) || any(is.na(seed)) || any(seed < 0)) {
-      stop("Argument 'seed' must be a non-negative integer or vector of non-negative integers.")
-    }
-    # Force to integer type
-    seed = as.integer(seed)
-    dqrng::dqset.seed(seed)
+  #Setting the seed
+  if (missing(seed) || is.null(seed)) {
+    # Draw a random seed if none provided
+    seed = sample.int(.Machine$integer.max, 1)
   }
+
+  if (!is.numeric(seed) || length(seed) != 1 || is.na(seed) || seed < 0) {
+    stop("Argument 'seed' must be a single non-negative integer.")
+  }
+
+  seed <- as.integer(seed)
+
 
   # Call the Rcpp function
   out = run_bgmCompare_parallel(
@@ -230,7 +234,8 @@ bgmCompare2 = function(
     interaction_index_matrix = Index,
     inclusion_probability = model$inclusion_probability_difference,
     num_chains = chains, nThreads = cores,
-    seed = seed
+    seed = seed,
+    update_method = update_method, hmc_num_leapfrogs = hmc_num_leapfrogs
   )
 
   # Main output handler in the wrapper function

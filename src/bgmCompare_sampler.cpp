@@ -12,6 +12,7 @@
 #include "print_mutex.h"
 #include "rng_utils.h"
 #include "sampler_output.h"
+#include <string>
 
 using namespace Rcpp;
 
@@ -173,6 +174,161 @@ void impute_missing_data_for_graphical_model(
 
 
 /**
+ * Function: update_main_effects_with_metropolis_cmp
+ */
+void update_main_effects_with_metropolis_cmp (
+    arma::mat& main_effects,
+    arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::imat& inclusion_indicator,
+    const arma::mat& projection,
+    const arma::ivec& num_categories,
+    const arma::imat& observations,
+    const int num_groups,
+    const arma::imat& group_indices,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const double difference_scale,
+    const double main_alpha,
+    const double main_beta,
+    const int iteration,
+    RWMAdaptationController& rwm_adapt,
+    SafeRNG& rng,
+    arma::mat& proposal_sd_main
+) {
+  const int num_vars = observations.n_cols;
+  arma::umat index_mask_main = arma::zeros<arma::umat>(proposal_sd_main.n_rows,
+                                                       proposal_sd_main.n_cols);
+  arma::mat accept_prob_main = arma::zeros<arma::mat>(proposal_sd_main.n_rows,
+                                                      proposal_sd_main.n_cols);
+
+  // --- helper for one update ---
+  auto do_update = [&](int row, int variable, int category, int par, int h) {
+    index_mask_main(row, h) = 1;
+    double& current = main_effects(row, h);
+    double proposal_sd = proposal_sd_main(row, h);
+
+    auto log_post = [&](double theta) {
+      main_effects(row, h) = theta;
+      return log_pseudoposterior_main_component(
+        main_effects, pairwise_effects, main_effect_indices,
+        pairwise_effect_indices, projection, observations,
+        group_indices, num_categories, num_obs_categories,
+        sufficient_blume_capel, num_groups, inclusion_indicator,
+        is_ordinal_variable, baseline_category,
+        main_alpha, main_beta, difference_scale,
+        variable, category, par, h
+      );
+    };
+
+    SamplerResult result = rwm_sampler(current, proposal_sd, log_post, rng);
+    current = result.state[0];
+    accept_prob_main(row, h) = result.accept_prob;
+  };
+
+  // --- loop over variables ---
+  for (int variable = 0; variable < num_vars; ++variable) {
+    int base_category_index = main_effect_indices(variable, 0);
+    int num_cats = num_categories(variable);
+    bool group_differences = (inclusion_indicator(variable, variable) == 1);
+
+    if (is_ordinal_variable[variable]) {
+      // ordinal: loop categories
+      for (int category = 0; category < num_cats; ++category) {
+        int row = base_category_index + category;
+        int hmax = group_differences ? num_groups : 1;
+        for (int h = 0; h < hmax; ++h)
+          do_update(row, variable, category, -1, h);
+      }
+    } else {
+      // non-ordinal: two parameters
+      for (int par = 0; par < 2; ++par) {
+        int row = base_category_index + par;
+        int hmax = group_differences ? num_groups : 1;
+        for (int h = 0; h < hmax; ++h)
+          do_update(row, variable, -1, par, h);
+      }
+    }
+  }
+
+  rwm_adapt.update(index_mask_main, accept_prob_main, iteration);
+}
+
+
+
+/**
+ * Function: update_pairwise_effects_with_metropolis_cmp
+ */
+void update_pairwise_effects_with_metropolis_cmp (
+    arma::mat& main_effects,
+    arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::imat& inclusion_indicator,
+    const arma::mat& projection,
+    const arma::ivec& num_categories,
+    const arma::imat& observations,
+    const int num_groups,
+    const arma::imat& group_indices,
+    const std::vector<arma::mat>& sufficient_pairwise,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const double pairwise_scale,
+    const double difference_scale,
+    const int iteration,
+    RWMAdaptationController& rwm_adapt,
+    SafeRNG& rng,
+    arma::mat& proposal_sd_pair
+) {
+  int num_variables = observations.n_cols;
+  int num_pairs = num_variables * (num_variables - 1) / 2;
+  arma::mat accept_prob_pair = arma::zeros<arma::mat>(num_pairs,
+                                                      num_groups);
+  arma::umat index_mask_pair = arma::zeros<arma::umat>(num_pairs,
+                                                       num_groups);
+
+  // --- helper for one update ---
+  auto do_update = [&](int var1, int var2, int h) {
+    int idx = pairwise_effect_indices(var1, var2);
+    index_mask_pair(idx, h) = 1;
+    double& current = pairwise_effects(idx, h);
+    double proposal_sd = proposal_sd_pair(idx, h);
+
+    auto log_post = [&](double theta) {
+      pairwise_effects(idx, h) = theta;
+      return log_pseudoposterior_pair_component(
+        main_effects, pairwise_effects, main_effect_indices,
+        pairwise_effect_indices, projection, observations, group_indices,
+        num_categories, sufficient_pairwise, num_groups,
+        inclusion_indicator, is_ordinal_variable, baseline_category,
+        pairwise_scale, difference_scale, var1, var2, h
+      );
+    };
+
+    SamplerResult result = rwm_sampler(current, proposal_sd, log_post, rng);
+    current = result.state[0];
+    accept_prob_pair(idx, h) = result.accept_prob;
+  };
+
+  for (int var1 = 0; var1 < num_variables - 1; var1++) {
+    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
+      bool group_differences = (inclusion_indicator(var1, var2) == 1);
+      int hmax = group_differences ? num_groups : 1;
+      for (int h = 0; h < hmax; h++) {
+        do_update(var1, var2, h);
+      }
+    }
+  }
+
+  rwm_adapt.update(index_mask_pair, accept_prob_pair, iteration);
+}
+
+
+
+/**
  * Function: find_reasonable_initial_step_size_cmp
  *
  * Heuristically finds a reasonable initial step size for leapfrog-based MCMC algorithms
@@ -290,40 +446,7 @@ double find_reasonable_initial_step_size_cmp(
 
 
 
-/**
- * Function: update_parameters_with_nuts
- *
- * Performs one update of the main and pairwise effect parameters using
- * the No-U-Turn Sampler (NUTS), with centralized step size and mass matrix adaptation.
- *
- * Step size and mass matrix adaptation are handled via the HMCAdaptationController,
- * which manages warmup phases and dual averaging internally.
- *
- * Inputs:
- *  - main_effects: Matrix of threshold parameters (updated in-place).
- *  - pairwise_effects: Matrix of interaction parameters (updated in-place).
- *  - inclusion_indicator: Binary matrix indicating which interactions are active.
- *  - observations: Matrix of categorical observations.
- *  - num_categories: Vector of category counts per variable.
- *  - num_obs_categories: Matrix of observed category counts.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel thresholds.
- *  - sufficient_pairwise: Sufficient statistics for pairwise terms.
- *  - baseline_category: Reference category per variable.
- *  - is_ordinal_variable: Logical vector indicating ordinal vs. Blume-Capel (1 = ordinal).
- *  - main_alpha, main_beta: Hyperparameters for main effect priors.
- *  - pairwise_scale: Scale parameter for the Cauchy prior on interactions.
- *  - sufficient_pairwise: Sufficient statistics for pairwise interactions.
- *  - rest_matrix: Matrix of residual scores (observations × variables), updated in-place.
- *  - nuts_max_depth: Maximum tree depth for the NUTS trajectory expansion.
- *  - iteration: Current iteration number.
- *  - adapt: Adaptation controller (step size + mass matrix).
- *
- * Modifies (in-place):
- *  - main_effects, pairwise_effects: Updated if NUTS proposal is accepted.
- *  - rest_matrix: Recomputed from the updated pairwise_effects.
- *  - adapt: Updated with step size and mass matrix changes if within warmup.
- */
-SamplerResult update_parameters_with_nuts(
+void update_parameters_with_hmc(
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -343,9 +466,9 @@ SamplerResult update_parameters_with_nuts(
     const double difference_scale,
     const double main_alpha,
     const double main_beta,
-    const int nuts_max_depth,
+    const int num_leapfrogs,
     const int iteration,
-    HMCAdaptationController& adapt,
+    HMCAdaptationController& hmc_adapt,
     const bool learn_mass_matrix,
     const bool selection,
     SafeRNG& rng
@@ -404,13 +527,149 @@ SamplerResult update_parameters_with_nuts(
 
   //adapt
   arma::vec active_inv_mass = inv_mass_active(
-    adapt.inv_mass_diag(), inclusion_indicator, num_groups, num_categories,
+    hmc_adapt.inv_mass_diag(), inclusion_indicator, num_groups, num_categories,
+    is_ordinal_variable, main_index, pair_index, main_effect_indices,
+    pairwise_effect_indices, selection
+  );
+
+  SamplerResult result = hmc_sampler(
+    current_state, hmc_adapt.current_step_size(), log_post, grad, num_leapfrogs,
+    active_inv_mass, rng
+  );
+
+  current_state = result.state;
+  unvectorize_model_parameters(
+    current_state, main_effects, pairwise_effects, inclusion_indicator,
+    main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
+    is_ordinal_variable
+  );
+
+  hmc_adapt.update(current_state, result.accept_prob, iteration);
+}
+
+
+
+/**
+ * Function: update_parameters_with_nuts
+ *
+ * Performs one update of the main and pairwise effect parameters using
+ * the No-U-Turn Sampler (NUTS), with centralized step size and mass matrix adaptation.
+ *
+ * Step size and mass matrix adaptation are handled via the HMCAdaptationController,
+ * which manages warmup phases and dual averaging internally.
+ *
+ * Inputs:
+ *  - main_effects: Matrix of threshold parameters (updated in-place).
+ *  - pairwise_effects: Matrix of interaction parameters (updated in-place).
+ *  - inclusion_indicator: Binary matrix indicating which interactions are active.
+ *  - observations: Matrix of categorical observations.
+ *  - num_categories: Vector of category counts per variable.
+ *  - num_obs_categories: Matrix of observed category counts.
+ *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel thresholds.
+ *  - sufficient_pairwise: Sufficient statistics for pairwise terms.
+ *  - baseline_category: Reference category per variable.
+ *  - is_ordinal_variable: Logical vector indicating ordinal vs. Blume-Capel (1 = ordinal).
+ *  - main_alpha, main_beta: Hyperparameters for main effect priors.
+ *  - pairwise_scale: Scale parameter for the Cauchy prior on interactions.
+ *  - sufficient_pairwise: Sufficient statistics for pairwise interactions.
+ *  - rest_matrix: Matrix of residual scores (observations × variables), updated in-place.
+ *  - nuts_max_depth: Maximum tree depth for the NUTS trajectory expansion.
+ *  - iteration: Current iteration number.
+ *  - adapt: Adaptation controller (step size + mass matrix).
+ *
+ * Modifies (in-place):
+ *  - main_effects, pairwise_effects: Updated if NUTS proposal is accepted.
+ *  - rest_matrix: Recomputed from the updated pairwise_effects.
+ *  - adapt: Updated with step size and mass matrix changes if within warmup.
+ */
+SamplerResult update_parameters_with_nuts(
+    arma::mat& main_effects,
+    arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::imat& inclusion_indicator,
+    const arma::mat& projection,
+    const arma::ivec& num_categories,
+    const arma::imat& observations,
+    const int num_groups,
+    const arma::imat& group_indices,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::mat>& sufficient_pairwise,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const double pairwise_scale,
+    const double difference_scale,
+    const double main_alpha,
+    const double main_beta,
+    const int nuts_max_depth,
+    const int iteration,
+    HMCAdaptationController& hmc_adapt,
+    const bool learn_mass_matrix,
+    const bool selection,
+    SafeRNG& rng
+) {
+  arma::vec current_state = vectorize_model_parameters(
+    main_effects, pairwise_effects, inclusion_indicator,
+    main_effect_indices, pairwise_effect_indices, num_categories,
+    is_ordinal_variable
+  );
+
+  arma::mat current_main = main_effects;
+  arma::mat current_pair = pairwise_effects;
+
+  auto index_maps = build_index_maps(
+    main_effects, pairwise_effects,
+    inclusion_indicator,
+    main_effect_indices,
+    pairwise_effect_indices, num_categories, is_ordinal_variable
+  );
+  auto& main_index = index_maps.first;
+  auto& pair_index = index_maps.second;
+
+  auto grad = [&](const arma::vec& theta_vec) {
+    unvectorize_model_parameters(
+      theta_vec, current_main, current_pair, inclusion_indicator,
+      main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
+      is_ordinal_variable
+    );
+
+    return gradient(
+      current_main, current_pair, main_effect_indices, pairwise_effect_indices,
+      projection, observations, group_indices, num_categories,
+      num_obs_categories, sufficient_blume_capel,
+      sufficient_pairwise, num_groups, inclusion_indicator,
+      is_ordinal_variable, baseline_category, main_alpha, main_beta,
+      pairwise_scale, difference_scale, main_index, pair_index
+    );
+  };
+
+  auto log_post = [&](const arma::vec& theta_vec) {
+    unvectorize_model_parameters(
+      theta_vec, current_main, current_pair, inclusion_indicator,
+      main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
+      is_ordinal_variable
+    );
+
+    return log_pseudoposterior(
+      current_main, current_pair, main_effect_indices, pairwise_effect_indices,
+      projection, observations, group_indices, num_categories,
+      num_obs_categories, sufficient_blume_capel,
+      sufficient_pairwise, num_groups, inclusion_indicator,
+      is_ordinal_variable, baseline_category, main_alpha, main_beta,
+      pairwise_scale, difference_scale
+    );
+  };
+
+  //adapt
+  arma::vec active_inv_mass = inv_mass_active(
+    hmc_adapt.inv_mass_diag(), inclusion_indicator, num_groups, num_categories,
     is_ordinal_variable, main_index, pair_index, main_effect_indices,
     pairwise_effect_indices, selection
   );
 
   SamplerResult result = nuts_sampler(
-    current_state, adapt.current_step_size(), log_post, grad,
+    current_state, hmc_adapt.current_step_size(), log_post, grad,
     active_inv_mass, rng, nuts_max_depth
   );
 
@@ -421,104 +680,10 @@ SamplerResult update_parameters_with_nuts(
     is_ordinal_variable
   );
 
-  adapt.update(current_state, result.accept_prob, iteration);
+  hmc_adapt.update(current_state, result.accept_prob, iteration);
 
   return result;
 }
-
-
-
-/**
- * Function: update_indicator_interaction_pair_with_metropolis
- *
- * Metropolis-Hastings update of pairwise inclusion indicators for a predefined set of edges.
- *
- * Inputs:
- *  - pairwise_effects: Matrix of interaction weights (updated in-place).
- *  - main_effects: Matrix of main effect (threshold) parameters.
- *  - indicator: Matrix of edge inclusion flags (updated in-place).
- *  - observations: Matrix of category scores.
- *  - num_categories: Number of categories per variable.
- *  - proposal_sd: Matrix of proposal standard deviations for pairwise effects.
- *  - pairwise_scale: Scale parameter for the Cauchy prior.
- *  - index: List of interaction pairs to update.
- *  - num_interactions: Number of interaction pairs.
- *  - num_persons: Number of observations.
- *  - rest_matrix: Residual scores matrix (updated in-place).
- *  - inclusion_probability: Matrix of prior inclusion probabilities.
- *  - is_ordinal_variable: Logical vector indicating variable type.
- *  - baseline_category: Reference category per variable (Blume-Capel).
- *
- * Modifies:
- *  - indicator
- *  - pairwise_effects
- *  - rest_matrix
- */
-// void update_indicator_interaction_pair_with_metropolis (
-//     arma::mat& pairwise_effects,
-//     const arma::mat& main_effects,
-//     arma::imat& indicator,
-//     const arma::imat& observations,
-//     const arma::ivec& num_categories,
-//     const arma::mat& proposal_sd,
-//     const double pairwise_scale,
-//     const arma::imat& index,
-//     const int num_interactions,
-//     const int num_persons,
-//     arma::mat& rest_matrix,
-//     const arma::mat& inclusion_probability,
-//     const arma::uvec& is_ordinal_variable,
-//     const arma::ivec& baseline_category,
-//     const arma::imat& sufficient_pairwise
-// ) {
-//   for (int cntr = 0; cntr < num_interactions; cntr++) {
-//     const int variable1 = index(cntr, 1);
-//     const int variable2 = index(cntr, 2);
-//
-//     const double current_state = pairwise_effects(variable1, variable2);
-//
-//     // Propose a new state: either add a new edge or remove an existing one
-//     const bool proposing_addition = (indicator(variable1, variable2) == 0);
-//     const double proposed_state = proposing_addition ? rnorm(rng, current_state, proposal_sd(variable1, variable2)) : 0.0;
-//
-//     // Compute log pseudo-likelihood ratio
-//     double log_accept = log_pseudolikelihood_ratio_interaction (
-//       pairwise_effects, main_effects, observations, num_categories, num_persons,
-//       variable1, variable2, proposed_state, current_state, rest_matrix,
-//       is_ordinal_variable, baseline_category, sufficient_pairwise
-//     );
-//
-//     // Add prior ratio and proposal correction
-//     const double inclusion_probability_ij = inclusion_probability(variable1, variable2);
-//     const double sd = proposal_sd(variable1, variable2);
-//
-//     if (proposing_addition) {
-//       log_accept += R::dcauchy(proposed_state, 0.0, pairwise_scale, true);
-//       log_accept -= R::dnorm(proposed_state, current_state, sd, true);
-//       log_accept += std::log (inclusion_probability_ij) - std::log (1.0 - inclusion_probability_ij);
-//     } else {
-//       log_accept -= R::dcauchy(current_state, 0.0, pairwise_scale, true);
-//       log_accept += R::dnorm(current_state, proposed_state, sd, true);
-//       log_accept -= std::log (inclusion_probability_ij) - std::log (1.0 - inclusion_probability_ij);
-//     }
-//
-//     // Metropolis-Hastings accept step
-//     if (std::log (runif(rng)) < log_accept) {
-//       const int updated_indicator = 1 - indicator(variable1, variable2);
-//       indicator(variable1, variable2) = updated_indicator;
-//       indicator(variable2, variable1) = updated_indicator;
-//
-//       pairwise_effects(variable1, variable2) = proposed_state;
-//       pairwise_effects(variable2, variable1) = proposed_state;
-//
-//       const double delta = proposed_state - current_state;
-//
-//       // Vectorized residual update
-//       rest_matrix.col(variable1) += arma::conv_to<arma::vec>::from(observations.col(variable2)) * delta;
-//       rest_matrix.col(variable2) += arma::conv_to<arma::vec>::from(observations.col(variable1)) * delta;
-//     }
-//   }
-// }
 
 
 
@@ -600,7 +765,9 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
     const arma::imat& pairwise_effect_indices,
     const std::vector<arma::mat>& sufficient_pairwise,
     const int nuts_max_depth,
-    HMCAdaptationController& adapt,
+    HMCAdaptationController& hmc_adapt,
+    RWMAdaptationController& rwm_adapt_main,
+    RWMAdaptationController& rwm_adapt_pair,
     const bool learn_mass_matrix,
     WarmupSchedule const& schedule,
     arma::ivec& treedepth_samples,
@@ -612,7 +779,11 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
     const arma::imat group_indices,
     double difference_scale,
     SafeRNG& rng,
-    arma::mat& inclusion_probability
+    arma::mat& inclusion_probability,
+    int hmc_nuts_leapfrogs,
+    const std::string& update_method,
+    arma::mat& proposal_sd_main,
+    arma::mat& proposal_sd_pair
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
@@ -623,24 +794,62 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
     );
   }
 
-  SamplerResult result = update_parameters_with_nuts(
-    main_effects, pairwise_effects, main_effect_indices,
-    pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-    observations, num_groups, group_indices, num_obs_categories,
-    sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
-    baseline_category, pairwise_scale, difference_scale, main_alpha,
-    main_beta, nuts_max_depth, iteration, adapt, learn_mass_matrix,
-    schedule.selection_enabled(iteration), rng
-  );
+  // Step 1: Difference selection via MH indicator updates (if enabled)
+  // ....
 
-  if (iteration >= schedule.total_burnin) {
-    int sample_index = iteration - schedule.total_burnin;
-    if (auto diag = std::dynamic_pointer_cast<NUTSDiagnostics>(result.diagnostics)) {
-      treedepth_samples(sample_index) = diag->tree_depth;
-      divergent_samples(sample_index) = diag->divergent ? 1 : 0;
-      energy_samples(sample_index) = diag->energy;
+  // Step 2: Update parameters
+  if(update_method == "adaptive-metropolis") {
+    update_main_effects_with_metropolis_cmp (
+        main_effects, pairwise_effects, main_effect_indices,
+        pairwise_effect_indices, inclusion_indicator, projection,
+        num_categories, observations, num_groups, group_indices,
+        num_obs_categories, sufficient_blume_capel, is_ordinal_variable,
+        baseline_category, difference_scale, main_alpha, main_beta, iteration,
+        rwm_adapt_main, rng, proposal_sd_main
+    );
+
+    update_pairwise_effects_with_metropolis_cmp (
+        main_effects, pairwise_effects, main_effect_indices,
+        pairwise_effect_indices, inclusion_indicator, projection,
+        num_categories, observations, num_groups, group_indices,
+        sufficient_pairwise, is_ordinal_variable, baseline_category,
+        pairwise_scale, difference_scale, iteration, rwm_adapt_pair, rng,
+        proposal_sd_pair
+    );
+  } else if (update_method == "hamiltonian-mc") {
+    update_parameters_with_hmc(
+      main_effects, pairwise_effects, main_effect_indices,
+      pairwise_effect_indices, inclusion_indicator, projection, num_categories,
+      observations, num_groups, group_indices, num_obs_categories,
+      sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+      baseline_category, pairwise_scale, difference_scale, main_alpha,
+      main_beta, hmc_nuts_leapfrogs, iteration, hmc_adapt, learn_mass_matrix,
+      schedule.selection_enabled(iteration), rng
+    );
+  } else if (update_method == "nuts") {
+    SamplerResult result = update_parameters_with_nuts(
+      main_effects, pairwise_effects, main_effect_indices,
+      pairwise_effect_indices, inclusion_indicator, projection, num_categories,
+      observations, num_groups, group_indices, num_obs_categories,
+      sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+      baseline_category, pairwise_scale, difference_scale, main_alpha,
+      main_beta, nuts_max_depth, iteration, hmc_adapt, learn_mass_matrix,
+      schedule.selection_enabled(iteration), rng
+    );
+
+    if (iteration >= schedule.total_burnin) {
+      int sample_index = iteration - schedule.total_burnin;
+      if (auto diag = std::dynamic_pointer_cast<NUTSDiagnostics>(result.diagnostics)) {
+        treedepth_samples(sample_index) = diag->tree_depth;
+        divergent_samples(sample_index) = diag->divergent ? 1 : 0;
+        energy_samples(sample_index) = diag->energy;
+      }
     }
   }
+
+  /* --- 2b.  proposal-sd tuning during Stage-3b ------------------------------ */
+  // ....
+
 }
 
 
@@ -649,8 +858,6 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
     int chain_id,
     arma::imat observations,
     const int num_groups,
-    // TODO for Maarten: this will crash horribly when imputing in parallel
-    // each thread needs an individual copy of the three objects below
     std::vector<arma::imat>& num_obs_categories,
     std::vector<arma::imat>& sufficient_blume_capel,
     std::vector<arma::mat>& sufficient_pairwise,
@@ -679,7 +886,9 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
     const arma::imat& group_indices,//new
     const arma::imat& interaction_index_matrix,//new
     arma::mat inclusion_probability,//new
-    SafeRNG& rng
+    SafeRNG& rng,
+    const std::string& update_method,
+    const int hmc_num_leapfrogs
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -712,23 +921,36 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
   arma::uvec order(num_pair);
   arma::imat index(num_pair, 3);
 
+  // --- Initialize proposal SDs
+  arma::mat proposal_sd_main(num_main, num_groups, arma::fill::ones);
+  arma::mat proposal_sd_pair(num_pair, num_groups, arma::fill::ones);
+
   // --- Optional HMC/NUTS warmup stage
   double initial_step_size = 1.0;
-
-  initial_step_size = find_reasonable_initial_step_size_cmp(
-    main_effects, pairwise_effects, main_effect_indices,
-    pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-    observations, num_groups, group_indices, num_obs_categories,
-    sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
-    baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
-    target_accept, rng
-  );
+  if (update_method == "hamiltonian-mc" || update_method == "nuts") {
+    initial_step_size = find_reasonable_initial_step_size_cmp(
+      main_effects, pairwise_effects, main_effect_indices,
+      pairwise_effect_indices, inclusion_indicator, projection, num_categories,
+      observations, num_groups, group_indices, num_obs_categories,
+      sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+      baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
+      target_accept, rng
+    );
+  }
 
   // --- Warmup scheduling + adaptation controller
   WarmupSchedule warmup_schedule(burnin, difference_selection, true);
-  HMCAdaptationController adapt_joint(
+
+  HMCAdaptationController hmc_adapt(
       (num_main + num_pair) * num_groups, initial_step_size, target_accept,
       warmup_schedule, learn_mass_matrix
+  );
+
+  RWMAdaptationController rwm_adapt_main(
+      proposal_sd_main, warmup_schedule, target_accept
+  );
+  RWMAdaptationController rwm_adapt_pair(
+      proposal_sd_pair, warmup_schedule, target_accept
   );
 
   const int total_iter = warmup_schedule.total_burnin + iter;
@@ -738,7 +960,6 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
   for (int iteration = 0; iteration < total_iter; iteration++) {
     if (iteration % print_every == 0) {
       tbb::mutex::scoped_lock lock(get_print_mutex());
-      //Rcpp::Rcout
       std::cout
       << "[bgm] chain " << chain_id
       << " iteration " << iteration
@@ -754,7 +975,6 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
 
     // Optional imputation
     if (na_impute) {
-
       impute_missing_data_for_graphical_model (
           main_effects, pairwise_effects, main_effect_indices,
           pairwise_effect_indices, inclusion_indicator, projection,
@@ -771,10 +991,11 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
         sufficient_blume_capel, main_alpha, main_beta, inclusion_indicator,
         pairwise_effects, main_effects, is_ordinal_variable, baseline_category,
         iteration, pairwise_effect_indices, sufficient_pairwise, nuts_max_depth,
-        adapt_joint, learn_mass_matrix, warmup_schedule, treedepth_samples,
-        divergent_samples, energy_samples,
+        hmc_adapt, rwm_adapt_main, rwm_adapt_pair, learn_mass_matrix,
+        warmup_schedule, treedepth_samples, divergent_samples, energy_samples,
         main_effect_indices, projection, num_groups, group_indices, difference_scale,//new line of args
-        rng, inclusion_probability
+        rng, inclusion_probability, hmc_num_leapfrogs, update_method,
+        proposal_sd_main, proposal_sd_pair
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)

@@ -1177,7 +1177,6 @@ Rcpp::List run_gibbs_sampler_for_bgm(
     if (iteration % print_every == 0) {
       tbb::mutex::scoped_lock lock(get_print_mutex());
       std::cout
-      // Rcpp::Rcout
       << "[bgm] chain " << chain_id
       << " iteration " << iteration
       << " / " << total_iter
