@@ -8,18 +8,31 @@ using namespace Rcpp;
 
 
 /**
- * Function: compute_group_main_effects
- * Purpose: Computes main_effects for a specific variable in a given group.
+ * Computes group-specific main effects for a given variable (bgmCompare model).
+ *
+ * For a variable, the main-effect parameters are stored with:
+ *  - One "baseline" column (shared across groups).
+ *  - Additional columns for group-specific deviations.
+ *
+ * This function extracts the rows corresponding to the variable’s categories
+ * and combines them with the group projection vector to yield the
+ * group-specific main effects.
+ *
  * Inputs:
- *  - variable: Index of the variable for which main_effects are computed.
- *  - group: Index of the group for which main_effects are computed.
- *  - num_groups: Total number of groups in the analysis.
- *  - main_effects: Matrix of main effects across variables and groups.
- *  - main_effect_indices: Indices for main effect parameters.
- *  - projection: Projection matrix for group-specific scaling.
- *  - independent_main_effects: Whether main_effects are modeled independently.
- * Outputs:
- *  - A `arma::vec` containing the computed main_effects for the variable in the group.
+ *  - variable: Index of the variable of interest.
+ *  - num_groups: Number of groups in the model.
+ *  - main_effects: Matrix of main-effect parameters for all variables.
+ *  - main_effect_indices: Index matrix giving [start_row, end_row] for each variable.
+ *  - proj_group: Projection vector selecting the group (length = num_groups − 1).
+ *
+ * Returns:
+ *  - A vector of group-specific main effects for the categories of the variable.
+ *
+ * Notes:
+ *  - The projection vector should match the encoding used for group effects
+ *    (e.g. dummy or contrast coding).
+ *  - This function is used in likelihood evaluations where group-specific
+ *    parameters are required.
  */
 arma::vec compute_group_main_effects(
     const int variable,
@@ -32,27 +45,47 @@ arma::vec compute_group_main_effects(
   int base_category_index = main_effect_indices(variable, 0);
   int last_category_index = main_effect_indices(variable, 1);
 
-  arma::vec Groupmain_effects =
+  arma::vec group_main_effects =
     arma::conv_to<arma::vec>::from(
       main_effects.rows(base_category_index, last_category_index).col(0));
-  Groupmain_effects += main_effects.rows(
+  group_main_effects += main_effects.rows(
     base_category_index, last_category_index
   ).cols(
       1, num_groups - 1
   ) *
     proj_group;
-  return Groupmain_effects;
+  return group_main_effects;
 }
 
 
 
-// Computes the pairwise effect between var1 and var2 for a given group.
-//
-// pairwise_effects: rows index pairs; columns are [shared | group-contrasts...]
-// pairwise_effect_indices: maps (var1, var2) -> row index in pairwise_effects
-// inclusion_indicator(var1,var2): 0 means use shared-only (no group contrast), nonzero includes contrast
-//
-// Returns the scalar interaction for that pair in that group.
+/**
+ * Computes the group-specific pairwise effect for a variable pair (bgmCompare model).
+ *
+ * For each variable pair, the pairwise-effect parameters are stored with:
+ *  - One "baseline" column (shared across groups).
+ *  - Additional columns for group-specific deviations.
+ *
+ * This function extracts the baseline effect and, if the edge is active
+ * (per the inclusion indicator), adds the group-specific deviation obtained
+ * from the projection vector.
+ *
+ * Inputs:
+ *  - var1, var2: Indices of the two variables forming the pair.
+ *  - num_groups: Number of groups in the model.
+ *  - pairwise_effects: Matrix of pairwise-effect parameters (rows = pairs).
+ *  - pairwise_effect_indices: Lookup matrix mapping (var1, var2) → row index.
+ *  - inclusion_indicator: Symmetric binary matrix of active edges.
+ *  - proj_group: Projection vector selecting the group (length = num_groups − 1).
+ *
+ * Returns:
+ *  - The group-specific pairwise effect for (var1, var2).
+ *
+ * Notes:
+ *  - The index matrix must match the storage convention (typically var1 < var2).
+ *  - If `inclusion_indicator(var1, var2) == 0`, only the baseline effect is used.
+ *  - This function is used in likelihood evaluations and Gibbs updates.
+ */
 double compute_group_pairwise_effects(
     const int var1,
     const int var2,
@@ -80,26 +113,37 @@ double compute_group_pairwise_effects(
 
 
 
-
 /**
- * Flattens overall and (selected) difference parameters for bgmCompare.
+ * Flattens main-effect and pairwise-effect parameters into a single vector (bgmCompare model).
  *
- * Order:
- *   1) MAIN overall main_effects (column 0), in variable order and within-variable row order.
- *   2) PAIRWISE overall interactions (column 0), in upper-triangle order (v1 < v2).
- *   3) MAIN group-difference main_effects (columns 1..G-1) for variables with inclusion_indicator(v,v) == 1,
- *      emitted in variable order, within-variable row order, and column-wise g = 1..G-1.
- *   4) PAIRWISE group-difference interactions (columns 1..G-1) for pairs with inclusion_indicator(v1,v2) == 1,
- *      emitted in upper-triangle order and column-wise g = 1..G-1.
+ * Layout of the output vector:
+ *  1. Main-effect overall parameters (column 0 of main_effects), stacked by variable.
+ *  2. Pairwise-effect overall parameters (column 0 of pairwise_effects), stacked by pair.
+ *  3. Main-effect group differences (columns 1..G-1), included only if
+ *     the variable is marked active in inclusion_indicator(v,v).
+ *  4. Pairwise-effect group differences (columns 1..G-1), included only if
+ *     the pair is marked active in inclusion_indicator(v1,v2).
+ *
+ * Inputs:
+ *  - main_effects: Matrix of main-effect parameters (rows = categories, cols = groups).
+ *  - pairwise_effects: Matrix of pairwise-effect parameters (rows = pairs, cols = groups).
+ *  - inclusion_indicator: Symmetric binary matrix of active variables (diag) and pairs (off-diag).
+ *  - main_effect_indices: Index ranges [row_start, row_end] for each variable in main_effects.
+ *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
+ *  - num_categories: Number of categories per variable.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *
  * Returns:
- *   arma::vec of size:
- *     n_main_rows                              // all MAIN overall
- *   + n_pair_rows                              // all PAIRWISE overall
- *   + sum_v[ 1(v included) * rows_v * (num_groups-1) ]  // selected MAIN diffs
- *   + sum_{v1<v2}[ 1(pair included) * (num_groups-1) ]  // selected PAIR diffs
+ *  - A flat vector of parameters containing overall effects and (if active) group differences.
+ *
+ * Notes:
+ *  - The order of pairs in `pairwise_effects` must match the upper-triangle order
+ *    of (var1,var2) pairs as constructed in R.
+ *  - The length of the output vector depends on both the number of groups
+ *    and the active entries in inclusion_indicator.
+ *  - This function is the inverse of `unvectorize_model_parameters_bgmcompare()`.
  */
-arma::vec vectorize_model_parameters(
+arma::vec vectorize_model_parameters_bgmcompare(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -176,25 +220,38 @@ arma::vec vectorize_model_parameters(
 
 
 /**
- * Reconstructs bgmCompare matrices from a flattened parameter vector.
+ * Reconstructs main-effect and pairwise-effect matrices from a flat parameter vector (bgmCompare model).
  *
- * Shapes are derived from the indices and num_groups (G). Overall effects
- * (column 0) are always filled. Difference columns (1..G-1) are filled only
- * where inclusion_indicator == 1 (diag for MAIN, off-diagonal for PAIRWISE).
- * Not-selected difference entries remain zero.
+ * The input vector must follow the layout produced by `vectorize_model_parameters_bgmcompare()`:
+ *  1. Main-effect overall parameters (column 0 of main_effects), stacked by variable.
+ *  2. Pairwise-effect overall parameters (column 0 of pairwise_effects), stacked by pair.
+ *  3. Main-effect group differences (columns 1..G-1), included only if
+ *     the variable is active in inclusion_indicator(v,v).
+ *  4. Pairwise-effect group differences (columns 1..G-1), included only if
+ *     the pair is active in inclusion_indicator(v1,v2).
  *
  * Inputs:
- *   - param_vec: flattened vector produced by vectorize_model_parameters_bgmCompare
- *   - inclusion_indicator: [V×V] symmetric selection matrix
- *   - main_effect_indices: [V×2] inclusive [start,end] row indices per variable
- *   - pairwise_effect_indices: [V×V] row index per pair (v1,v2), symmetric
- *   - num_groups: G (total columns = 1 overall + (G-1) differences)
+ *  - param_vec: Flattened parameter vector.
+ *  - inclusion_indicator: Symmetric binary matrix of active variables (diag) and pairs (off-diag).
+ *  - main_effect_indices: Index ranges [row_start, row_end] for each variable in main_effects.
+ *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
+ *  - num_groups: Number of groups (columns in main_effects / pairwise_effects).
+ *  - num_categories: Number of categories per variable.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *
- * Outputs (overwritten):
- *   - main_effects_out: [n_main_rows × G]
- *   - pairwise_effects_out: [n_pair_rows × G]
+ * Outputs:
+ *  - main_effects_out: Matrix of main-effect parameters (rows = categories, cols = groups).
+ *  - pairwise_effects_out: Matrix of pairwise-effect parameters (rows = pairs, cols = groups).
+ *
+ * Notes:
+ *  - The vector must have exactly the length returned by `vectorize_model_parameters_bgmcompare()`.
+ *  - Diagonal entries in `inclusion_indicator` determine whether main-effect
+ *    group differences are included.
+ *  - Off-diagonal entries in `inclusion_indicator` determine whether
+ *    pairwise-effect group differences are included.
+ *  - This function is the inverse of `vectorize_model_parameters_bgmcompare()`.
  */
-void unvectorize_model_parameters(
+void unvectorize_model_parameters_bgmcompare(
     const arma::vec& param_vec,
     arma::mat& main_effects_out,                 // [n_main_rows × G]
     arma::mat& pairwise_effects_out,             // [n_pair_rows × G]
@@ -252,9 +309,44 @@ void unvectorize_model_parameters(
 
 
 
-// Build index maps for param_vec layout.
-// Returns two imats with the same dims as main_effects and pairwise_effects.
-// Entry (i,j) = position in param_vec, or -1 if that entry is never stored.
+/**
+ * Builds index maps linking matrix entries to positions in the vectorized parameter vector (bgmCompare model).
+ *
+ * The index maps are used to quickly locate where each parameter (main-effect or pairwise-effect,
+ * across groups) sits inside the flattened parameter vector produced by
+ * `vectorize_model_parameters_bgmcompare()`.
+ *
+ * Layout:
+ *  1. Main-effect overall parameters (col 0).
+ *  2. Pairwise-effect overall parameters (col 0).
+ *  3. Main-effect group differences (cols 1..G-1), included only if
+ *     the variable is active in inclusion_indicator(v,v).
+ *  4. Pairwise-effect group differences (cols 1..G-1), included only if
+ *     the pair is active in inclusion_indicator(v1,v2).
+ *
+ * Inputs:
+ *  - main_effects: Matrix of main-effect parameters (used for dimension info).
+ *  - pairwise_effects: Matrix of pairwise-effect parameters (used for dimension info).
+ *  - inclusion_indicator: Symmetric binary matrix of active variables (diag) and pairs (off-diag).
+ *  - main_effect_indices: Index ranges [row_start, row_end] for each variable in main_effects.
+ *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
+ *  - num_categories: Number of categories per variable.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *
+ * Returns:
+ *  - A pair of integer matrices:
+ *      * main_index: [num_main × num_groups], with each entry giving the position
+ *        in the parameter vector for that main-effect parameter (or -1 if inactive).
+ *      * pair_index: [num_pair × num_groups], with each entry giving the position
+ *        in the parameter vector for that pairwise-effect parameter (or -1 if inactive).
+ *
+ * Notes:
+ *  - Entries are set to -1 when the corresponding parameter is inactive.
+ *  - The returned index maps must always be consistent with the ordering used
+ *    in vectorization/unvectorization.
+ *  - A final check (e.g. verifying that `off == param_vec.n_elem`) can help
+ *    catch mismatches between index maps and vectorizer logic.
+ */
 std::pair<arma::imat, arma::imat> build_index_maps(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
@@ -272,7 +364,7 @@ std::pair<arma::imat, arma::imat> build_index_maps(
   const int num_pair = num_variables * (num_variables - 1) / 2;
 
   arma::imat main_index(num_main, num_groups, arma::fill::value(-1));
-  arma::imat pair_index(num_main, num_groups, arma::fill::value(-1));
+  arma::imat pair_index(num_pair, num_groups, arma::fill::value(-1));
 
   int off = 0;
 
@@ -314,6 +406,38 @@ std::pair<arma::imat, arma::imat> build_index_maps(
 
 
 
+/**
+ * Extracts entries of the inverse mass matrix corresponding to active parameters (bgmCompare model).
+ *
+ * If `selection` is false, the full diagonal vector is returned unchanged.
+ * If `selection` is true, the output is restricted to:
+ *  1. Main-effect overall parameters (column 0).
+ *  2. Pairwise-effect overall parameters (column 0).
+ *  3. Main-effect group differences (columns 1..G-1) for variables with
+ *     inclusion_indicator(v,v) == 1.
+ *  4. Pairwise-effect group differences (columns 1..G-1) for pairs with
+ *     inclusion_indicator(v1,v2) == 1.
+ *
+ * Inputs:
+ *  - inv_diag: Full inverse mass diagonal (length = all parameters).
+ *  - inclusion_indicator: Symmetric binary matrix of active variables (diag) and pairs (off-diag).
+ *  - num_groups: Number of groups.
+ *  - num_categories: Number of categories per variable.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - main_index: Index map for main effects (from build_index_maps()).
+ *  - pair_index: Index map for pairwise effects (from build_index_maps()).
+ *  - main_effect_indices: Index ranges [row_start, row_end] for each variable in main_effects.
+ *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
+ *  - selection: If true, restrict to active parameters; if false, return full inv_diag.
+ *
+ * Returns:
+ *  - A vector containing inverse mass entries for active parameters only.
+ *
+ * Notes:
+ *  - Must be consistent with the layout in `vectorize_model_parameters_bgmcompare()`.
+ *  - Index maps (`main_index`, `pair_index`) are required to locate group-difference entries.
+ *  - A debug assertion (off == active_inv_diag.n_elem) could help catch mismatches.
+ */
 arma::vec inv_mass_active(
     const arma::vec& inv_diag,
     const arma::imat& inclusion_indicator,

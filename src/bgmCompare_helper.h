@@ -23,7 +23,7 @@ double compute_group_pairwise_effects(
     const arma::vec& proj_group
 );
 
-arma::vec vectorize_model_parameters(
+arma::vec vectorize_model_parameters_bgmcompare(
     const arma::mat& main_effects,                 // [n_main_rows × G]
     const arma::mat& pairwise_effects,             // [n_pair_rows × G]
     const arma::imat& inclusion_indicator,         // [V × V]
@@ -33,7 +33,7 @@ arma::vec vectorize_model_parameters(
     const arma::uvec& is_ordinal_variable
 );
 
-void unvectorize_model_parameters(
+void unvectorize_model_parameters_bgmcompare(
     const arma::vec& param_vec,
     arma::mat& main_effects_out,                 // [n_main_rows × G]
     arma::mat& pairwise_effects_out,             // [n_pair_rows × G]
@@ -68,7 +68,7 @@ arma::vec inv_mass_active(
     const bool& selection
 );
 
-inline void initialise_graph(
+inline void initialise_graph_bgmcompare(
     arma::imat& indicator,
     arma::mat& main,
     arma::mat& pairwise,

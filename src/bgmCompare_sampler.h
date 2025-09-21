@@ -6,13 +6,13 @@
 
 struct SafeRNG;
 
-SamplerOutput run_gibbs_sampler_for_bgmCompare(
+SamplerOutput run_gibbs_sampler_bgmCompare(
     int chain_id,
     arma::imat observations,
     const int num_groups,
-    std::vector<arma::imat>& num_obs_categories,
-    std::vector<arma::imat>& sufficient_blume_capel,
-    std::vector<arma::mat>& sufficient_pairwise,
+    std::vector<arma::imat>& counts_per_category,
+    std::vector<arma::imat>& blume_capel_stats,
+    std::vector<arma::mat>& pairwise_stats,
     const arma::ivec& num_categories,
     const double main_alpha,
     const double main_beta,

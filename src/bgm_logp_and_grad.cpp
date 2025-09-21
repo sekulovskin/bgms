@@ -7,33 +7,45 @@ using namespace Rcpp;
 
 
 /**
- * Function: log_pseudoposterior_thresholds_component
+ * Computes the log-pseudoposterior contribution for a single main-effect parameter (bgm model).
  *
- * Computes the log pseudo-posterior for one of the main effect parameters.
+ * For the specified variable, this function evaluates the log-pseudoposterior of either:
+ *  - an ordinal threshold parameter (category-specific), or
+ *  - a Blume–Capel main-effect parameter (linear or quadratic).
+ *
+ * The log-pseudoposterior combines:
+ *  - Prior contribution: Beta prior on the logistic scale.
+ *  - Sufficient statistic contribution: from category counts or Blume–Capel statistics.
+ *  - Likelihood contribution: vectorized across all persons using the residual matrix.
  *
  * Inputs:
- *  - main_effects: Matrix of threshold parameters.
- *  - rest_matrix: Residual scores for each observation and variable.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - residual_matrix: Matrix of residual scores (persons × variables).
  *  - num_categories: Number of categories per variable.
- *  - num_obs_categories: Observed category count matrix.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
- *  - reference_category: Reference category per variable (for Blume-Capel).
- *  - is_ordinal_variable: Logical vector (1 = ordinal, 0 = Blume-Capel).
- *  - main_alpha, main_beta: Prior hyperparameters.
- *  - variable: Which variable to compute the log pseudo-posterior for
- *  - category: If ordinal, which category to compute the log pseudo-posterior for
- *  - parameter: If Blume-Capel, which parameter to compute the log pseudo-posterior for (0 = linear, 1 = quadratic)
+ *  - counts_per_category: Category counts per variable (used for ordinal variables).
+ *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
+ *  - baseline_category: Reference category for Blume–Capel centering.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - main_alpha, main_beta: Prior hyperparameters for the Beta prior.
+ *  - variable: Index of the variable under consideration.
+ *  - category: Category index (ordinal variables only).
+ *  - parameter: Parameter index (Blume–Capel only: 0 = linear, 1 = quadratic).
  *
  * Returns:
- *  - Scalar log pseudo-posterior.
+ *  - The log-pseudoposterior value for the specified parameter.
+ *
+ * Notes:
+ *  - Exactly one of `category` or `parameter` is relevant depending on variable type.
+ *  - Uses a numerically stable denominator with exponential bounding.
+ *  - This function is used within Metropolis and gradient-based updates.
  */
-double log_pseudoposterior_thresholds_component (
+double log_pseudoposterior_main_effects_component (
     const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
+    const arma::mat& residual_matrix,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
@@ -41,11 +53,11 @@ double log_pseudoposterior_thresholds_component (
     const int category,
     const int parameter
 ) {
-  const int num_persons = rest_matrix.n_rows;
+  const int num_persons = residual_matrix.n_rows;
   double log_posterior = 0.0;
 
-  auto log_beta_prior = [&](double threshold_param) {
-    return threshold_param * main_alpha - std::log1p (std::exp (threshold_param)) * (main_alpha + main_beta);
+  auto log_beta_prior = [&](double main_effect_param) {
+    return main_effect_param * main_alpha - std::log1p (std::exp (main_effect_param)) * (main_alpha + main_beta);
   };
 
   const int num_cats = num_categories(variable);
@@ -53,23 +65,23 @@ double log_pseudoposterior_thresholds_component (
   if (is_ordinal_variable(variable)) {
     // Prior contribution + sufficient statistic
     const double value = main_effects(variable, category);
-    log_posterior += value * num_obs_categories(category + 1, variable);
+    log_posterior += value * counts_per_category(category + 1, variable);
     log_posterior += log_beta_prior (value);
 
     // Vectorized likelihood contribution
     // For each person, we compute the unnormalized log-likelihood denominator:
-    //   denom = exp (-bound) + sum_c exp (threshold_param_c + (c+1) * rest_score - bound)
+    //   denom = exp (-bound) + sum_c exp (main_effect_param_c + (c+1) * residual_score - bound)
     // Where:
-    //   - rest_score is the summed interaction score excluding the variable itself
-    //   - bound = num_cats * rest_score (for numerical stability)
-    //   - threshold_param_c is the threshold parameter for category c (0-based)
-    arma::vec rest_score = rest_matrix.col (variable);                     // rest scores for all persons
-    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
+    //   - residual_score is the summed interaction score excluding the variable itself
+    //   - bound = num_cats * residual_score (for numerical stability)
+    //   - main_effect_param_c is the main_effect parameter for category c (0-based)
+    arma::vec residual_score = residual_matrix.col (variable);                     // rest scores for all persons
+    arma::vec bound = num_cats * residual_score;                                  // numerical bound vector
     arma::vec denom = arma::exp (-bound);                                      // initialize with base term
-    arma::vec threshold_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // threshold parameters
+    arma::vec main_effect_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // main_effect parameters
 
     for (int cat = 0; cat < num_cats; cat++) {
-      arma::vec exponent = threshold_param(cat) + (cat + 1) * rest_score - bound;       // exponent per person
+      arma::vec exponent = main_effect_param(cat) + (cat + 1) * residual_score - bound;       // exponent per person
       denom += arma::exp (exponent);                                           // accumulate exp terms
     }
 
@@ -78,30 +90,30 @@ double log_pseudoposterior_thresholds_component (
     log_posterior -= arma::accu (bound + arma::log (denom));                    // total contribution
   } else {
     const double value = main_effects(variable, parameter);
-    const double linear_threshold = main_effects(variable, 0);
-    const double quadratic_threshold = main_effects(variable, 1);
-    const int ref = reference_category(variable);
+    const double linear_main_effect = main_effects(variable, 0);
+    const double quadratic_main_effect = main_effects(variable, 1);
+    const int ref = baseline_category(variable);
 
     // Prior contribution + sufficient statistic
-    log_posterior += value * sufficient_blume_capel(parameter, variable);
+    log_posterior += value * blume_capel_stats(parameter, variable);
     log_posterior += log_beta_prior(value);
 
     // Vectorized likelihood contribution
     // For each person, we compute the unnormalized log-likelihood denominator:
-    //   denom = sum_c exp (θ_lin * c + θ_quad * (c - ref)^2 + c * rest_score - bound)
+    //   denom = sum_c exp (θ_lin * c + θ_quad * (c - ref)^2 + c * residual_score - bound)
     // Where:
-    //   - θ_lin, θ_quad are linear and quadratic thresholds
+    //   - θ_lin, θ_quad are linear and quadratic main_effects
     //   - ref is the reference category (used for centering)
-    //   - bound = num_cats * rest_score (stabilizes exponentials)
-    arma::vec rest_score = rest_matrix.col(variable);                     // rest scores for all persons
-    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
+    //   - bound = num_cats * residual_score (stabilizes exponentials)
+    arma::vec residual_score = residual_matrix.col(variable);                     // rest scores for all persons
+    arma::vec bound = num_cats * residual_score;                                  // numerical bound vector
     arma::vec denom(num_persons, arma::fill::zeros);                          // initialize denominator
     for (int cat = 0; cat <= num_cats; cat++) {
       int centered = cat - ref;                                               // centered category
-      double quad_term = quadratic_threshold * centered * centered;                    // precompute quadratic term
-      double lin_term = linear_threshold * cat;                                      // precompute linear term
+      double quad_term = quadratic_main_effect * centered * centered;                    // precompute quadratic term
+      double lin_term = linear_main_effect * cat;                                      // precompute linear term
 
-      arma::vec exponent = lin_term + quad_term + cat * rest_score - bound;
+      arma::vec exponent = lin_term + quad_term + cat * residual_score - bound;
       denom += arma::exp (exponent);                                           // accumulate over categories
     }
 
@@ -116,28 +128,34 @@ double log_pseudoposterior_thresholds_component (
 
 
 /**
- * Function: log_pseudoposterior_interactions_component
+ * Computes the log-pseudoposterior contribution for a single pairwise interaction (bgm model).
  *
- * Computes the log pseudo-posterior contribution from a single pairwise interaction.
- *
- * This includes both the data likelihood contribution and the prior (Cauchy) term.
- * The likelihood is evaluated over both variables jointly and accounts for
- * their variable types (ordinal or Blume-Capel).
+ * The contribution consists of:
+ *  - Sufficient statistic term: interaction × pairwise count.
+ *  - Likelihood term: summed over all observations, using either
+ *    * ordinal thresholds, or
+ *    * Blume–Capel quadratic/linear main effects.
+ *  - Prior term: Cauchy prior on the interaction coefficient (if active).
  *
  * Inputs:
- *  - pairwise_effects: Matrix of pairwise interaction parameters.
- *  - main_effects: Matrix of main effect parameters.
- *  - observations: Integer matrix of observed category scores.
- *  - num_categories: Vector of category counts per variable.
- *  - inclusion_indicator: Symmetric matrix indicating active interactions.
- *  - is_ordinal_variable: Logical vector indicating which variables are ordinal.
- *  - reference_category: Reference categories for Blume-Capel variables.
- *  - interaction_scale: Scale parameter for the Cauchy prior.
- *  - sufficient_pairwise: Sufficient statistics for each interaction pair.
- *  - var1, var2: Indices of the two variables involved in the interaction.
+ *  - pairwise_effects: Symmetric matrix of interaction parameters.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - observations: Matrix of categorical observations (persons × variables).
+ *  - num_categories: Number of categories per variable.
+ *  - inclusion_indicator: Symmetric binary matrix of active pairwise effects.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_stats: Sufficient statistics for pairwise counts.
+ *  - var1, var2: Indices of the variable pair being updated.
  *
  * Returns:
- *  - Scalar log pseudo-posterior for the given interaction term.
+ *  - The log-pseudoposterior value for the specified interaction parameter.
+ *
+ * Notes:
+ *  - Bounds are applied for numerical stability in exponential terms.
+ *  - The function assumes that `pairwise_effects` is symmetric.
+ *  - Used within Metropolis and gradient-based updates of pairwise effects.
  */
 double log_pseudoposterior_interactions_component (
     const arma::mat& pairwise_effects,
@@ -146,22 +164,22 @@ double log_pseudoposterior_interactions_component (
     const arma::ivec& num_categories,
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
+    const arma::ivec& baseline_category,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
+    const arma::imat& pairwise_stats,
     const int var1,
     const int var2
 ) {
   const int num_observations = observations.n_rows;
 
-  double log_pseudo_posterior = 2.0 * pairwise_effects(var1, var2) * sufficient_pairwise(var1, var2);
+  double log_pseudo_posterior = 2.0 * pairwise_effects(var1, var2) * pairwise_stats(var1, var2);
 
   for (int var : {var1, var2}) {
     int num_categories_var = num_categories (var);
 
     // Compute rest score: contribution from other variables
-    arma::vec rest_scores = observations * pairwise_effects.col (var);
-    arma::vec bounds = arma::max (rest_scores, arma::zeros<arma::vec> (num_observations)) * num_categories_var;
+    arma::vec residual_scores = observations * pairwise_effects.col (var);
+    arma::vec bounds = arma::max (residual_scores, arma::zeros<arma::vec> (num_observations)) * num_categories_var;
     arma::vec denominator = arma::zeros (num_observations);
 
     if (is_ordinal_variable (var)) {
@@ -169,18 +187,18 @@ double log_pseudoposterior_interactions_component (
 
       denominator += arma::exp (-bounds);
       for (int category = 0; category < num_categories_var; category++) {
-        arma::vec exponent = main_effects (var, category) + (category + 1) * rest_scores - bounds;
+        arma::vec exponent = main_effects (var, category) + (category + 1) * residual_scores - bounds;
         denominator += arma::exp(exponent);
       }
 
     } else {
       // Binary/categorical variable: quadratic + linear term
-      const int ref_cat = reference_category (var);
+      const int ref_cat = baseline_category (var);
       for (int category = 0; category <= num_categories_var; category++) {
         int centered_cat = category - ref_cat;
         double lin_term = main_effects (var, 0) * category;
         double quad_term = main_effects (var, 1) * centered_cat * centered_cat;
-        arma::vec exponent = lin_term + quad_term + category * rest_scores - bounds;
+        arma::vec exponent = lin_term + quad_term + category * residual_scores - bounds;
         denominator += arma::exp (exponent);
       }
     }
@@ -201,31 +219,39 @@ double log_pseudoposterior_interactions_component (
 
 
 /**
- * Function: log_pseudoposterior
+ * Computes the full log-pseudoposterior for the bgm model.
  *
- * Computes the full log pseudo-posterior of the model, including contributions
- * from main effects, pairwise interactions, and all relevant priors.
- *
- * This combines observed sufficient statistics with expected log-likelihood terms,
- * using vectorized likelihood calculations for efficiency.
+ * The log-pseudoposterior combines:
+ *  - Main-effect contributions:
+ *    * Ordinal variables: one parameter per category with Beta prior.
+ *    * Blume–Capel variables: linear and quadratic parameters with Beta priors.
+ *  - Pairwise-effect contributions:
+ *    * Included interactions (per inclusion_indicator) with Cauchy prior.
+ *  - Likelihood contributions:
+ *    * Vectorized over all persons, with numerically stabilized denominators.
  *
  * Inputs:
- *  - main_effects: Matrix of threshold parameters.
- *  - pairwise_effects: Matrix of interaction weights.
- *  - inclusion_indicator: Symmetric matrix indicating active pairwise terms.
- *  - observations: Matrix of observed variable scores.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - pairwise_effects: Symmetric matrix of pairwise interaction strengths.
+ *  - inclusion_indicator: Symmetric binary matrix of active pairwise effects.
+ *  - observations: Matrix of categorical observations (persons × variables).
  *  - num_categories: Number of categories per variable.
- *  - num_obs_categories: Matrix of observed counts per category and variable.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel main effects.
- *  - reference_category: Reference categories per variable.
- *  - is_ordinal_variable: Logical vector indicating ordinal variables.
- *  - main_alpha, main_beta: Prior hyperparameters for main effects.
- *  - interaction_scale: Scale parameter for Cauchy prior over interactions.
- *  - sufficient_pairwise: Sufficient statistics for pairwise interactions.
- *  - rest_matrix: Matrix of residual predictors.
+ *  - counts_per_category: Category counts per variable (for ordinal variables).
+ *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - main_alpha, main_beta: Hyperparameters for the Beta priors.
+ *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_stats: Pairwise sufficient statistics.
+ *  - residual_matrix: Matrix of residual scores (persons × variables).
  *
  * Returns:
- *  - Scalar total log pseudo-posterior value.
+ *  - The scalar log-pseudoposterior value for the full model.
+ *
+ * Notes:
+ *  - Exponential terms are bounded with nonnegative `bound` values for stability.
+ *  - Pairwise effects are included only when marked in `inclusion_indicator`.
+ *  - This is the top-level function combining both main and interaction components.
  */
 double log_pseudoposterior (
     const arma::mat& main_effects,
@@ -233,15 +259,15 @@ double log_pseudoposterior (
     const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
+    const arma::imat& pairwise_stats,
+    const arma::mat& residual_matrix
 ) {
 
   const int num_variables = observations.n_cols;
@@ -250,8 +276,8 @@ double log_pseudoposterior (
   double log_pseudoposterior = 0.0;
 
   // Calculate the contribution from the data and the prior
-  auto log_beta_prior = [&](double threshold_param) {
-    return threshold_param * main_alpha - std::log1p (std::exp (threshold_param)) * (main_alpha + main_beta);
+  auto log_beta_prior = [&](double main_effect_param) {
+    return main_effect_param * main_alpha - std::log1p (std::exp (main_effect_param)) * (main_alpha + main_beta);
   };
 
   for (int variable = 0; variable < num_variables; variable++) {
@@ -259,17 +285,17 @@ double log_pseudoposterior (
       const int num_cats = num_categories(variable);
       for (int cat = 0; cat < num_cats; cat++) {
         double value = main_effects(variable, cat);
-        log_pseudoposterior += num_obs_categories(cat + 1, variable) * value;
+        log_pseudoposterior += counts_per_category(cat + 1, variable) * value;
         log_pseudoposterior += log_beta_prior(value);
       }
     } else {
       double value = main_effects(variable, 0);
       log_pseudoposterior += log_beta_prior(value);
-      log_pseudoposterior += sufficient_blume_capel(0, variable) * value;
+      log_pseudoposterior += blume_capel_stats(0, variable) * value;
 
       value = main_effects(variable, 1);
       log_pseudoposterior += log_beta_prior(value);
-      log_pseudoposterior += sufficient_blume_capel(1, variable) * value;
+      log_pseudoposterior += blume_capel_stats(1, variable) * value;
     }
   }
   for (int var1 = 0; var1 < num_variables - 1; var1++) {
@@ -277,7 +303,7 @@ double log_pseudoposterior (
       if (inclusion_indicator(var1, var2) == 0) continue;
 
       double value = pairwise_effects(var1, var2);
-      log_pseudoposterior += 2.0 * sufficient_pairwise(var1, var2) * value;
+      log_pseudoposterior += 2.0 * pairwise_stats(var1, var2) * value;
       log_pseudoposterior += R::dcauchy(value, 0.0, interaction_scale, true); // Cauchy prior
     }
   }
@@ -285,29 +311,29 @@ double log_pseudoposterior (
   // Calculate the log denominators
   for (int variable = 0; variable < num_variables; variable++) {
     const int num_cats = num_categories(variable);
-    arma::vec rest_score = rest_matrix.col (variable);                    // rest scores for all persons
-    arma::vec bound = num_cats * rest_score;                                  // numerical bound vector
+    arma::vec residual_score = residual_matrix.col (variable);                    // rest scores for all persons
+    arma::vec bound = num_cats * residual_score;                                  // numerical bound vector
     bound = arma::clamp(bound, 0.0, arma::datum::inf);                        // only positive bounds to prevent overflow
 
     arma::vec denom;
     if (is_ordinal_variable(variable)) {
       denom = arma::exp (-bound);                                     // initialize with base term
-      arma::vec threshold_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // threshold parameters for variable
+      arma::vec main_effect_param = main_effects.row (variable).cols (0, num_cats - 1).t ();   // main_effect parameters for variable
       for (int cat = 0; cat < num_cats; cat++) {
-        arma::vec exponent = threshold_param(cat) + (cat + 1) * rest_score - bound; // exponent per person
+        arma::vec exponent = main_effect_param(cat) + (cat + 1) * residual_score - bound; // exponent per person
         denom += arma::exp (exponent);                                          // accumulate exp terms
       }
     } else {
       const double lin_effect = main_effects(variable, 0);
       const double quad_effect = main_effects(variable, 1);
-      const int ref = reference_category(variable);
+      const int ref = baseline_category(variable);
 
       denom.zeros(num_persons);
       for (int cat = 0; cat <= num_cats; cat++) {
         int centered = cat - ref;                                               // centered category
         double quad = quad_effect * centered * centered;                    // precompute quadratic term
         double lin = lin_effect * cat;                                      // precompute linear term
-        arma::vec exponent = lin + quad + cat * rest_score - bound;
+        arma::vec exponent = lin + quad + cat * residual_score - bound;
         denom += arma::exp (exponent);                                           // accumulate over categories
       }
     }
@@ -321,31 +347,42 @@ double log_pseudoposterior (
 
 
 /**
- * Function: gradient_log_pseudoposterior
+ * Computes the gradient of the log-pseudoposterior with respect to all parameters (bgm model).
  *
- * Computes the full gradient of the log pseudo-posterior with respect to
- * all model parameters (main and pairwise effects).
+ * The gradient is assembled for both main-effect and pairwise-effect parameters in the same
+ * order as produced by `vectorize_model_parameters_bgm()`. It is used in gradient-based
+ * samplers such as HMC and NUTS.
  *
- * The gradient is computed as the difference between observed and expected
- * sufficient statistics, plus the gradient from prior terms.
+ * Gradient components:
+ *  - Observed sufficient statistics (from counts_per_category, blume_capel_stats, pairwise_stats).
+ *  - Minus expected sufficient statistics (computed via probabilities over categories).
+ *  - Plus gradient contributions from priors:
+ *    * Beta priors on main effects.
+ *    * Cauchy priors on pairwise effects.
  *
  * Inputs:
- *  - main_effects: Matrix of threshold parameters.
- *  - pairwise_effects: Matrix of interaction weights.
- *  - inclusion_indicator: Binary matrix indicating active pairwise terms.
- *  - observations: Matrix of observed scores per variable.
- *  - num_categories: Vector of category counts per variable.
- *  - num_obs_categories: Observed counts of each category per variable.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel main effects.
- *  - reference_category: Reference categories per variable (BC variables).
- *  - is_ordinal_variable: Logical vector for ordinal variables.
- *  - main_alpha, main_beta: Beta prior parameters for main effects.
- *  - interaction_scale: Scale of the Cauchy prior on interactions.
- *  - sufficient_pairwise: Sufficient statistics for pairwise effects.
- *  - rest_matrix: Residual predictor matrix for likelihood computation.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - pairwise_effects: Symmetric matrix of pairwise interaction strengths.
+ *  - inclusion_indicator: Symmetric binary matrix of active pairwise effects.
+ *  - observations: Matrix of categorical observations (persons × variables).
+ *  - num_categories: Number of categories per variable.
+ *  - counts_per_category: Category counts per variable (for ordinal variables).
+ *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - main_alpha, main_beta: Hyperparameters for Beta priors.
+ *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_stats: Sufficient statistics for pairwise effects.
+ *  - residual_matrix: Matrix of residual scores (persons × variables).
  *
  * Returns:
- *  - Gradient vector corresponding to all parameters (main + interactions).
+ *  - A vector containing the gradient of the log-pseudoposterior with respect to
+ *    all main and active pairwise parameters.
+ *
+ * Notes:
+ *  - The gradient is aligned with the parameter layout of `vectorize_model_parameters_bgm()`.
+ *  - For ordinal variables, expected sufficient statistics include a baseline (0-category).
+ *  - Numerical stability is enforced by bounding exponentials with nonnegative terms.
  */
 arma::vec gradient_log_pseudoposterior (
     const arma::mat& main_effects,
@@ -353,15 +390,15 @@ arma::vec gradient_log_pseudoposterior (
     const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
+    const arma::imat& pairwise_stats,
+    const arma::mat& residual_matrix
 ) {
   const int num_variables = observations.n_cols;
   const int num_persons = observations.n_rows;
@@ -389,12 +426,12 @@ arma::vec gradient_log_pseudoposterior (
     if (is_ordinal_variable(variable)) {
       const int num_cats = num_categories(variable);
       for (int cat = 0; cat < num_cats; cat++) {
-        gradient(offset + cat) = num_obs_categories(cat + 1, variable);
+        gradient(offset + cat) = counts_per_category(cat + 1, variable);
       }
       offset += num_cats;
     } else {
-      gradient(offset) = sufficient_blume_capel(0, variable);
-      gradient(offset + 1) = sufficient_blume_capel(1, variable);
+      gradient(offset) = blume_capel_stats(0, variable);
+      gradient(offset + 1) = blume_capel_stats(1, variable);
       offset += 2;
     }
   }
@@ -403,7 +440,7 @@ arma::vec gradient_log_pseudoposterior (
       if (inclusion_indicator(var1, var2) == 0)
         continue;
       int location = index_matrix(var1, var2);
-      gradient(location) = 2.0 * sufficient_pairwise(var1, var2);
+      gradient(location) = 2.0 * pairwise_stats(var1, var2);
     }
   }
 
@@ -411,17 +448,17 @@ arma::vec gradient_log_pseudoposterior (
   offset = 0;
   for (int variable = 0; variable < num_variables; variable++) {
     const int num_cats = num_categories(variable);
-    arma::vec rest_score = rest_matrix.col(variable);
-    arma::vec bound = num_cats * rest_score;
+    arma::vec residual_score = residual_matrix.col(variable);
+    arma::vec bound = num_cats * residual_score;
     bound = arma::clamp(bound, 0.0, arma::datum::inf);
 
     if (is_ordinal_variable(variable)) {
-      arma::vec threshold_param = main_effects.row(variable).cols(0, num_cats - 1).t();
-      bound += threshold_param.max();
+      arma::vec main_effect_param = main_effects.row(variable).cols(0, num_cats - 1).t();
+      bound += main_effect_param.max();
 
       arma::mat exponents(num_persons, num_cats);
       for (int cat = 0; cat < num_cats; cat++) {
-        exponents.col(cat) = threshold_param(cat) + (cat + 1) * rest_score - bound;
+        exponents.col(cat) = main_effect_param(cat) + (cat + 1) * residual_score - bound;
       }
 
       arma::mat probs = arma::exp (exponents);
@@ -448,7 +485,7 @@ arma::vec gradient_log_pseudoposterior (
 
       offset += num_cats;
     } else {
-      const int ref = reference_category(variable);
+      const int ref = baseline_category(variable);
       const double lin_effect = main_effects(variable, 0);
       const double quad_effect = main_effects(variable, 1);
 
@@ -458,7 +495,7 @@ arma::vec gradient_log_pseudoposterior (
         int centered = score - ref;
         double lin = lin_effect * score;
         double quad = quad_effect * centered * centered;
-        exponents.col(cat) = lin + quad + score * rest_score - bound;
+        exponents.col(cat) = lin + quad + score * residual_score - bound;
       }
       arma::mat probs = arma::exp (exponents);
       arma::vec denom = arma::sum(probs, 1);
@@ -499,8 +536,8 @@ arma::vec gradient_log_pseudoposterior (
       offset += num_cats;
     } else {
       for (int i = 0; i < 2; i++) {
-        const double threshold_param = main_effects(variable, i);
-        const double p = 1.0 / (1.0 + std::exp (-threshold_param));
+        const double main_effect_param = main_effects(variable, i);
+        const double p = 1.0 / (1.0 + std::exp (-main_effect_param));
         gradient(offset + i) += main_alpha - (main_alpha + main_beta) * p;
       }
       offset += 2;
@@ -524,31 +561,35 @@ arma::vec gradient_log_pseudoposterior (
 
 
 /**
- * Function: gradient_log_pseudoposterior_active
+ * Computes the gradient of the log-pseudoposterior restricted to active parameters (bgm model).
  *
- * Computes a compressed gradient of the log pseudo-posterior, containing only
- * the active (included) pairwise effects and all main effects.
- *
- * This function extracts the relevant subset of the full gradient for use
- * in optimization or sampling where inactive parameters are not updated.
+ * This function first computes the full gradient using `gradient_log_pseudoposterior()`,
+ * then compresses it to match the parameter layout of
+ * `vectorize_model_parameters_bgm()`: all main effects, followed by only the
+ * pairwise effects marked as active in the inclusion indicator.
  *
  * Inputs:
- *  - main_effects: Matrix of threshold parameters.
- *  - pairwise_effects: Matrix of interaction weights.
- *  - inclusion_indicator: Matrix indicating which interactions are active.
- *  - observations: Matrix of categorical data.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - pairwise_effects: Symmetric matrix of pairwise interaction strengths.
+ *  - inclusion_indicator: Symmetric binary matrix of active pairwise effects.
+ *  - observations: Matrix of categorical observations (persons × variables).
  *  - num_categories: Number of categories per variable.
- *  - num_obs_categories: Observed count matrix.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
- *  - reference_category: Reference category index per variable.
- *  - is_ordinal_variable: Logical vector of ordinal variable flags.
- *  - main_alpha, main_beta: Prior parameters for main effects.
- *  - interaction_scale: Cauchy scale for interaction prior.
- *  - sufficient_pairwise: Sufficient statistics for interactions.
- *  - rest_matrix: Matrix of residual predictor terms.
+ *  - counts_per_category: Category counts per variable (for ordinal variables).
+ *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - main_alpha, main_beta: Hyperparameters for Beta priors.
+ *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_stats: Sufficient statistics for pairwise effects.
+ *  - residual_matrix: Matrix of residual scores (persons × variables).
  *
  * Returns:
- *  - Vector of active parameter gradients (main effects + included interactions).
+ *  - A vector containing the gradient for main effects and active pairwise effects only.
+ *
+ * Notes:
+ *  - The output matches the layout of `vectorize_model_parameters_bgm()`.
+ *  - Useful for gradient-based samplers where inactive pairwise parameters
+ *    are excluded from the state space.
  */
 arma::vec gradient_log_pseudoposterior_active (
     const arma::mat& main_effects,
@@ -556,23 +597,23 @@ arma::vec gradient_log_pseudoposterior_active (
     const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
+    const arma::imat& pairwise_stats,
+    const arma::mat& residual_matrix
 ) {
 
   // Step 1: Reconstruct full parameter matrices
   arma::vec full_gradient = gradient_log_pseudoposterior(
     main_effects, pairwise_effects, inclusion_indicator, observations,
-    num_categories, num_obs_categories, sufficient_blume_capel,
-    reference_category, is_ordinal_variable, main_alpha, main_beta,
-    interaction_scale, sufficient_pairwise, rest_matrix
+    num_categories, counts_per_category, blume_capel_stats,
+    baseline_category, is_ordinal_variable, main_alpha, main_beta,
+    interaction_scale, pairwise_stats, residual_matrix
   );
 
   // Step 2: Extract compressed gradient (same layout as new vectorizer)
@@ -611,29 +652,35 @@ arma::vec gradient_log_pseudoposterior_active (
 
 
 /**
- * Function: compute_log_likelihood_ratio_for_variable
+ * Computes the log-likelihood ratio for updating a single variable’s parameter (bgm model).
  *
- * Computes the log pseudo-likelihood ratio contribution for a single variable,
- * comparing a proposed vs. current interaction value. This is used to evaluate
- * Metropolis-Hastings updates to a pairwise interaction parameter.
+ * The ratio compares the likelihood of the current parameter state versus a proposed state,
+ * given the observed data, main effects, and residual contributions from other variables.
  *
- * The function is vectorized over persons and supports both ordinal and
- * Blume-Capel variables.
+ * Calculation:
+ *  - Removes the current interaction contribution from the residual scores.
+ *  - Recomputes denominators of the softmax likelihood under both current and proposed states.
+ *  - Returns the accumulated log difference across all persons.
  *
  * Inputs:
- *  - variable: Index of the variable whose likelihood contribution is evaluated.
- *  - interacting_score: Vector of category scores for the interacting variable (one per person).
- *  - proposed_state: Proposed interaction value.
- *  - current_state: Current interaction value.
- *  - main_effects: Matrix of threshold parameters [variables × categories].
- *  - num_categories: Vector with number of categories per variable.
- *  - rest_matrix: Current matrix of residual predictors (one column per variable).
- *  - observations: Data matrix of categorical scores (only used for row count).
- *  - is_ordinal_variable: Logical vector (1 if ordinal, 0 if Blume-Capel).
- *  - reference_category: Reference category per variable (for BC variables).
+ *  - variable: Index of the variable being updated.
+ *  - interacting_score: Integer vector of interaction scores with other variables.
+ *  - proposed_state: Candidate value for the parameter being updated.
+ *  - current_state: Current value of the parameter.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - num_categories: Number of categories per variable.
+ *  - residual_matrix: Matrix of residual scores (persons × variables).
+ *  - observations: Matrix of categorical observations (persons × variables).
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - baseline_category: Reference categories for Blume–Capel variables.
  *
  * Returns:
- *  - The total log pseudo-likelihood ratio for the given variable, summed over all persons.
+ *  - The log-likelihood ratio (current − proposed) for the specified variable.
+ *
+ * Notes:
+ *  - For ordinal variables, the likelihood includes thresholds and category-specific scores.
+ *  - For Blume–Capel variables, linear and quadratic terms are applied with centered categories.
+ *  - Bounds are used to stabilize exponentials in the softmax denominator.
  */
 double compute_log_likelihood_ratio_for_variable (
     int variable,
@@ -642,22 +689,22 @@ double compute_log_likelihood_ratio_for_variable (
     double current_state,
     const arma::mat& main_effects,
     const arma::ivec& num_categories,
-    const arma::mat& rest_matrix,
+    const arma::mat& residual_matrix,
     const arma::imat& observations,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category
+    const arma::ivec& baseline_category
 ) {
   // Convert interaction score vector to double precision
   arma::vec interaction = arma::conv_to<arma::vec>::from (interacting_score);
 
-  const int num_persons = rest_matrix.n_rows;
+  const int num_persons = residual_matrix.n_rows;
   const int num_categories_var = num_categories (variable);
 
   // Compute adjusted linear predictors without the current interaction
-  arma::vec rest_scores = rest_matrix.col (variable) - interaction * current_state;
+  arma::vec residual_scores = residual_matrix.col (variable) - interaction * current_state;
 
   // Stability bound for softmax (scaled by number of categories)
-  arma::vec bounds = arma::max (rest_scores, arma::zeros<arma::vec> (num_persons)) * num_categories_var;
+  arma::vec bounds = arma::max (residual_scores, arma::zeros<arma::vec> (num_persons)) * num_categories_var;
 
   arma::vec denom_current = arma::zeros (num_persons);
   arma::vec denom_proposed = arma::zeros (num_persons);
@@ -671,7 +718,7 @@ double compute_log_likelihood_ratio_for_variable (
       const int score = category + 1;
 
       for (int person = 0; person < num_persons; person++) {
-        const double base = main + score * rest_scores[person] - bounds[person];
+        const double base = main + score * residual_scores[person] - bounds[person];
 
         const double exp_current = std::exp(base + score * interaction[person] * current_state);
         const double exp_proposed = std::exp(base + score * interaction[person] * proposed_state);
@@ -680,52 +727,15 @@ double compute_log_likelihood_ratio_for_variable (
         denom_proposed[person] += exp_proposed;
       }
     }
-
-    // Vectorized version (= slower?):
-    // denom_current += arma::exp (-bounds);
-    // denom_proposed += arma::exp (-bounds);
-    //
-    // for (int category = 0; category < num_categories_var; category++) {
-    //   arma::vec exponent = main_effects (variable, category) + (category + 1) * rest_scores;
-    //   denom_current += arma::exp (exponent + (category + 1) * interaction * current_state - bounds);
-    //   denom_proposed += arma::exp (exponent + (category + 1) * interaction * proposed_state - bounds);
-    // }
-
-    // ----- Version with minimal exp calls -----
-    // arma::vec base_current  = arma::exp(interaction * current_state);
-    // arma::vec base_proposed = arma::exp(interaction * proposed_state);
-    //
-    // arma::vec e_accum_current  = base_current;
-    // arma::vec e_accum_proposed = base_proposed;
-    //
-    // arma::vec exp_bounds = arma::exp(-bounds);
-    // arma::vec exp_rest   = arma::exp(rest_scores);
-    // arma::vec er_accum   = exp_rest;
-    //
-    // denom_current  += exp_bounds;
-    // denom_proposed += exp_bounds;
-    //
-    // for (int category = 0; category < num_categories_var; category++) {
-    //   const double em    = std::exp(main_effects(variable, category));
-    //   for (int person = 0; person < num_persons; person++) {
-    //     double w_common = em * er_accum[person] * exp_bounds[person];
-    //     denom_current[person]  += w_common * e_accum_current[person];
-    //     denom_proposed[person] += w_common * e_accum_proposed[person];
-    //     er_accum[person]        *= exp_rest[person];
-    //     e_accum_current[person] *= base_current[person];
-    //     e_accum_proposed[person] *= base_proposed[person];
-    //   }
-    // }
-
   } else {
     // Binary or categorical variable: linear + quadratic score
-    const int ref_cat = reference_category (variable);
+    const int ref_cat = baseline_category (variable);
 
     for (int category = 0; category <= num_categories_var; category++) {
       int centered = category - ref_cat;
       double lin_term = main_effects (variable, 0) * category;
       double quad_term = main_effects (variable, 1) * centered * centered;
-      arma::vec exponent = lin_term + quad_term + category * rest_scores - bounds;
+      arma::vec exponent = lin_term + quad_term + category * residual_scores - bounds;
 
       denom_current += arma::exp (exponent + category * interaction * current_state);
       denom_proposed += arma::exp (exponent + category * interaction * proposed_state);
@@ -739,32 +749,39 @@ double compute_log_likelihood_ratio_for_variable (
 
 
 /**
- * Function: log_pseudolikelihood_ratio_interaction
+ * Computes the log-pseudolikelihood ratio for updating a single pairwise interaction (bgm model).
  *
- * Computes the change in log pseudo-likelihood when a pairwise interaction parameter
- * between two variables is updated from a current value to a proposed value.
+ * The ratio compares the pseudo-likelihood under a proposed value versus the current value
+ * of an interaction parameter between two variables.
  *
- * This function evaluates:
- *  1. The direct contribution of the interaction to the joint linear predictor.
- *  2. The change in pseudo-likelihood for each affected variable (via softmax terms),
- *     accounting for the influence of the interaction on their respective rest scores.
+ * Calculation:
+ *  1. Direct contribution from the interaction term:
+ *       Δβ × ∑(score_var1 × score_var2) over all persons,
+ *     where Δβ = proposed_state − current_state.
+ *  2. Change in pseudo-likelihood for variable1, accounting for its updated interaction with variable2.
+ *  3. Symmetric change in pseudo-likelihood for variable2, accounting for its updated interaction with variable1.
  *
  * Inputs:
- *  - pairwise_effects: Current matrix of pairwise interaction parameters [V × V].
- *  - main_effects: Matrix of main effect (threshold) parameters [V × max_categories].
- *  - observations: Integer matrix of observed category scores [N × V].
- *  - num_categories: Vector of category counts per variable [V].
- *  - num_persons: Number of individuals (rows in the data).
- *  - variable1, variable2: Indices of the two interacting variables (0-based).
- *  - proposed_state: Proposed new interaction weight.
- *  - current_state: Current interaction weight.
- *  - rest_matrix: Matrix of residual linear predictors [N × V].
- *  - is_ordinal_variable: Logical vector indicating whether each variable is ordinal (1) or BC (0).
- *  - reference_category: Vector of reference categories per variable (used for BC variables).
+ *  - pairwise_effects: Symmetric matrix of pairwise interaction parameters.
+ *  - main_effects: Matrix of main-effect parameters (variables × categories).
+ *  - observations: Matrix of categorical observations (persons × variables).
+ *  - num_categories: Number of categories per variable.
+ *  - num_persons: Number of persons (rows of observations).
+ *  - variable1, variable2: Indices of the variable pair being updated.
+ *  - proposed_state: Candidate value for the interaction parameter.
+ *  - current_state: Current value of the interaction parameter.
+ *  - residual_matrix: Matrix of residual scores (persons × variables).
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - pairwise_stats: Sufficient statistics for pairwise counts.
  *
  * Returns:
- *  - The log pseudo-likelihood ratio:
- *      log p(y | β_proposed) - log p(y | β_current)
+ *  - The log-pseudolikelihood ratio (current − proposed) for the specified interaction.
+ *
+ * Notes:
+ *  - Calls `compute_log_likelihood_ratio_for_variable()` for both variables involved.
+ *  - The factor of 2.0 in the direct term reflects symmetry of the pairwise sufficient statistic.
+ *  - Used in Metropolis updates for pairwise interaction parameters.
  */
 double log_pseudolikelihood_ratio_interaction (
     const arma::mat& pairwise_effects,
@@ -776,10 +793,10 @@ double log_pseudolikelihood_ratio_interaction (
     const int variable2,
     const double proposed_state,
     const double current_state,
-    const arma::mat& rest_matrix,
+    const arma::mat& residual_matrix,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
-    const arma::imat& sufficient_pairwise
+    const arma::ivec& baseline_category,
+    const arma::imat& pairwise_stats
 ) {
   double log_ratio = 0.0;
   const double delta = proposed_state - current_state;
@@ -790,20 +807,20 @@ double log_pseudolikelihood_ratio_interaction (
 
   // (1) Direct interaction contribution to the linear predictor:
   //     Δβ × ∑(score1_i × score2_i) for all persons i
-  log_ratio += 2.0 * sufficient_pairwise(variable1, variable2) * delta;
+  log_ratio += 2.0 * pairwise_stats(variable1, variable2) * delta;
 
   // (2) Change in pseudo-likelihood for variable1 due to the update in its interaction with variable2
   log_ratio += compute_log_likelihood_ratio_for_variable (
     variable1, score2, proposed_state, current_state, main_effects,
-    num_categories, rest_matrix, observations, is_ordinal_variable,
-    reference_category
+    num_categories, residual_matrix, observations, is_ordinal_variable,
+    baseline_category
   );
 
   // (3) Symmetric change for variable2 due to its interaction with variable1
   log_ratio += compute_log_likelihood_ratio_for_variable (
     variable2, score1, proposed_state, current_state, main_effects,
-    num_categories, rest_matrix, observations, is_ordinal_variable,
-    reference_category
+    num_categories, residual_matrix, observations, is_ordinal_variable,
+    baseline_category
   );
 
   return log_ratio;

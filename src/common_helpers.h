@@ -1,20 +1,21 @@
 #pragma once
 #include <RcppArmadillo.h>
 
+
+
 /**
- * Function: count_num_main_effects
+ * Count the total number of main-effect parameters across all variables.
  *
- * Computes the total number of main effect (threshold) parameters across variables.
- *
- * Ordinal variables contribute one parameter per category.
- * Blume-Capel variables contribute exactly two parameters.
+ * Each variable contributes:
+ *  - Ordinal variable: `num_categories[v]` parameters (one per category).
+ *  - Blume–Capel variable: always 2 parameters (linear and quadratic terms).
  *
  * Inputs:
- *  - num_categories: Vector of category counts per variable.
- *  - is_ordinal_variable: Logical vector (0 or 1) indicating which variables are ordinal.
+ *  - num_categories: Number of categories per variable [V].
+ *  - is_ordinal_variable: Indicator of whether each variable is ordinal [V].
  *
  * Returns:
- *  - Total number of main effect parameters to estimate.
+ *  - Total number of main-effect parameters (int).
  */
 inline int count_num_main_effects(const arma::ivec& num_categories,
                                   const arma::uvec& is_ordinal_variable) {

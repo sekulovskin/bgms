@@ -17,36 +17,53 @@
 using namespace Rcpp;
 
 
+
 /**
- * Function: impute_missing_data_for_anova_model
- * Purpose: Imputes missing data for independent samples designs by generating new observations
- *          based on the model parameters and pseudo-likelihood.
+ * Imputes missing observations for the bgmCompare model.
+ *
+ * This function performs single imputation of missing values during Gibbs sampling.
+ * Each missing entry is resampled from its conditional distribution given:
+ *   - the current main and pairwise effect parameters,
+ *   - the observed data for that individual,
+ *   - group-specific sufficient statistics.
+ *
+ * Workflow:
+ *  1. For each missing entry, identify its (person, variable, group).
+ *  2. Compute group-specific main and pairwise effects via projections.
+ *  3. Calculate unnormalized probabilities for all categories of the variable:
+ *     - Ordinal: softmax using category-specific thresholds.
+ *     - Blume–Capel: quadratic + linear score with baseline centering.
+ *  4. Sample a new category with inverse transform sampling.
+ *  5. If the imputed value differs from the old one, update:
+ *       - `observations` (raw data matrix),
+ *       - `counts_per_category` or `blume_capel_stats` (main-effect sufficient stats),
+ *       - `pairwise_stats` (pairwise sufficient stats).
  *
  * Inputs:
- *  - main_effects: Numeric matrix of main effects across variables and groups.
- *  - pairwise_effects: Numeric matrix of pairwise interaction effects between variables across groups.
- *  - main_effect_indices: Integer matrix mapping variable indices to main effect parameters.
- *  - pairwise_effect_indices: Integer matrix mapping variable pairs to pairwise interaction parameters.
- *  - projection: Numeric matrix representing group-specific scaling for effects.
- *  - observations: Integer matrix of observed data (individuals x variables), with missing data encoded.
- *  - num_groups: Number of groups in the analysis.
- *  - group_membership: Integer vector mapping individuals to their respective groups.
- *  - num_obs_categories: List of matrices, one per group, recording category frequencies per variable.
- *  - sufficient_blume_capel: List of matrices storing sufficient statistics for Blume-Capel variables.
- *  - num_categories: Integer matrix of category counts for each variable and group.
- *  - residual_matrix: Numeric matrix of residual effects for pseudo-likelihood calculations.
- *  - missing_data_indices: Integer matrix of indices indicating missing observations (row x column pairs).
- *  - is_ordinal_variable: Logical vector indicating whether variables are ordinal.
- *  - baseline_category: Integer vector of reference categories for Blume-Capel variables.
+ *  - main_effects, pairwise_effects: Current parameter matrices.
+ *  - main_effect_indices, pairwise_effect_indices: Lookup tables for variable/pair rows.
+ *  - inclusion_indicator: Indicates which differences/pairs are included.
+ *  - projection: Group projection matrix.
+ *  - observations: Data matrix [persons × variables]; updated in place.
+ *  - num_groups: Number of groups.
+ *  - group_membership: Group assignment for each person.
+ *  - group_indices: Row ranges [start,end] for each group.
+ *  - counts_per_category: Group-level sufficient statistics for ordinal variables.
+ *  - blume_capel_stats: Group-level sufficient statistics for Blume–Capel variables.
+ *  - pairwise_stats: Group-level sufficient statistics for pairwise interactions.
+ *  - num_categories: Number of categories for each variable in each group.
+ *  - missing_data_indices: Matrix of (person, variable) pairs with missing values.
+ *  - is_ordinal_variable: Indicator vector (1 = ordinal, 0 = Blume–Capel).
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - rng: Random number generator.
  *
- * Outputs:
- *  - A List containing:
- *    - `observations`: Updated observation matrix with imputed values.
- *    - `num_obs_categories`: Updated list of category counts per group.
- *    - `sufficient_blume_capel`: Updated sufficient statistics for Blume-Capel variables.
- *    - `residual_matrix`: Updated residual effects matrix.
+ * Notes:
+ *  - The function updates both raw data and sufficient statistics in-place.
+ *  - Group-specific pairwise effects are recomputed per missing entry.
+ *  - For efficiency, you may consider incremental updates to `pairwise_stats`
+ *    instead of full recomputation (`obs.t() * obs`) after each change.
  */
-void impute_missing_data_for_graphical_model(
+void impute_missing_bgmcompare(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -57,9 +74,9 @@ void impute_missing_data_for_graphical_model(
     const int num_groups,
     const arma::ivec& group_membership,
     const arma::imat& group_indices,
-    std::vector<arma::imat>& num_obs_categories,
-    std::vector<arma::imat>& sufficient_blume_capel,
-    std::vector<arma::mat>& sufficient_pairwise,
+    std::vector<arma::imat>& counts_per_category,
+    std::vector<arma::imat>& blume_capel_stats,
+    std::vector<arma::mat>& pairwise_stats,
     const arma::imat& num_categories,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
@@ -72,41 +89,41 @@ void impute_missing_data_for_graphical_model(
 
   arma::vec category_response_probabilities(max_num_categories + 1);
   double exponent, cumsum, u;
-  int score, person, variable, new_observation, old_observation, gr;
+  int score, person, variable, new_observation, old_observation, group;
 
   //Impute missing data
   for(int missing = 0; missing < num_missings; missing++) {
     // Identify the observation to impute
     person = missing_data_indices(missing, 0);
     variable = missing_data_indices(missing, 1);
-    gr = group_membership[person];
+    group = group_membership[person];
 
-    const arma::vec proj_g = projection.row(gr).t();
+    const arma::vec proj_g = projection.row(group).t();
     // Compute thresholds for the variable in the given group
-    arma::vec GroupThresholds = compute_group_main_effects(
+    arma::vec group_main_effects = compute_group_main_effects(
       variable, num_groups, main_effects,  main_effect_indices, proj_g);
 
     // Generate a new observation based on the model
-    arma::mat GroupInteractions(num_variables, num_variables, arma::fill::zeros);
+    arma::mat group_pairwise_effects(num_variables, num_variables, arma::fill::zeros);
     for(int v1 = 0; v1 < num_variables-1; v1++) {
       for(int v2 = v1 + 1; v2 < num_variables; v2++) {
         double w = compute_group_pairwise_effects(
             v1, v2, num_groups, pairwise_effects, pairwise_effect_indices,
             inclusion_indicator, proj_g
         );
-        GroupInteractions(v1, v2) = w;
-        GroupInteractions(v2, v1) = w;
+        group_pairwise_effects(v1, v2) = w;
+        group_pairwise_effects(v2, v1) = w;
       }
     }
 
     double rest_score =
-      arma::as_scalar(observations.row(person) * GroupInteractions.col(variable));
+      arma::as_scalar(observations.row(person) * group_pairwise_effects.col(variable));
     if(is_ordinal_variable[variable] == true) {
       // For regular binary or ordinal variables
       cumsum = 1.0;
       category_response_probabilities[0] = 1.0;
-      for(int category = 1; category <= num_categories(variable, gr); category++) {
-        exponent = GroupThresholds(category - 1);
+      for(int category = 1; category <= num_categories(variable, group); category++) {
+        exponent = group_main_effects(category - 1);
         exponent += category * rest_score;
         cumsum += std::exp(exponent);
         category_response_probabilities[category] = cumsum;
@@ -114,9 +131,9 @@ void impute_missing_data_for_graphical_model(
     } else {
       // For Blume-Capel variables
       cumsum = 0.0;
-      for(int category = 0; category <= num_categories(variable, gr); category++) {
-        exponent = GroupThresholds[0] * category;
-        exponent += GroupThresholds[1] *
+      for(int category = 0; category <= num_categories(variable, group); category++) {
+        exponent = group_main_effects[0] * category;
+        exponent += group_main_effects[1] *
           (category - baseline_category[variable]) *
           (category - baseline_category[variable]);
         exponent += category * rest_score;
@@ -140,31 +157,31 @@ void impute_missing_data_for_graphical_model(
 
       // Update sufficient statistics for main effects
       if(is_ordinal_variable[variable] == true) {
-        arma::imat num_obs_categories_gr = num_obs_categories[gr];
+        arma::imat counts_per_category_group = counts_per_category[group];
         if(old_observation > 0)
-          num_obs_categories_gr(old_observation, variable)--;
+          counts_per_category_group(old_observation, variable)--;
         if(new_observation > 0)
-          num_obs_categories_gr(new_observation, variable)++;
-        num_obs_categories[gr] = num_obs_categories_gr;
+          counts_per_category_group(new_observation, variable)++;
+        counts_per_category[group] = counts_per_category_group;
       } else {
-        arma::imat sufficient_blume_capel_gr = sufficient_blume_capel[gr];
-        sufficient_blume_capel_gr(0, variable) -= old_observation;
-        sufficient_blume_capel_gr(0, variable) += new_observation;
-        sufficient_blume_capel_gr(1, variable) -=
+        arma::imat blume_capel_stats_group = blume_capel_stats[group];
+        blume_capel_stats_group(0, variable) -= old_observation;
+        blume_capel_stats_group(0, variable) += new_observation;
+        blume_capel_stats_group(1, variable) -=
           (old_observation - baseline_category[variable]) *
           (old_observation - baseline_category[variable]);
-        sufficient_blume_capel_gr(1, variable) +=
+        blume_capel_stats_group(1, variable) +=
           (new_observation - baseline_category[variable]) *
           (new_observation - baseline_category[variable]);
-        sufficient_blume_capel[gr] = sufficient_blume_capel_gr;
+        blume_capel_stats[group] = blume_capel_stats_group;
       }
 
       // Update sufficient statistics for pairwise effects
-      const int r0 = group_indices(gr, 0);
-      const int r1 = group_indices(gr, 1);
+      const int r0 = group_indices(group, 0);
+      const int r1 = group_indices(group, 1);
       arma::mat obs = arma::conv_to<arma::mat>::from(observations.rows(r0, r1));
-      arma::mat sufficient_pairwise_gr = obs.t() * obs; // crossprod
-      sufficient_pairwise[gr] = sufficient_pairwise_gr;
+      arma::mat pairwise_stats_group = obs.t() * obs; // crossprod
+      pairwise_stats[group] = pairwise_stats_group;
     }
   }
 
@@ -174,9 +191,58 @@ void impute_missing_data_for_graphical_model(
 
 
 /**
- * Function: update_main_effects_with_metropolis_cmp
+ * Updates main effect parameters in bgmCompare using a random-walk Metropolis step.
+ *
+ * For each variable, the function proposes new parameter values for either:
+ *   - all categories (ordinal variables), or
+ *   - two parameters (linear and quadratic, Blume–Capel variables).
+ *
+ * If group-specific differences are enabled (`inclusion_indicator(v,v) == 1`),
+ * additional parameters (one per group contrast) are also updated.
+ *
+ * Each proposed parameter is evaluated via
+ * `log_pseudoposterior_main_component()`, and accepted/rejected using
+ * the Metropolis–Hastings rule. Proposal standard deviations are adapted
+ * online with `RWMAdaptationController`.
+ *
+ * Workflow:
+ *  1. Iterate over all variables.
+ *  2. For each category (ordinal) or parameter (Blume–Capel):
+ *      - Update the "overall" effect (h=0).
+ *      - Optionally update group-difference effects (h=1..G-1).
+ *  3. Record acceptance probabilities and update adaptation statistics.
+ *
+ * Inputs:
+ *  - main_effects: Matrix of main effect parameters [rows = effects, cols = groups];
+ *                  updated in place.
+ *  - pairwise_effects: Current pairwise effects (passed through to log posterior).
+ *  - main_effect_indices: Row index ranges for each variable’s main effects.
+ *  - pairwise_effect_indices: Index map for pairwise effects.
+ *  - inclusion_indicator: Indicator matrix; diagonal entries control group differences.
+ *  - projection: Group projection matrix.
+ *  - num_categories: Number of categories for each variable.
+ *  - observations: Data matrix [persons × variables].
+ *  - num_groups: Number of groups (G).
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - counts_per_category, blume_capel_stats: Group-specific sufficient statistics.
+ *  - is_ordinal_variable: Indicator for ordinal vs. Blume–Capel.
+ *  - baseline_category: Reference categories (Blume–Capel only).
+ *  - difference_scale: Scale parameter for group difference priors.
+ *  - main_alpha, main_beta: Parameters for the Beta prior on main effects.
+ *  - iteration: Current iteration index (for adaptation).
+ *  - rwm_adapt: Adaptation controller for proposal SDs.
+ *  - rng: Random number generator.
+ *  - proposal_sd_main: Proposal standard deviations [same shape as `main_effects`];
+ *                      updated in place.
+ *
+ * Notes:
+ *  - Acceptance probabilities are stored per parameter and fed to `rwm_adapt.update()`.
+ *  - This function does not alter pairwise effects, but passes them into
+ *    the posterior for likelihood consistency.
+ *  - The helper lambda `do_update` encapsulates the proposal/accept/revert loop
+ *    for a single parameter, improving readability.
  */
-void update_main_effects_with_metropolis_cmp (
+void update_main_effects_metropolis_bgmcompare (
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -187,8 +253,8 @@ void update_main_effects_with_metropolis_cmp (
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double difference_scale,
@@ -216,8 +282,8 @@ void update_main_effects_with_metropolis_cmp (
       return log_pseudoposterior_main_component(
         main_effects, pairwise_effects, main_effect_indices,
         pairwise_effect_indices, projection, observations,
-        group_indices, num_categories, num_obs_categories,
-        sufficient_blume_capel, num_groups, inclusion_indicator,
+        group_indices, num_categories, counts_per_category,
+        blume_capel_stats, num_groups, inclusion_indicator,
         is_ordinal_variable, baseline_category,
         main_alpha, main_beta, difference_scale,
         variable, category, par, h
@@ -259,10 +325,59 @@ void update_main_effects_with_metropolis_cmp (
 
 
 
+
 /**
- * Function: update_pairwise_effects_with_metropolis_cmp
+ * Updates pairwise interaction parameters in bgmCompare using a random-walk
+ * Metropolis step.
+ *
+ * For each variable pair (var1,var2), the function proposes new parameter
+ * values for:
+ *   - the overall interaction (h=0), and
+ *   - optionally group-difference effects (h=1..G-1) if enabled in
+ *     `inclusion_indicator`.
+ *
+ * Each proposed parameter is evaluated via
+ * `log_pseudoposterior_pair_component()`, and accepted/rejected using the
+ * Metropolis–Hastings rule. Proposal standard deviations are adapted online
+ * through `RWMAdaptationController`.
+ *
+ * Workflow:
+ *  1. Iterate over all unique pairs of variables.
+ *  2. For each pair, update the overall effect (h=0).
+ *  3. If group differences are active, update group-specific difference
+ *     effects (h=1..G-1).
+ *  4. Record acceptance probabilities and update proposal SDs via `rwm_adapt`.
+ *
+ * Inputs:
+ *  - main_effects: Matrix of main effect parameters (passed through to log posterior).
+ *  - pairwise_effects: Matrix of pairwise interaction parameters [rows = pairs, cols = groups];
+ *                      updated in place.
+ *  - main_effect_indices: Index map for main effects (per variable).
+ *  - pairwise_effect_indices: Row index map for pairwise effects (per var1,var2).
+ *  - inclusion_indicator: Indicator matrix; off-diagonal entries control group differences.
+ *  - projection: Group projection matrix.
+ *  - num_categories: Number of categories per variable.
+ *  - observations: Data matrix [persons × variables].
+ *  - num_groups: Number of groups (G).
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - pairwise_stats: Group-specific sufficient statistics for pairwise effects.
+ *  - is_ordinal_variable: Indicator for ordinal vs. Blume–Capel variables.
+ *  - baseline_category: Reference categories (Blume–Capel only).
+ *  - pairwise_scale: Scale parameter for overall interaction prior.
+ *  - difference_scale: Scale parameter for group difference priors.
+ *  - iteration: Current iteration index (for adaptation).
+ *  - rwm_adapt: Adaptation controller for proposal SDs.
+ *  - rng: Random number generator.
+ *  - proposal_sd_pair: Proposal standard deviations [same shape as `pairwise_effects`];
+ *                      updated in place.
+ *
+ * Notes:
+ *  - Acceptance probabilities are tracked per parameter and fed to
+ *    `rwm_adapt.update()`.
+ *  - The helper lambda `do_update` encapsulates the proposal/accept/reject
+ *    logic for a single parameter.
  */
-void update_pairwise_effects_with_metropolis_cmp (
+void update_pairwise_effects_metropolis_bgmcompare (
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -273,7 +388,7 @@ void update_pairwise_effects_with_metropolis_cmp (
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
@@ -302,7 +417,7 @@ void update_pairwise_effects_with_metropolis_cmp (
       return log_pseudoposterior_pair_component(
         main_effects, pairwise_effects, main_effect_indices,
         pairwise_effect_indices, projection, observations, group_indices,
-        num_categories, sufficient_pairwise, num_groups,
+        num_categories, pairwise_stats, num_groups,
         inclusion_indicator, is_ordinal_variable, baseline_category,
         pairwise_scale, difference_scale, var1, var2, h
       );
@@ -329,45 +444,54 @@ void update_pairwise_effects_with_metropolis_cmp (
 
 
 /**
- * Function: find_reasonable_initial_step_size_cmp
+ * Heuristically determine an initial HMC/NUTS step size for bgmCompare.
  *
- * Heuristically finds a reasonable initial step size for leapfrog-based MCMC algorithms
- * (such as HMC and NUTS), following the procedure described in:
+ * This function vectorizes the current model parameters, then repeatedly
+ * simulates short HMC trajectories to calibrate a stable starting step size
+ * that achieves a target acceptance rate.
  *
- *   Hoffman, M. D., & Gelman, A. (2014). The No-U-Turn Sampler: Adaptively Setting
- *   Path Lengths in Hamiltonian Monte Carlo. Journal of Machine Learning Research, 15, 1593–1623.
- *   [Algorithm 4: Heuristic for Choosing an Initial Value of ε]
- *
- * The algorithm simulates a single leapfrog step and compares the resulting change
- * in the log joint density (Hamiltonian). If the proposal is too likely (acceptance too high),
- * the step size is increased. If it is too unlikely (acceptance too low), it is decreased.
- * The process repeats until the log acceptance probability is approximately −log(2),
- * corresponding to a target acceptance probability of ~0.5.
+ * Workflow:
+ *  1. Vectorize current parameters into a single state vector.
+ *  2. Define closures for log-posterior evaluation and gradient computation:
+ *     - `log_post`: unpacks parameters and evaluates the log pseudoposterior.
+ *     - `grad`: unpacks parameters and evaluates the gradient of the
+ *       pseudoposterior.
+ *  3. Pass these to `heuristic_initial_step_size`, which runs the heuristic
+ *     tuning loop.
  *
  * Inputs:
- *  - main_effects: Matrix of main (threshold) parameters.
- *  - pairwise_effects: Matrix of pairwise interaction parameters.
- *  - inclusion_indicator: Binary matrix indicating active interactions.
- *  - observations: Matrix of categorical scores.
- *  - num_categories: Vector of category counts per variable.
- *  - num_obs_categories: Observed category counts per variable (matrix).
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
- *  - baseline_category: Reference category per variable (for Blume-Capel).
- *  - is_ordinal_variable: Logical vector (1 = ordinal, 0 = Blume-Capel).
- *  - main_alpha, main_beta: Prior hyperparameters for main effects.
- *  - pairwise_scale: Scale of the Cauchy prior on interactions.
- *  - target_acceptance: Desired acceptance probability (typically ~0.65).
- *  - sufficient_pairwise: Sufficient statistics for pairwise interactions.
+ *  - main_effects: Matrix of main-effect parameters [n_main_rows × G].
+ *  - pairwise_effects: Matrix of pairwise interaction parameters [n_pairs × G].
+ *  - main_effect_indices: Row index ranges for each variable’s main effects.
+ *  - pairwise_effect_indices: Row index map for pairwise effects.
+ *  - inclusion_indicator: Matrix marking which main and pairwise differences
+ *                         are active.
+ *  - projection: Group projection matrix (encodes contrasts).
+ *  - num_categories: Number of categories per variable [V].
+ *  - observations: Data matrix [persons × variables].
+ *  - num_groups: Number of groups (G).
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - counts_per_category: Per-group sufficient statistics for ordinal variables.
+ *  - blume_capel_stats: Per-group sufficient statistics for Blume–Capel variables.
+ *  - pairwise_stats: Per-group sufficient statistics for pairwise effects.
+ *  - is_ordinal_variable: Indicator for ordinal vs. Blume–Capel variables [V].
+ *  - baseline_category: Reference categories for Blume–Capel variables [V].
+ *  - pairwise_scale: Scale parameter for overall pairwise priors.
+ *  - difference_scale: Scale parameter for group difference priors.
+ *  - main_alpha, main_beta: Hyperparameters for Beta prior on main effects.
+ *  - target_acceptance: Desired acceptance probability (e.g. 0.8).
+ *  - rng: Random number generator.
  *
  * Returns:
- *  - A scalar step size ε that yields roughly the target acceptance probability
- *    under a single leapfrog step.
+ *  - A double value for the initial HMC/NUTS step size.
  *
- * Note:
- *  - This function is suitable for both NUTS and standard HMC algorithms.
- *  - It is typically called once before warm-up/adaptation.
+ * Notes:
+ *  - This routine is only used during warmup to initialize
+ *    `HMCAdaptationController`.
+ *  - Correct indexing of parameters relies on `build_index_maps` to ensure
+ *    consistency between vectorization and gradient computation.
  */
-double find_reasonable_initial_step_size_cmp(
+double find_initial_stepsize_bgmcompare(
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -378,9 +502,9 @@ double find_reasonable_initial_step_size_cmp(
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
+    const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
@@ -390,7 +514,7 @@ double find_reasonable_initial_step_size_cmp(
     const double target_acceptance,
     SafeRNG& rng
 ) {
-  arma::vec theta = vectorize_model_parameters(
+  arma::vec theta = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator, main_effect_indices,
     pairwise_effect_indices, num_categories, is_ordinal_variable
 
@@ -408,7 +532,7 @@ double find_reasonable_initial_step_size_cmp(
   auto& pair_index = index_maps.second;
 
   auto grad = [&](const arma::vec& theta_vec) {
-    unvectorize_model_parameters(
+    unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
       main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
       is_ordinal_variable
@@ -417,15 +541,15 @@ double find_reasonable_initial_step_size_cmp(
     return gradient(
       current_main, current_pair, main_effect_indices, pairwise_effect_indices,
       projection, observations, group_indices, num_categories,
-      num_obs_categories, sufficient_blume_capel,
-      sufficient_pairwise, num_groups, inclusion_indicator,
+      counts_per_category, blume_capel_stats,
+      pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, difference_scale, main_index, pair_index
     );
   };
 
   auto log_post = [&](const arma::vec& theta_vec) {
-    unvectorize_model_parameters(
+    unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
       main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
       is_ordinal_variable
@@ -434,8 +558,8 @@ double find_reasonable_initial_step_size_cmp(
     return log_pseudoposterior(
       current_main, current_pair, main_effect_indices, pairwise_effect_indices,
       projection, observations, group_indices, num_categories,
-      num_obs_categories, sufficient_blume_capel,
-      sufficient_pairwise, num_groups, inclusion_indicator,
+      counts_per_category, blume_capel_stats,
+      pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, difference_scale
     );
@@ -446,7 +570,53 @@ double find_reasonable_initial_step_size_cmp(
 
 
 
-void update_parameters_with_hmc(
+/**
+ * Perform one Hamiltonian Monte Carlo (HMC) update step for the bgmCompare model.
+ *
+ * The function:
+ *  1. Vectorizes the current parameter state (main + pairwise effects).
+ *  2. Defines closures for log-posterior evaluation and gradient calculation.
+ *  3. Applies HMC with fixed leapfrog steps to propose a new state.
+ *  4. Unpacks the accepted state back into main and pairwise matrices.
+ *  5. Updates the adaptation controller with acceptance information.
+ *
+ * Inputs:
+ *  - main_effects, pairwise_effects: Current parameter matrices, updated in place.
+ *  - main_effect_indices, pairwise_effect_indices: Index maps for parameters.
+ *  - inclusion_indicator: Indicates active main and pairwise differences.
+ *  - projection: Group projection matrix for contrasts.
+ *  - num_categories: Number of categories per variable [V].
+ *  - observations: Data matrix [N × V].
+ *  - num_groups: Number of groups.
+ *  - group_indices: Row ranges for each group in `observations`.
+ *  - counts_per_category, blume_capel_stats: Per-group sufficient statistics.
+ *  - pairwise_stats: Per-group pairwise sufficient statistics.
+ *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - pairwise_scale: Scale of overall pairwise prior.
+ *  - difference_scale: Scale of group-difference prior.
+ *  - main_alpha, main_beta: Hyperparameters for main-effect priors.
+ *  - num_leapfrogs: Number of leapfrog steps in the HMC trajectory.
+ *  - iteration: Current sampler iteration (for adaptation scheduling).
+ *  - hmc_adapt: Adaptation controller for step size and mass matrix.
+ *  - learn_mass_matrix: Whether to adapt the mass matrix.
+ *  - selection: If true, restrict mass matrix to active parameters only.
+ *  - rng: Random number generator.
+ *
+ * Side effects:
+ *  - Updates `main_effects` and `pairwise_effects` with the new state.
+ *  - Updates `hmc_adapt` with acceptance probability and diagnostics.
+ *
+ * Returns:
+ *  - None directly; state is updated in place.
+ *
+ * Notes:
+ *  - This variant is specific to bgmCompare, where parameters are stored in
+ *    row-wise structures with possible group-difference columns.
+ *  - Consistency between vectorization, unvectorization, and gradient
+ *    indexing is enforced via `build_index_maps`.
+ */
+void update_hmc_bgmcompare(
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -457,9 +627,9 @@ void update_parameters_with_hmc(
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
+    const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
@@ -473,7 +643,7 @@ void update_parameters_with_hmc(
     const bool selection,
     SafeRNG& rng
 ) {
-  arma::vec current_state = vectorize_model_parameters(
+  arma::vec current_state = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator,
     main_effect_indices, pairwise_effect_indices, num_categories,
     is_ordinal_variable
@@ -492,7 +662,7 @@ void update_parameters_with_hmc(
   auto& pair_index = index_maps.second;
 
   auto grad = [&](const arma::vec& theta_vec) {
-    unvectorize_model_parameters(
+    unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
       main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
       is_ordinal_variable
@@ -501,15 +671,15 @@ void update_parameters_with_hmc(
     return gradient(
       current_main, current_pair, main_effect_indices, pairwise_effect_indices,
       projection, observations, group_indices, num_categories,
-      num_obs_categories, sufficient_blume_capel,
-      sufficient_pairwise, num_groups, inclusion_indicator,
+      counts_per_category, blume_capel_stats,
+      pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, difference_scale, main_index, pair_index
     );
   };
 
   auto log_post = [&](const arma::vec& theta_vec) {
-    unvectorize_model_parameters(
+    unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
       main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
       is_ordinal_variable
@@ -518,8 +688,8 @@ void update_parameters_with_hmc(
     return log_pseudoposterior(
       current_main, current_pair, main_effect_indices, pairwise_effect_indices,
       projection, observations, group_indices, num_categories,
-      num_obs_categories, sufficient_blume_capel,
-      sufficient_pairwise, num_groups, inclusion_indicator,
+      counts_per_category, blume_capel_stats,
+      pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, difference_scale
     );
@@ -538,7 +708,7 @@ void update_parameters_with_hmc(
   );
 
   current_state = result.state;
-  unvectorize_model_parameters(
+  unvectorize_model_parameters_bgmcompare(
     current_state, main_effects, pairwise_effects, inclusion_indicator,
     main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
     is_ordinal_variable
@@ -550,39 +720,51 @@ void update_parameters_with_hmc(
 
 
 /**
- * Function: update_parameters_with_nuts
+ * Perform one No-U-Turn Sampler (NUTS) update step for the bgmCompare model.
  *
- * Performs one update of the main and pairwise effect parameters using
- * the No-U-Turn Sampler (NUTS), with centralized step size and mass matrix adaptation.
- *
- * Step size and mass matrix adaptation are handled via the HMCAdaptationController,
- * which manages warmup phases and dual averaging internally.
+ * The function:
+ *  1. Vectorizes the current parameter state (main + pairwise effects).
+ *  2. Defines closures for log-posterior evaluation and gradient calculation.
+ *  3. Runs a NUTS trajectory (adaptive tree-based extension of HMC).
+ *  4. Unpacks the accepted state back into main and pairwise matrices.
+ *  5. Updates the adaptation controller with acceptance probability.
  *
  * Inputs:
- *  - main_effects: Matrix of threshold parameters (updated in-place).
- *  - pairwise_effects: Matrix of interaction parameters (updated in-place).
- *  - inclusion_indicator: Binary matrix indicating which interactions are active.
- *  - observations: Matrix of categorical observations.
- *  - num_categories: Vector of category counts per variable.
- *  - num_obs_categories: Matrix of observed category counts.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel thresholds.
- *  - sufficient_pairwise: Sufficient statistics for pairwise terms.
- *  - baseline_category: Reference category per variable.
- *  - is_ordinal_variable: Logical vector indicating ordinal vs. Blume-Capel (1 = ordinal).
- *  - main_alpha, main_beta: Hyperparameters for main effect priors.
- *  - pairwise_scale: Scale parameter for the Cauchy prior on interactions.
- *  - sufficient_pairwise: Sufficient statistics for pairwise interactions.
- *  - rest_matrix: Matrix of residual scores (observations × variables), updated in-place.
- *  - nuts_max_depth: Maximum tree depth for the NUTS trajectory expansion.
- *  - iteration: Current iteration number.
- *  - adapt: Adaptation controller (step size + mass matrix).
+ *  - main_effects, pairwise_effects: Current parameter matrices, updated in place.
+ *  - main_effect_indices, pairwise_effect_indices: Index maps for parameters.
+ *  - inclusion_indicator: Indicates active main and pairwise differences.
+ *  - projection: Group projection matrix for contrasts.
+ *  - num_categories: Number of categories per variable [V].
+ *  - observations: Data matrix [N × V].
+ *  - num_groups: Number of groups.
+ *  - group_indices: Row ranges for each group in `observations`.
+ *  - counts_per_category, blume_capel_stats: Per-group sufficient statistics.
+ *  - pairwise_stats: Per-group pairwise sufficient statistics.
+ *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - pairwise_scale: Scale of overall pairwise prior.
+ *  - difference_scale: Scale of group-difference prior.
+ *  - main_alpha, main_beta: Hyperparameters for main-effect priors.
+ *  - nuts_max_depth: Maximum tree depth for NUTS doubling procedure.
+ *  - iteration: Current sampler iteration (for adaptation scheduling).
+ *  - hmc_adapt: Adaptation controller for step size and mass matrix.
+ *  - learn_mass_matrix: Whether to adapt the mass matrix (unused inside NUTS but relevant to controller).
+ *  - selection: If true, restrict mass matrix to active parameters only.
+ *  - rng: Random number generator.
  *
- * Modifies (in-place):
- *  - main_effects, pairwise_effects: Updated if NUTS proposal is accepted.
- *  - rest_matrix: Recomputed from the updated pairwise_effects.
- *  - adapt: Updated with step size and mass matrix changes if within warmup.
+ * Returns:
+ *  - A `SamplerResult` containing the accepted state and diagnostics
+ *    (e.g. tree depth, divergences, energy).
+ *
+ * Notes:
+ *  - This variant is specific to bgmCompare, where parameters are stored in
+ *    row-wise structures with group-difference columns.
+ *  - Consistency between vectorization, unvectorization, and gradient
+ *    indexing is enforced via `build_index_maps`.
+ *  - Diagnostics from the returned `SamplerResult` can be used to monitor
+ *    sampler stability (e.g. divergences, tree depth).
  */
-SamplerResult update_parameters_with_nuts(
+SamplerResult update_nuts_bgmcompare(
     arma::mat& main_effects,
     arma::mat& pairwise_effects,
     const arma::imat& main_effect_indices,
@@ -593,9 +775,9 @@ SamplerResult update_parameters_with_nuts(
     const arma::imat& observations,
     const int num_groups,
     const arma::imat& group_indices,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
+    const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
@@ -609,7 +791,7 @@ SamplerResult update_parameters_with_nuts(
     const bool selection,
     SafeRNG& rng
 ) {
-  arma::vec current_state = vectorize_model_parameters(
+  arma::vec current_state = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator,
     main_effect_indices, pairwise_effect_indices, num_categories,
     is_ordinal_variable
@@ -628,7 +810,7 @@ SamplerResult update_parameters_with_nuts(
   auto& pair_index = index_maps.second;
 
   auto grad = [&](const arma::vec& theta_vec) {
-    unvectorize_model_parameters(
+    unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
       main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
       is_ordinal_variable
@@ -637,15 +819,15 @@ SamplerResult update_parameters_with_nuts(
     return gradient(
       current_main, current_pair, main_effect_indices, pairwise_effect_indices,
       projection, observations, group_indices, num_categories,
-      num_obs_categories, sufficient_blume_capel,
-      sufficient_pairwise, num_groups, inclusion_indicator,
+      counts_per_category, blume_capel_stats,
+      pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, difference_scale, main_index, pair_index
     );
   };
 
   auto log_post = [&](const arma::vec& theta_vec) {
-    unvectorize_model_parameters(
+    unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
       main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
       is_ordinal_variable
@@ -654,8 +836,8 @@ SamplerResult update_parameters_with_nuts(
     return log_pseudoposterior(
       current_main, current_pair, main_effect_indices, pairwise_effect_indices,
       projection, observations, group_indices, num_categories,
-      num_obs_categories, sufficient_blume_capel,
-      sufficient_pairwise, num_groups, inclusion_indicator,
+      counts_per_category, blume_capel_stats,
+      pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, difference_scale
     );
@@ -674,7 +856,7 @@ SamplerResult update_parameters_with_nuts(
   );
 
   current_state = result.state;
-  unvectorize_model_parameters(
+  unvectorize_model_parameters_bgmcompare(
     current_state, main_effects, pairwise_effects, inclusion_indicator,
     main_effect_indices, pairwise_effect_indices, num_groups, num_categories,
     is_ordinal_variable
@@ -687,7 +869,56 @@ SamplerResult update_parameters_with_nuts(
 
 
 
-void tune_proposal_sd(
+/**
+ * Adapt proposal standard deviations (SDs) for main and pairwise effects
+ * during the warmup phase of the bgmCompare sampler.
+ *
+ * This function uses a Robbins–Monro stochastic approximation scheme to
+ * adjust proposal SDs toward a target acceptance rate. Adaptation occurs
+ * only when permitted by the current warmup schedule.
+ *
+ * Workflow:
+ *  1. For each main effect parameter (ordinal or Blume–Capel), run one
+ *     random-walk Metropolis (RWM) step, update the parameter, and adjust
+ *     the proposal SD.
+ *  2. For each pairwise effect parameter (overall and group differences),
+ *     do the same.
+ *  3. Proposal SDs are updated symmetrically across group columns if
+ *     differences are included.
+ *
+ * Inputs:
+ *  - proposal_sd_main_effects: Current SDs for main effects, updated in place.
+ *  - proposal_sd_pairwise_effects: Current SDs for pairwise effects, updated in place.
+ *  - main_effects, pairwise_effects: Parameter matrices, updated in place.
+ *  - main_effect_indices, pairwise_effect_indices: Index maps for main/pairwise parameters.
+ *  - inclusion_indicator: Marks which group differences are active.
+ *  - projection: Group projection matrix.
+ *  - num_categories: Categories per variable.
+ *  - observations: Data matrix [N × V].
+ *  - num_groups: Number of groups.
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - counts_per_category, blume_capel_stats: Per-group sufficient statistics for main effects.
+ *  - pairwise_stats: Per-group sufficient statistics for pairwise effects.
+ *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables.
+ *  - baseline_category: Reference category for Blume–Capel variables.
+ *  - pairwise_scale: Scale of Cauchy prior for pairwise effects.
+ *  - difference_scale: Scale of Cauchy prior for group differences.
+ *  - main_alpha, main_beta: Hyperparameters for Beta prior on main effects.
+ *  - iteration: Current iteration (to check schedule stage).
+ *  - rng: Random number generator.
+ *  - sched: Warmup schedule controlling when adaptation is active.
+ *  - target_accept: Desired acceptance probability (default 0.44).
+ *  - rm_decay: Robbins–Monro decay rate (default 0.75).
+ *
+ * Side effects:
+ *  - Updates `main_effects` and `pairwise_effects` with new parameter values.
+ *  - Updates `proposal_sd_main_effects` and `proposal_sd_pairwise_effects`.
+ *
+ * Notes:
+ *  - Adapts only when `sched.adapt_proposal_sd(iteration)` is true.
+ *  - Helps stabilize RWM acceptance rates before switching to sampling.
+ */
+void tune_proposal_sd_bgmcompare(
     arma::mat& proposal_sd_main_effects,
     arma::mat& proposal_sd_pairwise_effects,
     arma::mat& main_effects,
@@ -700,9 +931,9 @@ void tune_proposal_sd(
     const arma::imat& observations,
     int num_groups,
     const arma::imat& group_indices,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
+    const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     double pairwise_scale,
@@ -744,7 +975,7 @@ void tune_proposal_sd(
               main_effects, pairwise_effects,
               main_effect_indices, pairwise_effect_indices,
               projection, observations, group_indices,
-              num_categories, num_obs_categories, sufficient_blume_capel,
+              num_categories, counts_per_category, blume_capel_stats,
               num_groups, inclusion_indicator, is_ordinal_variable,
               baseline_category, main_alpha, main_beta, difference_scale,
               var, c, -1, h
@@ -772,7 +1003,7 @@ void tune_proposal_sd(
               main_effects, pairwise_effects,
               main_effect_indices, pairwise_effect_indices,
               projection, observations, group_indices,
-              num_categories, num_obs_categories, sufficient_blume_capel,
+              num_categories, counts_per_category, blume_capel_stats,
               num_groups, inclusion_indicator, is_ordinal_variable,
               baseline_category, main_alpha, main_beta, difference_scale,
               var, -1, par, h
@@ -806,7 +1037,7 @@ void tune_proposal_sd(
             main_effects, pairwise_effects,
             main_effect_indices, pairwise_effect_indices,
             projection, observations, group_indices,
-            num_categories, sufficient_pairwise, num_groups,
+            num_categories, pairwise_stats, num_groups,
             inclusion_indicator, is_ordinal_variable, baseline_category,
             pairwise_scale, difference_scale, v1, v2, h
           );
@@ -824,7 +1055,56 @@ void tune_proposal_sd(
 
 
 
-void update_indicator_parameter_pair_with_metropolis (
+/**
+ * Metropolis–Hastings updates for difference-inclusion indicators in bgmCompare.
+ *
+ * This function toggles whether group-level differences are included for
+ * main effects (diagonal entries of `inclusion_indicator`) and pairwise
+ * effects (off-diagonal entries). Each update proposes either:
+ *  - Turning a currently excluded difference “on” by drawing a new non-zero
+ *    value from a Gaussian proposal, or
+ *  - Turning an included difference “off” by setting its value(s) to zero.
+ *
+ * The acceptance probability combines:
+ *  - Pseudolikelihood ratio (data contribution),
+ *  - Prior ratio on inclusion indicators,
+ *  - Prior ratio on parameter values (Cauchy vs. point-mass-at-zero),
+ *  - Proposal density correction.
+ *
+ * Inputs:
+ *  - inclusion_probability_difference: Prior inclusion probabilities for
+ *    group differences [V × V].
+ *  - index: Matrix mapping pairwise interactions to variable indices.
+ *  - main_effects, pairwise_effects: Parameter matrices, updated in place.
+ *  - main_effect_indices, pairwise_effect_indices: Index maps for parameters.
+ *  - projection: Group projection matrix.
+ *  - observations: Data matrix [N × V].
+ *  - num_groups: Number of groups.
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - num_categories: Categories per variable [V × G].
+ *  - inclusion_indicator: Indicator matrix for differences, updated in place.
+ *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables [V].
+ *  - baseline_category: Reference category for Blume–Capel variables [V].
+ *  - proposal_sd_main, proposal_sd_pairwise: Proposal SD matrices for main
+ *    and pairwise effects.
+ *  - difference_scale: Scale of Cauchy prior for group differences.
+ *  - counts_per_category, blume_capel_stats: Per-group sufficient statistics
+ *    for main effects.
+ *  - pairwise_stats: Per-group sufficient statistics for pairwise effects.
+ *  - rng: Random number generator.
+ *
+ * Side effects:
+ *  - Updates `inclusion_indicator` entries for main/pairwise differences.
+ *  - Updates corresponding slices of `main_effects` and `pairwise_effects`.
+ *
+ * Notes:
+ *  - For main effects, differences correspond to columns 1..G-1 of the
+ *    parameter matrix.
+ *  - For pairwise effects, differences correspond to columns 1..G-1 of the
+ *    pairwise-effect matrix rows.
+ *  - Ensures symmetry of `inclusion_indicator` for pairwise updates.
+ */
+void update_indicator_differences_metropolis_bgmcompare (
     const arma::mat& inclusion_probability_difference,
     const arma::imat& index,
     arma::mat& main_effects,
@@ -842,9 +1122,9 @@ void update_indicator_parameter_pair_with_metropolis (
     const arma::mat& proposal_sd_main,
     const double difference_scale,
     const arma::mat& proposal_sd_pairwise,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
+    const std::vector<arma::mat>& pairwise_stats,
     SafeRNG& rng
 ) {
   const int num_variables = observations.n_cols;
@@ -877,8 +1157,8 @@ void update_indicator_parameter_pair_with_metropolis (
     double log_accept = log_pseudolikelihood_ratio_main(
       current_main_effects, proposed_main_effects, pairwise_effects,
       main_effect_indices, pairwise_effect_indices, projection,
-      observations, group_indices, num_categories, num_obs_categories,
-      sufficient_blume_capel, num_groups, inclusion_indicator,
+      observations, group_indices, num_categories, counts_per_category,
+      blume_capel_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, var
     );
 
@@ -956,7 +1236,7 @@ void update_indicator_parameter_pair_with_metropolis (
     double log_accept = log_pseudolikelihood_ratio_pairwise(
       main_effects, current_pairwise_effects, proposed_pairwise_effects,
       main_effect_indices, pairwise_effect_indices, projection, observations,
-      group_indices, num_categories, sufficient_pairwise, num_groups,
+      group_indices, num_categories, pairwise_stats, num_groups,
       inclusion_indicator, is_ordinal_variable, baseline_category, var1, var2
     );
 
@@ -1016,72 +1296,70 @@ void update_indicator_parameter_pair_with_metropolis (
 
 
 /**
- * Performs a single iteration of the Gibbs sampler for graphical model parameters.
+ * Perform one Gibbs update step for the bgmCompare model.
  *
- * This function performs a full Gibbs update sweep over:
- *   1. Inclusion indicators for pairwise interactions (if selection is enabled)
- *   2. Pairwise interaction coefficients (with MALA or adaptive Metropolis)
- *   3. Main effect (threshold) parameters (with MALA, Fisher-MALA, or Metropolis)
+ * This function executes a single iteration of the Gibbs sampler, including:
  *
- * The interaction updates support optional Fisher preconditioning, and the step sizes
- * are adapted using either dual averaging (during burn-in) or Robbins-Monro.
+ *  Step 0: (optional) Initialize graph structure if difference selection
+ *          is enabled and the current iteration marks the start of Stage 3c.
+ *
+ *  Step 1: (optional) Update inclusion indicators for group differences
+ *          (main and pairwise effects) via Metropolis–Hastings proposals.
+ *
+ *  Step 2: Update model parameters according to the selected update method:
+ *    - "adaptive-metropolis": Update main and pairwise effects individually
+ *      with random-walk Metropolis and adaptive proposal SDs.
+ *    - "hamiltonian-mc": Update the full parameter vector using HMC.
+ *    - "nuts": Update the full parameter vector using the No-U-Turn Sampler.
+ *      If past burn-in, store NUTS diagnostics (tree depth, divergences, energy).
+ *
+ *  Step 3: (Stage 3b only) Adapt proposal SDs for Metropolis updates using
+ *          Robbins–Monro tuning.
  *
  * Inputs:
- *  - observations: Matrix of observed categorical scores (persons × variables).
- *  - num_categories: Number of categories for each variable.
- *  - pairwise_scale: Cauchy prior scale for pairwise interaction coefficients.
- *  - proposal_sd_pairwise: Proposal SDs for interaction updates (adaptive Metropolis).
- *  - proposal_sd_main: Proposal SDs for threshold updates (Blume-Capel variables).
- *  - index: List of candidate interaction pairs.
- *  - num_obs_categories: Number of observations per category per variable.
- *  - sufficient_blume_capel: Sufficient statistics for Blume-Capel variables.
- *  - main_alpha, main_beta: Hyperparameters for main effect priors.
- *  - num_persons: Number of observations.
- *  - num_variables: Number of variables.
- *  - num_pair: Number of candidate interaction pairs.
- *  - num_main: Number of main effect parameters.
- *  - inclusion_indicator: Symmetric binary matrix of active interactions (updated).
- *  - pairwise_effects: Symmetric matrix of interaction strengths (updated).
- *  - main_effects: Matrix of threshold parameters (updated).
- *  - rest_matrix: Linear predictor matrix (updated if interaction/main effects change).
- *  - inclusion_probability: Matrix of prior inclusion probabilities.
- *  - rm_decay_rate: Robbins-Monro decay rate (e.g. 0.75).
- *  - is_ordinal_variable: Indicator vector for ordinal variables (1 = ordinal, 0 = Blume-Capel).
- *  - baseline_category: Reference categories for Blume-Capel variables.
- *  - edge_selection: Whether to update inclusion indicators this iteration.
- *  - step_size_main: Step size for MALA threshold updates (updated).
- *  - iteration: Current iteration number (starts at 0).
- *  - dual_averaging_main: Dual averaging state vector for main effect step size (updated).
- *  - total_burnin: Total number of burn-in iterations.
- *  - use_mala: Whether to use MALA (vs. Metropolis) for updates.
- *  - initial_step_size_main: Initial step size for MALA threshold updates.
- *  - sqrt_inv_fisher_main: Square root inverse Fisher matrix for threshold parameters (updated).
- *  - step_size_pairwise: Step size for interaction MALA updates (updated).
- *  - dual_averaging_pairwise: Dual averaging state for interaction step size (updated).
- *  - initial_step_size_pairwise: Initial step size for interaction MALA updates.
- *  - use_fisher_for_interactions: Whether to use Fisher-preconditioned MALA for interactions.
- *  - sqrt_inv_fisher_pairwise: Square root inverse Fisher matrix for interactions (updated).
+ *  - observations: Data matrix [N × V].
+ *  - num_categories: Number of categories per variable [V].
+ *  - pairwise_scale, difference_scale: Prior scale parameters.
+ *  - counts_per_category, blume_capel_stats: Sufficient statistics per group.
+ *  - main_alpha, main_beta: Hyperparameters for Beta prior on main effects.
+ *  - inclusion_indicator: Matrix of active group differences [V × V], updated in place.
+ *  - main_effects, pairwise_effects: Parameter matrices, updated in place.
+ *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - iteration: Current iteration index.
+ *  - pairwise_effect_indices, main_effect_indices: Index maps for parameters.
+ *  - pairwise_stats: Per-group pairwise sufficient statistics.
+ *  - nuts_max_depth: Maximum tree depth for NUTS.
+ *  - hmc_adapt: Adaptation controller for HMC/NUTS.
+ *  - rwm_adapt_main, rwm_adapt_pair: Adaptation controllers for RWM updates.
+ *  - learn_mass_matrix: Whether to adapt the mass matrix in HMC/NUTS.
+ *  - schedule: Warmup schedule, controls adaptation and selection phases.
+ *  - treedepth_samples, divergent_samples, energy_samples: Buffers for NUTS diagnostics.
+ *  - projection: Group projection matrix.
+ *  - num_groups: Number of groups.
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - rng: Random number generator.
+ *  - inclusion_probability: Prior probabilities for including differences.
+ *  - hmc_nuts_leapfrogs: Number of leapfrog steps for HMC updates.
+ *  - update_method: Update strategy ("adaptive-metropolis", "hamiltonian-mc", "nuts").
+ *  - proposal_sd_main, proposal_sd_pair: Proposal SD matrices for Metropolis updates.
+ *  - index: Index table for pairwise differences.
  *
- * Updates (in-place):
- *  - inclusion_indicator
- *  - pairwise_effects
- *  - main_effects
- *  - rest_matrix
- *  - step_size_main
- *  - step_size_pairwise
- *  - dual_averaging_main
- *  - dual_averaging_pairwise
- *  - proposal_sd_main
- *  - proposal_sd_pairwise
- *  - sqrt_inv_fisher_main
- *  - sqrt_inv_fisher_pairwise
+ * Side effects:
+ *  - Updates parameters, inclusion indicators, and sufficient statistics.
+ *  - Updates adaptation controllers and (if NUTS) diagnostic buffers.
+ *
+ * Notes:
+ *  - This function encapsulates all update logic for bgmCompare.
+ *  - Choice of `update_method` governs whether updates are local (RWM) or
+ *    global (HMC/NUTS).
  */
-void gibbs_update_step_for_graphical_model_parameters_cmp (
+void gibbs_update_step_bgmcompare (
     const arma::imat& observations,
     const arma::ivec& num_categories,
     const double pairwise_scale,
-    const std::vector<arma::imat>& num_obs_categories,
-    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::imat>& counts_per_category,
+    const std::vector<arma::imat>& blume_capel_stats,
     const double main_alpha,
     const double main_beta,
     arma::imat& inclusion_indicator,
@@ -1091,7 +1369,7 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
     const arma::ivec& baseline_category,
     const int iteration,
     const arma::imat& pairwise_effect_indices,
-    const std::vector<arma::mat>& sufficient_pairwise,
+    const std::vector<arma::mat>& pairwise_stats,
     const int nuts_max_depth,
     HMCAdaptationController& hmc_adapt,
     RWMAdaptationController& rwm_adapt_main,
@@ -1117,7 +1395,7 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
   if (schedule.selection_enabled(iteration) && iteration == schedule.stage3c_start) {
-    initialise_graph(
+    initialise_graph_bgmcompare(
       inclusion_indicator, main_effects, pairwise_effects, main_effect_indices,
       pairwise_effect_indices, inclusion_probability, rng
     );
@@ -1125,51 +1403,51 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
 
   // Step 1: Difference selection via MH indicator updates (if enabled)
   if (schedule.selection_enabled(iteration)) {
-    update_indicator_parameter_pair_with_metropolis (
+    update_indicator_differences_metropolis_bgmcompare (
         inclusion_probability, index, main_effects, pairwise_effects,
         main_effect_indices, pairwise_effect_indices, projection, observations,
         num_groups, group_indices, num_categories, inclusion_indicator,
         is_ordinal_variable, baseline_category, proposal_sd_main,
-        difference_scale, proposal_sd_pair, num_obs_categories,
-        sufficient_blume_capel, sufficient_pairwise, rng
+        difference_scale, proposal_sd_pair, counts_per_category,
+        blume_capel_stats, pairwise_stats, rng
     );
   }
 
   // Step 2: Update parameters
   if(update_method == "adaptive-metropolis") {
-    update_main_effects_with_metropolis_cmp (
+    update_main_effects_metropolis_bgmcompare (
         main_effects, pairwise_effects, main_effect_indices,
         pairwise_effect_indices, inclusion_indicator, projection,
         num_categories, observations, num_groups, group_indices,
-        num_obs_categories, sufficient_blume_capel, is_ordinal_variable,
+        counts_per_category, blume_capel_stats, is_ordinal_variable,
         baseline_category, difference_scale, main_alpha, main_beta, iteration,
         rwm_adapt_main, rng, proposal_sd_main
     );
 
-    update_pairwise_effects_with_metropolis_cmp (
+    update_pairwise_effects_metropolis_bgmcompare (
         main_effects, pairwise_effects, main_effect_indices,
         pairwise_effect_indices, inclusion_indicator, projection,
         num_categories, observations, num_groups, group_indices,
-        sufficient_pairwise, is_ordinal_variable, baseline_category,
+        pairwise_stats, is_ordinal_variable, baseline_category,
         pairwise_scale, difference_scale, iteration, rwm_adapt_pair, rng,
         proposal_sd_pair
     );
   } else if (update_method == "hamiltonian-mc") {
-    update_parameters_with_hmc(
+    update_hmc_bgmcompare(
       main_effects, pairwise_effects, main_effect_indices,
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-      observations, num_groups, group_indices, num_obs_categories,
-      sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+      observations, num_groups, group_indices, counts_per_category,
+      blume_capel_stats, pairwise_stats, is_ordinal_variable,
       baseline_category, pairwise_scale, difference_scale, main_alpha,
       main_beta, hmc_nuts_leapfrogs, iteration, hmc_adapt, learn_mass_matrix,
       schedule.selection_enabled(iteration), rng
     );
   } else if (update_method == "nuts") {
-    SamplerResult result = update_parameters_with_nuts(
+    SamplerResult result = update_nuts_bgmcompare(
       main_effects, pairwise_effects, main_effect_indices,
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-      observations, num_groups, group_indices, num_obs_categories,
-      sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+      observations, num_groups, group_indices, counts_per_category,
+      blume_capel_stats, pairwise_stats, is_ordinal_variable,
       baseline_category, pairwise_scale, difference_scale, main_alpha,
       main_beta, nuts_max_depth, iteration, hmc_adapt, learn_mass_matrix,
       schedule.selection_enabled(iteration), rng
@@ -1186,50 +1464,116 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
   }
 
   /* --- 2b.  proposal-sd tuning during Stage-3b ------------------------------ */
-  tune_proposal_sd(
+  tune_proposal_sd_bgmcompare(
     proposal_sd_main, proposal_sd_pair, main_effects,
     pairwise_effects, main_effect_indices, pairwise_effect_indices,
     inclusion_indicator, projection, num_categories, observations, num_groups,
-    group_indices, num_obs_categories, sufficient_blume_capel,
-    sufficient_pairwise, is_ordinal_variable, baseline_category, pairwise_scale,
+    group_indices, counts_per_category, blume_capel_stats,
+    pairwise_stats, is_ordinal_variable, baseline_category, pairwise_scale,
     difference_scale, main_alpha, main_beta, iteration, rng, schedule
   );
 }
 
 
 
-SamplerOutput run_gibbs_sampler_for_bgmCompare(
+/**
+ * Run a full Gibbs sampler for the bgmCompare model.
+ *
+ * This function controls the full MCMC lifecycle for a single chain:
+ *  - Initializes parameter matrices, proposal SDs, and adaptation controllers.
+ *  - Optionally imputes missing data at each iteration.
+ *  - Executes Gibbs updates for main and pairwise effects, including
+ *    difference-selection if enabled.
+ *  - Adapts step size, mass matrix, and proposal SDs during warmup.
+ *  - Updates inclusion probabilities under the chosen prior
+ *    (e.g. Beta–Bernoulli).
+ *  - Collects posterior samples and diagnostics into a `SamplerOutput` struct.
+ *
+ * Inputs:
+ *  - chain_id: Identifier for this chain (1-based).
+ *  - observations: Data matrix [N × V].
+ *  - num_groups: Number of groups (G).
+ *  - counts_per_category: Per-group sufficient statistics (ordinal variables).
+ *  - blume_capel_stats: Per-group sufficient statistics (Blume–Capel variables).
+ *  - pairwise_stats: Per-group sufficient statistics for pairwise effects.
+ *  - num_categories: Number of categories per variable [V].
+ *  - main_alpha, main_beta: Hyperparameters for Beta prior on main effects.
+ *  - pairwise_scale: Scale parameter for overall pairwise priors.
+ *  - difference_scale: Scale parameter for group-difference priors.
+ *  - difference_selection_alpha, difference_selection_beta: Hyperparameters
+ *    for difference-selection prior.
+ *  - difference_prior: Prior type for difference-selection ("Beta-Bernoulli", ...).
+ *  - iter: Number of post–burn-in sampling iterations.
+ *  - burnin: Number of warmup iterations.
+ *  - na_impute: If true, impute missing observations at each iteration.
+ *  - missing_data_indices: Matrix of [person, variable] indices of missings.
+ *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables.
+ *  - baseline_category: Reference categories for Blume–Capel variables.
+ *  - difference_selection: If true, include MH updates for group-difference indicators.
+ *  - main_effect_indices, pairwise_effect_indices: Index maps for parameter rows.
+ *  - target_accept: Target acceptance probability (HMC/NUTS).
+ *  - nuts_max_depth: Maximum tree depth for NUTS.
+ *  - learn_mass_matrix: Whether to adapt the mass matrix (HMC/NUTS).
+ *  - projection: Group projection matrix for contrasts.
+ *  - group_membership: Mapping of persons to groups.
+ *  - group_indices: Row ranges per group in `observations`.
+ *  - interaction_index_matrix: Index map for pairwise interactions.
+ *  - inclusion_probability: Matrix of prior inclusion probabilities, updated in place.
+ *  - rng: Random number generator.
+ *  - update_method: Update strategy ("adaptive-metropolis", "hamiltonian-mc", "nuts").
+ *  - hmc_num_leapfrogs: Number of leapfrog steps for HMC.
+ *
+ * Returns:
+ *  - A `SamplerOutput` struct containing:
+ *      - main_samples: MCMC samples for main effects.
+ *      - pairwise_samples: MCMC samples for pairwise effects.
+ *      - indicator_samples: (optional) Inclusion indicator samples if
+ *        difference-selection is enabled.
+ *      - treedepth_samples, divergent_samples, energy_samples:
+ *        Diagnostics (for NUTS).
+ *      - chain_id: Identifier for this chain.
+ *
+ * Notes:
+ *  - Warmup is orchestrated via `WarmupSchedule`, which controls adaptation
+ *    phases and difference-selection activation.
+ *  - Proposal SDs are tuned via Robbins–Monro during Stage 3b.
+ *  - Difference-selection updates toggle inclusion indicators and adjust
+ *    associated parameters with MH proposals.
+ *  - This function runs entirely in C++ and is wrapped for parallel execution
+ *    via `GibbsCompareChainRunner`.
+ */
+SamplerOutput run_gibbs_sampler_bgmCompare(
     int chain_id,
     arma::imat observations,
     const int num_groups,
-    std::vector<arma::imat>& num_obs_categories,
-    std::vector<arma::imat>& sufficient_blume_capel,
-    std::vector<arma::mat>& sufficient_pairwise,
+    std::vector<arma::imat>& counts_per_category,
+    std::vector<arma::imat>& blume_capel_stats,
+    std::vector<arma::mat>& pairwise_stats,
     const arma::ivec& num_categories,
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
-    const double difference_scale,//new
-    const double difference_selection_alpha,//new
-    const double difference_selection_beta,//new
-    const std::string& difference_prior,//new
+    const double difference_scale,
+    const double difference_selection_alpha,
+    const double difference_selection_beta,
+    const std::string& difference_prior,
     const int iter,
     const int burnin,
     const bool na_impute,
-    const arma::imat& missing_data_indices,//updated
+    const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const bool difference_selection,//new
+    const bool difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
     const double target_accept,
     const int nuts_max_depth,
     const bool learn_mass_matrix,
-    const arma::mat& projection,//new
-    const arma::ivec& group_membership,//new
-    const arma::imat& group_indices,//new
-    const arma::imat& interaction_index_matrix,//new
-    arma::mat inclusion_probability,//new
+    const arma::mat& projection,
+    const arma::ivec& group_membership,
+    const arma::imat& group_indices,
+    const arma::imat& interaction_index_matrix,
+    arma::mat inclusion_probability,
     SafeRNG& rng,
     const std::string& update_method,
     const int hmc_num_leapfrogs
@@ -1272,11 +1616,11 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
   // --- Optional HMC/NUTS warmup stage
   double initial_step_size = 1.0;
   if (update_method == "hamiltonian-mc" || update_method == "nuts") {
-    initial_step_size = find_reasonable_initial_step_size_cmp(
+    initial_step_size = find_initial_stepsize_bgmcompare(
       main_effects, pairwise_effects, main_effect_indices,
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
-      observations, num_groups, group_indices, num_obs_categories,
-      sufficient_blume_capel, sufficient_pairwise, is_ordinal_variable,
+      observations, num_groups, group_indices, counts_per_category,
+      blume_capel_stats, pairwise_stats, is_ordinal_variable,
       baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
       target_accept, rng
     );
@@ -1319,22 +1663,22 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
 
     // Optional imputation
     if (na_impute) {
-      impute_missing_data_for_graphical_model (
+      impute_missing_bgmcompare (
           main_effects, pairwise_effects, main_effect_indices,
           pairwise_effect_indices, inclusion_indicator, projection,
           observations, num_groups, group_membership, group_indices,
-          num_obs_categories, sufficient_blume_capel, sufficient_pairwise,
+          counts_per_category, blume_capel_stats, pairwise_stats,
           num_categories, missing_data_indices, is_ordinal_variable,
           baseline_category, rng
       );
     }
 
     // Main Gibbs update step for parameters
-    gibbs_update_step_for_graphical_model_parameters_cmp (
-        observations, num_categories, pairwise_scale, num_obs_categories,
-        sufficient_blume_capel, main_alpha, main_beta, inclusion_indicator,
+    gibbs_update_step_bgmcompare (
+        observations, num_categories, pairwise_scale, counts_per_category,
+        blume_capel_stats, main_alpha, main_beta, inclusion_indicator,
         pairwise_effects, main_effects, is_ordinal_variable, baseline_category,
-        iteration, pairwise_effect_indices, sufficient_pairwise, nuts_max_depth,
+        iteration, pairwise_effect_indices, pairwise_stats, nuts_max_depth,
         hmc_adapt, rwm_adapt_main, rwm_adapt_pair, learn_mass_matrix,
         warmup_schedule, treedepth_samples, divergent_samples, energy_samples,
         main_effect_indices, projection, num_groups, group_indices,

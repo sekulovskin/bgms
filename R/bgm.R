@@ -23,9 +23,9 @@
 #' offset with respect to the reference category \eqn{r}{r}; if \eqn{\beta<0}{\beta<0}
 #' there is a preference to respond in the reference category (i.e., the model
 #' introduces a penalty for responding in a category further away from the
-#' reference_category category \code{r}), while if \eqn{\beta > 0}{\beta > 0}
+#' baseline_category category \code{r}), while if \eqn{\beta > 0}{\beta > 0}
 #' there is preference to score in the extreme categories further away from the
-#' reference_category category.
+#' baseline_category category.
 #'
 #' The Bayesian estimation procedure (\code{edge_selection = FALSE}) simply
 #' estimates the threshold and pairwise interaction parameters of the ordinal
@@ -60,7 +60,7 @@
 #' specifying the type for each variable in \code{x} separately. Currently, bgm
 #' supports ``ordinal'' and ``blume-capel''. Binary variables are automatically
 #' treated as ``ordinal’’. Defaults to \code{variable_type = "ordinal"}.
-#' @param reference_category The reference category in the Blume-Capel model.
+#' @param baseline_category The reference category in the Blume-Capel model.
 #' Should be an integer within the range of integer scores observed for the
 #' ``blume-capel'' variable. Can be a single number specifying the reference
 #' category for all Blume-Capel variables at once, or a vector of length
@@ -315,7 +315,7 @@
 bgm = function(
     x,
     variable_type = "ordinal",
-    reference_category,
+    baseline_category,
     iter = 1e3,
     burnin = 1e3,
     interaction_scale = 2.5,
@@ -370,7 +370,7 @@ bgm = function(
   #Check model input -----------------------------------------------------------
   model = check_model(x = x,
                       variable_type = variable_type,
-                      reference_category = reference_category,
+                      baseline_category = baseline_category,
                       interaction_scale = interaction_scale,
                       threshold_alpha = threshold_alpha,
                       threshold_beta = threshold_beta,
@@ -389,7 +389,7 @@ bgm = function(
   variable_bool = model$variable_bool
   # ----------------------------------------------------------------------------
 
-  reference_category = model$reference_category
+  baseline_category = model$baseline_category
   edge_selection = model$edge_selection
   edge_prior = model$edge_prior
   inclusion_probability = model$inclusion_probability
@@ -422,12 +422,12 @@ bgm = function(
   data = reformat_data(x = x,
                        na_action = na_action,
                        variable_bool = variable_bool,
-                       reference_category = reference_category)
+                       baseline_category = baseline_category)
   x = data$x
   num_categories = data$num_categories
   missing_index = data$missing_index
   na_impute = data$na_impute
-  reference_category = data$reference_category
+  baseline_category = data$baseline_category
 
   num_variables = ncol(x)
   num_interactions = num_variables * (num_variables - 1) / 2
@@ -444,26 +444,26 @@ bgm = function(
   thresholds = matrix(0, nrow = num_variables, ncol = max(num_categories))
 
   #Precompute the number of observations per category for each variable --------
-  num_obs_categories = matrix(0,
+  counts_per_category = matrix(0,
                      nrow = max(num_categories) + 1,
                      ncol = num_variables)
   for(variable in 1:num_variables) {
     for(category in 0:num_categories[variable]) {
-      num_obs_categories[category + 1, variable] = sum(x[, variable] == category)
+      counts_per_category[category + 1, variable] = sum(x[, variable] == category)
     }
   }
 
   #Precompute the sufficient statistics for the two Blume-Capel parameters -----
-  sufficient_blume_capel = matrix(0, nrow = 2, ncol = num_variables)
+  blume_capel_stats = matrix(0, nrow = 2, ncol = num_variables)
   if(any(!variable_bool)) {
     # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
     bc_vars = which(!variable_bool)
     for(i in bc_vars) {
-      sufficient_blume_capel[1, i] = sum(x[, i])
-      sufficient_blume_capel[2, i] = sum((x[, i] - reference_category[i]) ^ 2)
+      blume_capel_stats[1, i] = sum(x[, i])
+      blume_capel_stats[2, i] = sum((x[, i] - baseline_category[i]) ^ 2)
     }
   }
-  sufficient_pairwise = t(x) %*% x
+  pairwise_stats = t(x) %*% x
 
   # Index matrix used in the c++ functions  ------------------------------------
   interaction_index_matrix = matrix(0,
@@ -509,15 +509,15 @@ bgm = function(
     beta_bernoulli_beta = beta_bernoulli_beta,
     dirichlet_alpha = dirichlet_alpha, lambda = lambda,
     interaction_index_matrix = interaction_index_matrix, iter = iter,
-    burnin = burnin, num_obs_categories = num_obs_categories,
-    sufficient_blume_capel = sufficient_blume_capel,
-    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
+    burnin = burnin, counts_per_category = counts_per_category,
+    blume_capel_stats = blume_capel_stats,
+    main_alpha = threshold_alpha, main_beta = threshold_beta,
     na_impute = na_impute, missing_index = missing_index,
     is_ordinal_variable = variable_bool,
-    reference_category = reference_category, edge_selection = edge_selection,
+    baseline_category = baseline_category, edge_selection = edge_selection,
     update_method = update_method,
     pairwise_effect_indices = pairwise_effect_indices,
-    target_accept = target_accept, sufficient_pairwise = sufficient_pairwise,
+    target_accept = target_accept, pairwise_stats = pairwise_stats,
     hmc_num_leapfrogs = hmc_num_leapfrogs, nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix, num_chains = chains,
     nThreads = cores, seed = seed

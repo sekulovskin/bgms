@@ -8,7 +8,7 @@ model for binary and/or ordinal variables.}
 bgm(
   x,
   variable_type = "ordinal",
-  reference_category,
+  baseline_category,
   iter = 1000,
   burnin = 1000,
   interaction_scale = 2.5,
@@ -52,7 +52,7 @@ specifying the type for each variable in \code{x} separately. Currently, bgm
 supports ``ordinal'' and ``blume-capel''. Binary variables are automatically
 treated as ``ordinal’’. Defaults to \code{variable_type = "ordinal"}.}
 
-\item{reference_category}{The reference category in the Blume-Capel model.
+\item{baseline_category}{The reference category in the Blume-Capel model.
 Should be an integer within the range of integer scores observed for the
 ``blume-capel'' variable. Can be a single number specifying the reference
 category for all Blume-Capel variables at once, or a vector of length
@@ -254,9 +254,9 @@ The parameter \eqn{\beta}{\beta} models the response style in terms of an
 offset with respect to the reference category \eqn{r}{r}; if \eqn{\beta<0}{\beta<0}
 there is a preference to respond in the reference category (i.e., the model
 introduces a penalty for responding in a category further away from the
-reference_category category \code{r}), while if \eqn{\beta > 0}{\beta > 0}
+baseline_category category \code{r}), while if \eqn{\beta > 0}{\beta > 0}
 there is preference to score in the extreme categories further away from the
-reference_category category.
+baseline_category category.
 
 The Bayesian estimation procedure (\code{edge_selection = FALSE}) simply
 estimates the threshold and pairwise interaction parameters of the ordinal

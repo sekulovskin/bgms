@@ -3,22 +3,22 @@
 #include <RcppArmadillo.h>
 #include "rng_utils.h"
 
-// Vectorize threshold matrix
-arma::vec vectorize_thresholds(
+// Vectorize main_effect matrix
+arma::vec vectorize_main_effects_bgm(
     const arma::mat& main_effects,
     const arma::ivec& num_categories,
     const arma::uvec& is_ordinal_variable
 );
 
-// Unvectorize thresholds into matrix
-arma::mat unvectorize_thresholds(
-    const arma::vec& threshold_vector,
+// Unvectorize main_effects into matrix
+arma::mat unvectorize_main_effects_bgm(
+    const arma::vec& main_effect_vector,
     const arma::ivec& num_categories,
     const arma::uvec& is_ordinal_variable
 );
 
 // Vectorize model parameters (main + interaction effects)
-arma::vec vectorize_model_parameters(
+arma::vec vectorize_model_parameters_bgm(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -27,7 +27,7 @@ arma::vec vectorize_model_parameters(
 );
 
 // Unvectorize model parameters back into matrices
-void unvectorize_model_parameters(
+void unvectorize_model_parameters_bgm(
     const arma::vec& param_vec,
     arma::mat& main_effects_out,
     arma::mat& pairwise_effects_out,
@@ -44,7 +44,7 @@ arma::vec inv_mass_active(
     const bool& selection
 );
 
-inline void initialise_graph(
+inline void initialise_graph_bgm(
     arma::imat& indicator,
     arma::mat&  pairwise,
     const arma::mat& incl_prob,

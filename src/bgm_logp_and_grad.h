@@ -3,13 +3,13 @@
 #include <RcppArmadillo.h>
 
 // Log posterior for a single component of main effect
-double log_pseudoposterior_thresholds_component (
+double log_pseudoposterior_main_effects_component (
     const arma::mat& main_effects,
-    const arma::mat& rest_matrix,
+    const arma::mat& residual_matrix,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
@@ -26,9 +26,9 @@ double log_pseudoposterior_interactions_component (
     const arma::ivec& num_categories,
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
+    const arma::ivec& baseline_category,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
+    const arma::imat& pairwise_stats,
     const int var1,
     const int var2
 );
@@ -40,15 +40,15 @@ double log_pseudoposterior (
     const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
+    const arma::imat& pairwise_stats,
+    const arma::mat& residual_matrix
 );
 
 // Full gradient
@@ -58,15 +58,15 @@ arma::vec gradient_log_pseudoposterior (
     const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
+    const arma::imat& pairwise_stats,
+    const arma::mat& residual_matrix
 );
 
 // Full gradient with inactive interactions filtered out
@@ -76,15 +76,15 @@ arma::vec gradient_log_pseudoposterior_active (
     const arma::imat& inclusion_indicator,
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const arma::imat& num_obs_categories,
-    const arma::imat& sufficient_blume_capel,
-    const arma::ivec& reference_category,
+    const arma::imat& counts_per_category,
+    const arma::imat& blume_capel_stats,
+    const arma::ivec& baseline_category,
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
-    const arma::imat& sufficient_pairwise,
-    const arma::mat& rest_matrix
+    const arma::imat& pairwise_stats,
+    const arma::mat& residual_matrix
 );
 
 // Pseudolikelihood ratio for a single variable
@@ -95,10 +95,10 @@ double compute_log_likelihood_ratio_for_variable (
     double current_state,
     const arma::mat& main_effects,
     const arma::ivec& num_categories,
-    const arma::mat& rest_matrix,
+    const arma::mat& residual_matrix,
     const arma::imat& observations,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category
+    const arma::ivec& baseline_category
 );
 
 // Pseudolikelihood ratio for an interaction
@@ -112,8 +112,8 @@ double log_pseudolikelihood_ratio_interaction (
     const int variable2,
     const double proposed_state,
     const double current_state,
-    const arma::mat& rest_matrix,
+    const arma::mat& residual_matrix,
     const arma::uvec& is_ordinal_variable,
-    const arma::ivec& reference_category,
-    const arma::imat& sufficient_pairwise
+    const arma::ivec& baseline_category,
+    const arma::imat& pairwise_stats
 );
