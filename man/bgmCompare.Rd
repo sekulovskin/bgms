@@ -8,7 +8,7 @@ bgmCompare(
   x,
   y,
   group_indicator,
-  difference_selection = FALSE,
+  difference_selection = TRUE,
   variable_type = "ordinal",
   baseline_category,
   difference_scale = 1,

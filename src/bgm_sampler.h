@@ -8,7 +8,7 @@ Rcpp::List run_gibbs_sampler_bgm(
     int chain_id,
     arma::imat observations,
     const arma::ivec& num_categories,
-    const double interaction_scale,
+    const double pairwise_scale,
     const std::string& edge_prior,
     arma::mat inclusion_probability,
     const double beta_bernoulli_alpha,

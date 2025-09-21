@@ -58,7 +58,7 @@ struct ChainResult {
 struct GibbsChainRunner : public Worker {
   const arma::imat& observations;
   const arma::ivec& num_categories;
-  double interaction_scale;
+  double  pairwise_scale;
   const std::string& edge_prior;
   const arma::mat& inclusion_probability;
   double beta_bernoulli_alpha;
@@ -94,7 +94,7 @@ struct GibbsChainRunner : public Worker {
   GibbsChainRunner(
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    double interaction_scale,
+    double  pairwise_scale,
     const std::string& edge_prior,
     const arma::mat& inclusion_probability,
     double beta_bernoulli_alpha,
@@ -125,7 +125,7 @@ struct GibbsChainRunner : public Worker {
   ) :
     observations(observations),
     num_categories(num_categories),
-    interaction_scale(interaction_scale),
+     pairwise_scale( pairwise_scale),
     edge_prior(edge_prior),
     inclusion_probability(inclusion_probability),
     beta_bernoulli_alpha(beta_bernoulli_alpha),
@@ -168,7 +168,7 @@ struct GibbsChainRunner : public Worker {
           out.chain_id,
           observations,
           num_categories,
-          interaction_scale,
+           pairwise_scale,
           edge_prior,
           inclusion_probability,
           beta_bernoulli_alpha,
@@ -222,7 +222,7 @@ struct GibbsChainRunner : public Worker {
  * Inputs:
  *  - observations: Matrix of categorical observations (persons × variables).
  *  - num_categories: Number of categories per variable.
- *  - interaction_scale: Scale parameter of the Cauchy prior on pairwise effects.
+ *  -  pairwise_scale: Scale parameter of the Cauchy prior on pairwise effects.
  *  - edge_prior: Prior specification for edge inclusion.
  *  - inclusion_probability: Matrix of prior inclusion probabilities.
  *  - beta_bernoulli_alpha, beta_bernoulli_beta: Hyperparameters for Bernoulli priors.
@@ -263,7 +263,7 @@ struct GibbsChainRunner : public Worker {
 Rcpp::List run_bgm_parallel(
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    double interaction_scale,
+    double  pairwise_scale,
     const std::string& edge_prior,
     const arma::mat& inclusion_probability,
     double beta_bernoulli_alpha,
@@ -302,7 +302,7 @@ Rcpp::List run_bgm_parallel(
   }
 
   GibbsChainRunner worker(
-      observations, num_categories, interaction_scale, edge_prior,
+      observations, num_categories,  pairwise_scale, edge_prior,
       inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta,
       dirichlet_alpha, lambda, interaction_index_matrix, iter, burnin,
       counts_per_category, blume_capel_stats, main_alpha, main_beta,

@@ -2,6 +2,7 @@
 #include "bgm_helper.h"
 #include "bgm_logp_and_grad.h"
 #include "common_helpers.h"
+
 using namespace Rcpp;
 
 
@@ -145,7 +146,7 @@ double log_pseudoposterior_main_effects_component (
  *  - inclusion_indicator: Symmetric binary matrix of active pairwise effects.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - baseline_category: Reference categories for Blume–Capel variables.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - pairwise_stats: Sufficient statistics for pairwise counts.
  *  - var1, var2: Indices of the variable pair being updated.
  *
@@ -165,7 +166,7 @@ double log_pseudoposterior_interactions_component (
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const int var1,
     const int var2
@@ -210,7 +211,7 @@ double log_pseudoposterior_interactions_component (
 
   // Add Cauchy prior terms for included pairwise effects
   if (inclusion_indicator (var1, var2) == 1) {
-    log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, interaction_scale, true);
+    log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, pairwise_scale, true);
   }
 
   return log_pseudo_posterior;
@@ -241,7 +242,7 @@ double log_pseudoposterior_interactions_component (
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - main_alpha, main_beta: Hyperparameters for the Beta priors.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - pairwise_stats: Pairwise sufficient statistics.
  *  - residual_matrix: Matrix of residual scores (persons × variables).
  *
@@ -265,7 +266,7 @@ double log_pseudoposterior (
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 ) {
@@ -304,7 +305,7 @@ double log_pseudoposterior (
 
       double value = pairwise_effects(var1, var2);
       log_pseudoposterior += 2.0 * pairwise_stats(var1, var2) * value;
-      log_pseudoposterior += R::dcauchy(value, 0.0, interaction_scale, true); // Cauchy prior
+      log_pseudoposterior += R::dcauchy(value, 0.0, pairwise_scale, true); // Cauchy prior
     }
   }
 
@@ -371,7 +372,7 @@ double log_pseudoposterior (
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - main_alpha, main_beta: Hyperparameters for Beta priors.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - pairwise_stats: Sufficient statistics for pairwise effects.
  *  - residual_matrix: Matrix of residual scores (persons × variables).
  *
@@ -396,7 +397,7 @@ arma::vec gradient_log_pseudoposterior (
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 ) {
@@ -551,7 +552,7 @@ arma::vec gradient_log_pseudoposterior (
       // ---- Gradient contribution from Cauchy prior
       int location = index_matrix(var1, var2);
       const double effect = pairwise_effects (var1, var2);
-      gradient (location) -= 2.0 * effect / (effect * effect + interaction_scale * interaction_scale);
+      gradient (location) -= 2.0 * effect / (effect * effect + pairwise_scale * pairwise_scale);
     }
   }
 
@@ -579,7 +580,7 @@ arma::vec gradient_log_pseudoposterior (
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - main_alpha, main_beta: Hyperparameters for Beta priors.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - pairwise_stats: Sufficient statistics for pairwise effects.
  *  - residual_matrix: Matrix of residual scores (persons × variables).
  *
@@ -603,7 +604,7 @@ arma::vec gradient_log_pseudoposterior_active (
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 ) {
@@ -613,7 +614,7 @@ arma::vec gradient_log_pseudoposterior_active (
     main_effects, pairwise_effects, inclusion_indicator, observations,
     num_categories, counts_per_category, blume_capel_stats,
     baseline_category, is_ordinal_variable, main_alpha, main_beta,
-    interaction_scale, pairwise_stats, residual_matrix
+    pairwise_scale, pairwise_stats, residual_matrix
   );
 
   // Step 2: Extract compressed gradient (same layout as new vectorizer)

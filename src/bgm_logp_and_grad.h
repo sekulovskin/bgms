@@ -27,7 +27,7 @@ double log_pseudoposterior_interactions_component (
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const int var1,
     const int var2
@@ -46,7 +46,7 @@ double log_pseudoposterior (
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 );
@@ -64,7 +64,7 @@ arma::vec gradient_log_pseudoposterior (
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 );
@@ -82,7 +82,7 @@ arma::vec gradient_log_pseudoposterior_active (
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 );

@@ -503,7 +503,7 @@ bgm = function(
 
   out = run_bgm_parallel(
     observations = x, num_categories = num_categories,
-    interaction_scale = interaction_scale, edge_prior = edge_prior,
+    pairwise_scale = interaction_scale, edge_prior = edge_prior,
     inclusion_probability = inclusion_probability,
     beta_bernoulli_alpha = beta_bernoulli_alpha,
     beta_bernoulli_beta = beta_bernoulli_beta,

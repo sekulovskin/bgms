@@ -178,7 +178,7 @@ void impute_missing_bgm (
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - main_alpha, main_beta: Hyperparameters for Beta priors.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - target_acceptance: Target acceptance probability (default ~0.65 in practice).
  *  - pairwise_stats: Pairwise sufficient statistics.
  *  - rng: Random number generator.
@@ -204,7 +204,7 @@ double find_initial_stepsize_bgm(
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const double target_acceptance,
     const arma::imat& pairwise_stats,
     SafeRNG& rng
@@ -226,7 +226,7 @@ double find_initial_stepsize_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_stats, rm
     );
   };
 
@@ -238,7 +238,7 @@ double find_initial_stepsize_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_stats, rm
     );
   };
 
@@ -374,7 +374,7 @@ void update_main_effects_metropolis_bgm (
  *  - num_categories: Number of categories per variable.
  *  - proposal_sd_pairwise_effects: Proposal SDs for each pair (updated adaptively).
  *  - adapter: Random-walk adaptation controller.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - num_persons: Number of observations (not used directly).
  *  - num_variables: Number of variables.
  *  - residual_matrix: Residual scores (persons × variables), updated in place.
@@ -403,7 +403,7 @@ void update_pairwise_effects_metropolis_bgm (
     const arma::ivec& num_categories,
     arma::mat& proposal_sd_pairwise_effects,
     RWMAdaptationController& adapter,
-    const double interaction_scale,
+    const double pairwise_scale,
     const int num_variables,
     arma::mat& residual_matrix,
     const arma::uvec& is_ordinal_variable,
@@ -429,7 +429,7 @@ void update_pairwise_effects_metropolis_bgm (
           return log_pseudoposterior_interactions_component(
             pairwise_effects, main_effects, observations, num_categories,
             inclusion_indicator, is_ordinal_variable, baseline_category,
-            interaction_scale, pairwise_stats, variable1, variable2
+            pairwise_scale, pairwise_stats, variable1, variable2
           );
         };
 
@@ -477,7 +477,7 @@ void update_pairwise_effects_metropolis_bgm (
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - main_alpha, main_beta: Hyperparameters for Beta priors on main effects.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - residual_matrix: Residual scores (persons × variables), updated in place.
  *  - pairwise_stats: Sufficient statistics for pairwise effects.
  *  - num_leapfrogs: Number of leapfrog steps for HMC integration.
@@ -508,7 +508,7 @@ void update_hmc_bgm(
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     arma::mat& residual_matrix,
     const arma::imat& pairwise_stats,
     const int num_leapfrogs,
@@ -535,7 +535,7 @@ void update_hmc_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha,
-      main_beta, interaction_scale, pairwise_stats, rm
+      main_beta, pairwise_scale, pairwise_stats, rm
     );
   };
 
@@ -547,7 +547,7 @@ void update_hmc_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_stats, rm
     );
   };
 
@@ -596,7 +596,7 @@ void update_hmc_bgm(
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - main_alpha, main_beta: Hyperparameters for Beta priors on main effects.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - pairwise_stats: Sufficient statistics for pairwise effects.
  *  - residual_matrix: Residual scores (persons × variables), updated in place.
  *  - nuts_max_depth: Maximum tree depth for the NUTS trajectory.
@@ -628,7 +628,7 @@ SamplerResult update_nuts_bgm(
     const arma::uvec& is_ordinal_variable,
     const double main_alpha,
     const double main_beta,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     arma::mat& residual_matrix,
     const int nuts_max_depth,
@@ -656,7 +656,7 @@ SamplerResult update_nuts_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha,
-      main_beta, interaction_scale, pairwise_stats, rm
+      main_beta, pairwise_scale, pairwise_stats, rm
     );
   };
 
@@ -669,7 +669,7 @@ SamplerResult update_nuts_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_stats, rm
     );
   };
 
@@ -719,7 +719,7 @@ SamplerResult update_nuts_bgm(
  *  - num_categories: Number of categories per variable.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
  *  - baseline_category: Reference categories for Blume–Capel variables.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - pairwise_stats: Sufficient statistics for pairwise effects.
  *  - iteration: Current iteration number.
  *  - sched: Warmup schedule controller (determines if adaptation is active).
@@ -747,7 +747,7 @@ void tune_proposal_sd_bgm(
     const arma::ivec& num_categories,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& pairwise_stats,
     int iteration,
     const WarmupSchedule& sched,
@@ -776,7 +776,7 @@ void tune_proposal_sd_bgm(
         return log_pseudoposterior_interactions_component(
           pairwise_effects, main_effects, observations, num_categories,
           inclusion_indicator, is_ordinal_variable, baseline_category,
-          interaction_scale, pairwise_stats, variable1, variable2
+          pairwise_scale, pairwise_stats, variable1, variable2
         );
       };
 
@@ -828,7 +828,7 @@ void tune_proposal_sd_bgm(
  *  - observations: Matrix of categorical observations (persons × variables).
  *  - num_categories: Number of categories per variable.
  *  - proposal_sd: Proposal standard deviations for pairwise effects.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - index: Matrix mapping interaction index → (var1, var2).
  *  - num_interactions: Total number of candidate pairwise interactions.
  *  - num_persons: Number of observations.
@@ -856,7 +856,7 @@ void update_indicator_edges_metropolis_bgm (
     const arma::imat& observations,
     const arma::ivec& num_categories,
     const arma::mat& proposal_sd,
-    const double interaction_scale,
+    const double pairwise_scale,
     const arma::imat& index,
     const int num_interactions,
     const int num_persons,
@@ -889,11 +889,11 @@ void update_indicator_edges_metropolis_bgm (
     const double sd = proposal_sd(variable1, variable2);
 
     if (proposing_addition) {
-      log_accept += R::dcauchy(proposed_state, 0.0, interaction_scale, true);
+      log_accept += R::dcauchy(proposed_state, 0.0, pairwise_scale, true);
       log_accept -= R::dnorm(proposed_state, current_state, sd, true);
       log_accept += std::log (inclusion_probability_ij) - std::log (1.0 - inclusion_probability_ij);
     } else {
-      log_accept -= R::dcauchy(current_state, 0.0, interaction_scale, true);
+      log_accept -= R::dcauchy(current_state, 0.0, pairwise_scale, true);
       log_accept += R::dnorm(current_state, proposed_state, sd, true);
       log_accept -= std::log (inclusion_probability_ij) - std::log (1.0 - inclusion_probability_ij);
     }
@@ -954,7 +954,7 @@ void update_indicator_edges_metropolis_bgm (
  * Inputs:
  *  - observations: Matrix of categorical observations (persons × variables).
  *  - num_categories: Number of categories per variable.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - proposal_sd_pairwise, proposal_sd_main: Proposal SDs for pairwise and main effects.
  *  - index: Interaction index matrix.
  *  - counts_per_category: Category counts per variable (ordinal variables).
@@ -996,7 +996,7 @@ void update_indicator_edges_metropolis_bgm (
 void gibbs_update_step_bgm (
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const double interaction_scale,
+    const double pairwise_scale,
     arma::mat& proposal_sd_pairwise,
     arma::mat& proposal_sd_main,
     const arma::imat& index,
@@ -1044,7 +1044,7 @@ void gibbs_update_step_bgm (
   if (schedule.selection_enabled(iteration)) {
     update_indicator_edges_metropolis_bgm (
         pairwise_effects, main_effects, inclusion_indicator, observations,
-        num_categories, proposal_sd_pairwise, interaction_scale, index,
+        num_categories, proposal_sd_pairwise, pairwise_scale, index,
         num_pairwise, num_persons, residual_matrix, inclusion_probability,
         is_ordinal_variable, baseline_category, pairwise_stats,
         rng
@@ -1055,7 +1055,7 @@ void gibbs_update_step_bgm (
   if (update_method == "adaptive-metropolis") {
     update_pairwise_effects_metropolis_bgm (
         pairwise_effects, main_effects, inclusion_indicator, observations,
-        num_categories, proposal_sd_pairwise, adapt_pairwise, interaction_scale,
+        num_categories, proposal_sd_pairwise, adapt_pairwise, pairwise_scale,
         num_variables, residual_matrix, is_ordinal_variable, baseline_category,
         iteration, pairwise_stats, rng
     );
@@ -1078,7 +1078,7 @@ void gibbs_update_step_bgm (
       main_effects, pairwise_effects, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, residual_matrix, pairwise_stats, hmc_num_leapfrogs,
+      pairwise_scale, residual_matrix, pairwise_stats, hmc_num_leapfrogs,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
       rng
     );
@@ -1087,7 +1087,7 @@ void gibbs_update_step_bgm (
       main_effects, pairwise_effects, inclusion_indicator,
       observations, num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, pairwise_stats, residual_matrix, nuts_max_depth,
+      pairwise_scale, pairwise_stats, residual_matrix, nuts_max_depth,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
       rng
     );
@@ -1105,7 +1105,7 @@ void gibbs_update_step_bgm (
   tune_proposal_sd_bgm(
     proposal_sd_pairwise, pairwise_effects, main_effects, inclusion_indicator,
     observations, residual_matrix, num_categories, is_ordinal_variable,
-    baseline_category, interaction_scale, pairwise_stats,
+    baseline_category, pairwise_scale, pairwise_stats,
     iteration, schedule, rng
   );
 }
@@ -1127,7 +1127,7 @@ void gibbs_update_step_bgm (
  *  - chain_id: Numeric identifier for this chain (1-based).
  *  - observations: Matrix of categorical observations (persons × variables).
  *  - num_categories: Number of categories per variable.
- *  - interaction_scale: Scale parameter of the Cauchy prior on interactions.
+ *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
  *  - edge_prior: Prior type for edge inclusion ("Beta-Bernoulli" or "Stochastic-Block").
  *  - inclusion_probability: Matrix of prior inclusion probabilities (updated if SBM).
  *  - beta_bernoulli_alpha, beta_bernoulli_beta: Hyperparameters for Beta–Bernoulli edge prior.
@@ -1171,7 +1171,7 @@ Rcpp::List run_gibbs_sampler_bgm(
     int chain_id,
     arma::imat observations,
     const arma::ivec& num_categories,
-    const double interaction_scale,
+    const double pairwise_scale,
     const std::string& edge_prior,
     arma::mat inclusion_probability,
     const double beta_bernoulli_alpha,
@@ -1278,7 +1278,7 @@ Rcpp::List run_gibbs_sampler_bgm(
       main_effects, pairwise_effects, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      interaction_scale, target_accept, pairwise_stats, rng
+      pairwise_scale, target_accept, pairwise_stats, rng
     );
   }
 
@@ -1327,7 +1327,7 @@ Rcpp::List run_gibbs_sampler_bgm(
 
     // Main Gibbs update step for parameters
     gibbs_update_step_bgm (
-        observations, num_categories, interaction_scale, proposal_sd_pairwise,
+        observations, num_categories, pairwise_scale, proposal_sd_pairwise,
         proposal_sd_main, index, counts_per_category, blume_capel_stats,
         main_alpha, main_beta, num_persons, num_variables, num_pairwise,
         num_main, inclusion_indicator, pairwise_effects, main_effects,
