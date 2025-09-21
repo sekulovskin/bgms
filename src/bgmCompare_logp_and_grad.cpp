@@ -728,3 +728,244 @@ double log_pseudoposterior_pair_component(
   }
   return log_pp;
 }
+
+
+
+// -----------------------------------------------------------------------------
+// Log-ratio of pseudolikelihood normalizing constants for a single variable
+// Computes log Z(current) - log Z(proposed)
+// -----------------------------------------------------------------------------
+double log_ratio_pseudolikelihood_constant_variable(
+    const arma::mat& current_main_effects,
+    const arma::mat& current_pairwise_effects,
+    const arma::mat& proposed_main_effects,
+    const arma::mat& proposed_pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const int variable
+) {
+  const int num_cats = num_categories(variable);
+  const int num_variables = observations.n_cols;
+
+  double log_ratio = 0.0;
+
+  // --- per group ---
+  for (int group = 0; group < num_groups; ++group) {
+    const arma::vec proj_g = projection.row(group).t();
+
+    // --- group-specific main effects (current/proposed) ---
+    const arma::vec main_current = compute_group_main_effects(
+      variable, num_groups, current_main_effects, main_effect_indices, proj_g
+    );
+    const arma::vec main_proposed = compute_group_main_effects(
+      variable, num_groups, proposed_main_effects, main_effect_indices, proj_g
+    );
+
+    // --- group-specific pairwise effects for this variable (column) ---
+    arma::vec weights_current(num_variables, arma::fill::zeros);
+    arma::vec weights_proposed(num_variables, arma::fill::zeros);
+    for (int u = 0; u < num_variables; ++u) {
+      if (u == variable) continue;
+      weights_current(u) = compute_group_pairwise_effects(
+        variable, u, num_groups, current_pairwise_effects,
+        pairwise_effect_indices, inclusion_indicator, proj_g
+      );
+      weights_proposed(u) = compute_group_pairwise_effects(
+        variable, u, num_groups, proposed_pairwise_effects,
+        pairwise_effect_indices, inclusion_indicator, proj_g
+      );
+    }
+
+    // --- group observations and rest scores ---
+    const int r0 = group_indices(group, 0);
+    const int r1 = group_indices(group, 1);
+    const arma::mat obs = arma::conv_to<arma::mat>::from(observations.rows(r0, r1));
+
+    const arma::vec rest_current = obs * weights_current;
+    const arma::vec rest_proposed = obs * weights_proposed;
+
+    // --- denominators with stability bounds ---
+    arma::vec bound_current;
+    arma::vec bound_proposed;
+    arma::vec denom_current(rest_current.n_elem, arma::fill::zeros);
+    arma::vec denom_proposed(rest_proposed.n_elem, arma::fill::zeros);
+
+    if (is_ordinal_variable(variable)) {
+      // regular ordinal/binary
+      bound_current = num_cats * arma::clamp(rest_current, 0.0, arma::datum::inf);
+      bound_proposed = num_cats * arma::clamp(rest_proposed, 0.0, arma::datum::inf);
+
+      denom_current = arma::exp(-bound_current);
+      denom_proposed = arma::exp(-bound_proposed);
+
+      for (int c = 0; c < num_cats; ++c) {
+        denom_current += arma::exp(main_current(c) + (c + 1) * rest_current - bound_current);
+        denom_proposed += arma::exp(main_proposed(c) + (c + 1) * rest_proposed - bound_proposed);
+      }
+    } else {
+      // Blume-Capel: linear + quadratic
+      const int ref = baseline_category(variable);
+
+      arma::vec const_current(num_cats + 1, arma::fill::zeros);
+      arma::vec const_proposed(num_cats + 1, arma::fill::zeros);
+      for (int s = 0; s <= num_cats; ++s) {
+        const int centered = s - ref;
+        const_current(s) = main_current(0) * s + main_current(1) * centered * centered;
+        const_proposed(s) = main_proposed(0) * s + main_proposed(1) * centered * centered;
+      }
+
+      double lbound = std::max(const_current.max(), const_proposed.max());
+      if (lbound < 0.0) lbound = 0.0;
+
+      bound_current = lbound + num_cats * arma::clamp(rest_current, 0.0, arma::datum::inf);
+      bound_proposed = lbound + num_cats * arma::clamp(rest_proposed, 0.0, arma::datum::inf);
+
+      for (int s = 0; s <= num_cats; ++s) {
+        denom_current += arma::exp(const_current(s) + s * rest_current - bound_current);
+        denom_proposed += arma::exp(const_proposed(s) + s * rest_proposed - bound_proposed);
+      }
+    }
+
+    // --- accumulate contribution ---
+    log_ratio += arma::accu((bound_current - bound_proposed) +
+      arma::log(denom_current) - arma::log(denom_proposed));
+  }
+
+  return log_ratio;
+}
+
+
+
+// -----------------------------------------------------------------------------
+// log_pseudolikelihood ratio for main effects for variable `variable`
+// -----------------------------------------------------------------------------
+double log_pseudolikelihood_ratio_main(
+    const arma::mat& current_main_effects,
+    const arma::mat& proposed_main_effects,
+    const arma::mat& current_pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat&  projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const std::vector<arma::imat>& num_obs_categories_group,
+    const std::vector<arma::imat>& sufficient_blume_capel_group,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const int variable
+) {
+  double lr = 0.0;
+  arma::imat tmp_ind = inclusion_indicator;
+  tmp_ind(variable, variable) = 1; // Ensure self-interaction is included
+
+  // Add data contribution (group-specific parameters via projection)
+  for (int g = 0; g < num_groups; ++g) {
+    const arma::vec proj_g = projection.row(g).t();
+
+    const arma::vec main_cur  = compute_group_main_effects(
+      variable, num_groups, current_main_effects,  main_effect_indices, proj_g
+    );
+    const arma::vec main_prop = compute_group_main_effects(
+      variable, num_groups, proposed_main_effects, main_effect_indices, proj_g
+    );
+
+    if (is_ordinal_variable(variable)) {
+      const arma::imat& num_obs = num_obs_categories_group[g];
+      const int num_cats = num_categories(variable);
+      for (int c = 0; c < num_cats; ++c) {
+        lr += (main_prop(c) - main_cur(c)) * static_cast<double>(num_obs(c, variable));
+      }
+    } else {
+      const arma::imat& suff = sufficient_blume_capel_group[g];
+      lr += (main_prop(0) - main_cur(0)) * static_cast<double>(suff(0, variable));
+      lr += (main_prop(1) - main_cur(1)) * static_cast<double>(suff(1, variable));
+    }
+  }
+
+  // Add ratio of normalizing constants
+  lr += log_ratio_pseudolikelihood_constant_variable(
+    current_main_effects, current_pairwise_effects, proposed_main_effects,
+    /* same */ current_pairwise_effects, main_effect_indices,
+    pairwise_effect_indices, projection, observations, group_indices,
+    num_categories, num_groups, tmp_ind, is_ordinal_variable,
+    baseline_category, variable
+  );
+
+  return lr;
+}
+
+
+// -----------------------------------------------------------------------------
+// log_pseudolikelihood ratio for pairwise effects between `var1` and `var2`
+// -----------------------------------------------------------------------------
+double log_pseudolikelihood_ratio_pairwise(
+    const arma::mat& main_effects,
+    const arma::mat& current_pairwise_effects,
+    const arma::mat& proposed_pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const std::vector<arma::mat>& sufficient_pairwise_group,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const int var1,
+    const int var2
+) {
+  double lr = 0.0;
+  // Ensure interaction is included
+  arma::imat tmp_ind = inclusion_indicator;
+  tmp_ind(var1, var2) = 1;
+  tmp_ind(var2, var1) = 1;
+
+  // Add data contribution
+  for (int g = 0; g < num_groups; ++g) {
+    const arma::vec proj_g = projection.row(g).t();
+    const arma::mat& suff  = sufficient_pairwise_group[g];
+
+    const double w_cur = compute_group_pairwise_effects(
+      var1, var2, num_groups, current_pairwise_effects,
+      pairwise_effect_indices, tmp_ind, proj_g
+    );
+    const double w_prop = compute_group_pairwise_effects(
+      var1, var2, num_groups, proposed_pairwise_effects,
+      pairwise_effect_indices, tmp_ind, proj_g
+    );
+
+    lr += 2.0 * (w_prop - w_cur) * suff(var1, var2);
+  }
+
+  // Add ratio of normalizing constant for `var1`
+  lr += log_ratio_pseudolikelihood_constant_variable(
+    main_effects, current_pairwise_effects, /* same */ main_effects,
+    proposed_pairwise_effects, main_effect_indices, pairwise_effect_indices,
+    projection, observations, group_indices, num_categories, num_groups,
+    tmp_ind, is_ordinal_variable, baseline_category, var1
+  );
+
+  // Add ratio of normalizing constant for `var2`
+  lr += log_ratio_pseudolikelihood_constant_variable(
+    main_effects, current_pairwise_effects, /* same */ main_effects,
+    proposed_pairwise_effects, main_effect_indices, pairwise_effect_indices,
+    projection, observations, group_indices, num_categories, num_groups,
+    tmp_ind, is_ordinal_variable, baseline_category, var2
+  );
+
+  return lr;
+}
+

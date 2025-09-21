@@ -2940,7 +2940,7 @@ List compare_anova_gibbs_sampler(
   arma::mat proposal_sd_pairwise_effects(num_pairwise, num_groups,arma::fill::ones);
 
   // Robbins-Monro parameters
-  double rm_adaptation_rate = 0.75, target_acceptance_rate = 0.234;
+  double rm_adaptation_rate = 0.75, target_acceptance_rate = 0.44;
   int rm_scale = group_indices(0, 1) - group_indices(0, 0);
   for(int gr = 1; gr < num_groups; gr++) {
     int tmp = group_indices(gr, 1) - group_indices(gr, 0);

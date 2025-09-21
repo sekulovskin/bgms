@@ -687,6 +687,334 @@ SamplerResult update_parameters_with_nuts(
 
 
 
+void tune_proposal_sd(
+    arma::mat& proposal_sd_main_effects,
+    arma::mat& proposal_sd_pairwise_effects,
+    arma::mat& main_effects,
+    arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::imat& inclusion_indicator,
+    const arma::mat& projection,
+    const arma::ivec& num_categories,
+    const arma::imat& observations,
+    int num_groups,
+    const arma::imat& group_indices,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::mat>& sufficient_pairwise,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    double pairwise_scale,
+    double difference_scale,
+    double main_alpha,
+    double main_beta,
+    int iteration,
+    SafeRNG& rng,
+    const WarmupSchedule& sched,
+    double target_accept = 0.44,
+    double rm_decay = 0.75)
+{
+  if (!sched.adapt_proposal_sd(iteration)) return;
+
+  // Robbins–Monro weight
+  double t = iteration - sched.stage3b_start + 1;
+  double rm_weight = std::pow(t, -rm_decay);
+
+  const int V = observations.n_cols;
+
+  // --- MAIN EFFECTS ---
+  for (int var = 0; var < V; ++var) {
+    int start = main_effect_indices(var, 0);
+    bool group_differences = (inclusion_indicator(var, var) == 1);
+    int hmax = group_differences ? num_groups : 1;
+
+    if (is_ordinal_variable[var]) {
+      // Ordinal variable: num_categories[var] - 1 free parameters
+      int ncat = num_categories[var] - 1;
+      for (int c = 0; c < ncat; ++c) {
+        int row = start + c;
+        for (int h = 0; h < hmax; ++h) {
+          double& current = main_effects(row, h);
+          double& prop_sd = proposal_sd_main_effects(row, h);
+
+          auto log_post = [&](double theta) {
+            main_effects(row, h) = theta;
+            return log_pseudoposterior_main_component(
+              main_effects, pairwise_effects,
+              main_effect_indices, pairwise_effect_indices,
+              projection, observations, group_indices,
+              num_categories, num_obs_categories, sufficient_blume_capel,
+              num_groups, inclusion_indicator, is_ordinal_variable,
+              baseline_category, main_alpha, main_beta, difference_scale,
+              var, c, -1, h
+            );
+          };
+
+          SamplerResult result = rwm_sampler(current, prop_sd, log_post, rng);
+          current = result.state[0];
+          prop_sd = update_proposal_sd_with_robbins_monro(
+            prop_sd, std::log(result.accept_prob), rm_weight, target_accept
+          );
+        }
+      }
+    } else {
+      // Non-ordinal variable: two parameters
+      for (int par = 0; par < 2; ++par) {
+        int row = start + par;
+        for (int h = 0; h < hmax; ++h) {
+          double& current = main_effects(row, h);
+          double& prop_sd = proposal_sd_main_effects(row, h);
+
+          auto log_post = [&](double theta) {
+            main_effects(row, h) = theta;
+            return log_pseudoposterior_main_component(
+              main_effects, pairwise_effects,
+              main_effect_indices, pairwise_effect_indices,
+              projection, observations, group_indices,
+              num_categories, num_obs_categories, sufficient_blume_capel,
+              num_groups, inclusion_indicator, is_ordinal_variable,
+              baseline_category, main_alpha, main_beta, difference_scale,
+              var, -1, par, h
+            );
+          };
+
+          SamplerResult result = rwm_sampler(current, prop_sd, log_post, rng);
+          current = result.state[0];
+          prop_sd = update_proposal_sd_with_robbins_monro(
+            prop_sd, std::log(result.accept_prob), rm_weight, target_accept
+          );
+        }
+      }
+    }
+  }
+
+  // --- PAIRWISE EFFECTS ---
+  for (int v1 = 0; v1 < V - 1; ++v1) {
+    for (int v2 = v1 + 1; v2 < V; ++v2) {
+      int idx = pairwise_effect_indices(v1, v2);
+      bool group_differences = (inclusion_indicator(v1, v2) == 1);
+      int hmax = group_differences ? num_groups : 1;
+
+      for (int h = 0; h < hmax; ++h) {
+        double& current = pairwise_effects(idx, h);
+        double& prop_sd = proposal_sd_pairwise_effects(idx, h);
+
+        auto log_post = [&](double theta) {
+          pairwise_effects(idx, h) = theta;
+          return log_pseudoposterior_pair_component(
+            main_effects, pairwise_effects,
+            main_effect_indices, pairwise_effect_indices,
+            projection, observations, group_indices,
+            num_categories, sufficient_pairwise, num_groups,
+            inclusion_indicator, is_ordinal_variable, baseline_category,
+            pairwise_scale, difference_scale, v1, v2, h
+          );
+        };
+
+        SamplerResult result = rwm_sampler(current, prop_sd, log_post, rng);
+        current = result.state[0];
+        prop_sd = update_proposal_sd_with_robbins_monro(
+          prop_sd, std::log(result.accept_prob), rm_weight, target_accept
+        );
+      }
+    }
+  }
+}
+
+
+
+void update_indicator_parameter_pair_with_metropolis (
+    const arma::mat& inclusion_probability_difference,
+    const arma::imat& index,
+    arma::mat& main_effects,
+    arma::mat& pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const int num_groups,
+    const arma::imat& group_indices,
+    const arma::imat& num_categories,
+    arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const arma::mat& proposal_sd_main,
+    const double difference_scale,
+    const arma::mat& proposal_sd_pairwise,
+    const std::vector<arma::imat>& num_obs_categories,
+    const std::vector<arma::imat>& sufficient_blume_capel,
+    const std::vector<arma::mat>& sufficient_pairwise,
+    SafeRNG& rng
+) {
+  const int num_variables = observations.n_cols;
+
+  // --- main effects ---
+  for(int var = 0; var < num_variables; var++) {
+    int start = main_effect_indices(var, 0);
+    int stop = main_effect_indices(var, 1);
+
+    arma::mat current_main_effects = main_effects;
+    arma::mat proposed_main_effects = main_effects;
+    int current_ind = inclusion_indicator(var, var);
+    int proposed_ind = 1 - current_ind;
+
+    for(int row = start; row <= stop; row++) {
+      for(int h = 1; h < num_groups; h++) {
+        if(proposed_ind == 0) {
+          // Propose to set difference to zero value
+          proposed_main_effects(row, h) = 0.0;
+        } else {
+          // Propose to set difference to non-zero value
+          proposed_main_effects(row, h) = rnorm(
+            rng, 0.0, proposal_sd_main(row, h)
+          );
+        }
+      }
+    }
+
+    // Calculate log acceptance probability
+    double log_accept = log_pseudolikelihood_ratio_main(
+      current_main_effects, proposed_main_effects, pairwise_effects,
+      main_effect_indices, pairwise_effect_indices, projection,
+      observations, group_indices, num_categories, num_obs_categories,
+      sufficient_blume_capel, num_groups, inclusion_indicator,
+      is_ordinal_variable, baseline_category, var
+    );
+
+    // Add prior inclusion probability contribution
+    double inc_prob = inclusion_probability_difference(var, var);
+    if(proposed_ind == 1) {
+      log_accept += std::log(inc_prob);
+      log_accept -= std::log(1 - inc_prob);
+    } else {
+      log_accept -= std::log(inc_prob);
+      log_accept += std::log(1 - inc_prob);
+    }
+
+    // Add parameter prior contribution
+    for(int row = start; row <= stop; row++) {
+      if(proposed_ind == 1) {
+        // Propose to set difference to non-zero
+        for(int h = 1; h < num_groups; h++) {
+          log_accept += R::dcauchy(
+            proposed_main_effects(row, h), 0.0, difference_scale, true
+          );
+          log_accept -= R::dnorm(
+            proposed_main_effects(row, h), current_main_effects(row, h),
+            proposal_sd_main(row, h), true
+          );
+        }
+      } else {
+        // Propose to set difference to zero
+        for(int h = 1; h < num_groups; h++) {
+          log_accept -= R::dcauchy(
+            current_main_effects(row, h), 0.0, difference_scale, true
+          );
+          log_accept += R::dnorm(
+            current_main_effects(row, h), proposed_main_effects(row, h),
+            proposal_sd_main(row, h), true
+          );
+        }
+      }
+    }
+
+    // Perform Metropolis-Hastings step
+    double U = runif(rng);
+    if(std::log(U) < log_accept) {
+      inclusion_indicator(var, var) = proposed_ind;
+      main_effects.rows(start, stop).cols(1, num_groups - 1) =
+        proposed_main_effects.rows(start, stop).cols(1, num_groups - 1);
+    }
+  }
+
+  // --- pairwise effects ---
+  const int num_pairwise = index.n_rows;
+  for (int cntr = 0; cntr < num_pairwise; cntr++) {
+    int var1 = index(cntr, 1);
+    int var2 = index(cntr, 2);
+    int int_index = pairwise_effect_indices(var1, var2);
+
+    arma::mat current_pairwise_effects = pairwise_effects;
+    arma::mat proposed_pairwise_effects = pairwise_effects;
+
+    int current_ind = inclusion_indicator(var1, var2);
+    int proposed_ind = 1 - current_ind;
+
+    for(int h = 1; h < num_groups; h++) {
+      if(proposed_ind == 0) {
+        // Propose to set difference to zero value
+        proposed_pairwise_effects(int_index, h) = 0.0;
+      } else {
+        // Propose to set difference to non-zero value
+        proposed_pairwise_effects(int_index, h) = rnorm(
+          rng, 0.0, proposal_sd_pairwise(int_index, h)
+        );
+      }
+    }
+    // Calculate log acceptance probability
+    double log_accept = log_pseudolikelihood_ratio_pairwise(
+      main_effects, current_pairwise_effects, proposed_pairwise_effects,
+      main_effect_indices, pairwise_effect_indices, projection, observations,
+      group_indices, num_categories, sufficient_pairwise, num_groups,
+      inclusion_indicator, is_ordinal_variable, baseline_category, var1, var2
+    );
+
+    // Add prior inclusion probability contribution
+    double inc_prob = inclusion_probability_difference(var1, var2);
+    if(proposed_ind == 1) {
+      log_accept += std::log(inc_prob);
+      log_accept -= std::log(1 - inc_prob);
+    } else {
+      log_accept -= std::log(inc_prob);
+      log_accept += std::log(1 - inc_prob);
+    }
+
+    // Add parameter prior contribution
+    if(proposed_ind == 1) {
+      // Propose to set difference to non-zero
+      for(int h = 1; h < num_groups; h++) {
+        log_accept += R::dcauchy(
+          proposed_pairwise_effects(int_index, h), 0.0, difference_scale, true
+        );
+        log_accept -= R::dnorm(
+          proposed_pairwise_effects(int_index, h),
+          current_pairwise_effects(int_index, h),
+          proposal_sd_pairwise(int_index, h),
+          true
+        );
+      }
+    } else {
+      // Propose to set difference to zero
+      for(int h = 1; h < num_groups; h++) {
+        log_accept -= R::dcauchy(
+          current_pairwise_effects(int_index, h), 0.0, difference_scale, true
+        );
+        log_accept += R::dnorm(
+          current_pairwise_effects(int_index, h),
+          proposed_pairwise_effects(int_index, h),
+          proposal_sd_pairwise(int_index, h), true
+        );
+      }
+    }
+
+    // Metropolis-Hastings acceptance step
+    double U = runif(rng);
+    if (std::log(U) < log_accept) {
+      // Update inclusion inclusion_indicator
+      inclusion_indicator(var1, var2) = proposed_ind;
+      inclusion_indicator(var2, var1) = proposed_ind;
+
+      // Update pairwise effects and rest matrix
+      for (int h = 1; h < num_groups; h++) {
+        pairwise_effects(int_index, h) = proposed_pairwise_effects(int_index, h);
+      }
+    }
+  }
+}
+
+
+
 /**
  * Performs a single iteration of the Gibbs sampler for graphical model parameters.
  *
@@ -783,7 +1111,8 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
     int hmc_nuts_leapfrogs,
     const std::string& update_method,
     arma::mat& proposal_sd_main,
-    arma::mat& proposal_sd_pair
+    arma::mat& proposal_sd_pair,
+    const arma::imat& index
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
@@ -795,7 +1124,16 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
   }
 
   // Step 1: Difference selection via MH indicator updates (if enabled)
-  // ....
+  if (schedule.selection_enabled(iteration)) {
+    update_indicator_parameter_pair_with_metropolis (
+        inclusion_probability, index, main_effects, pairwise_effects,
+        main_effect_indices, pairwise_effect_indices, projection, observations,
+        num_groups, group_indices, num_categories, inclusion_indicator,
+        is_ordinal_variable, baseline_category, proposal_sd_main,
+        difference_scale, proposal_sd_pair, num_obs_categories,
+        sufficient_blume_capel, sufficient_pairwise, rng
+    );
+  }
 
   // Step 2: Update parameters
   if(update_method == "adaptive-metropolis") {
@@ -848,8 +1186,14 @@ void gibbs_update_step_for_graphical_model_parameters_cmp (
   }
 
   /* --- 2b.  proposal-sd tuning during Stage-3b ------------------------------ */
-  // ....
-
+  tune_proposal_sd(
+    proposal_sd_main, proposal_sd_pair, main_effects,
+    pairwise_effects, main_effect_indices, pairwise_effect_indices,
+    inclusion_indicator, projection, num_categories, observations, num_groups,
+    group_indices, num_obs_categories, sufficient_blume_capel,
+    sufficient_pairwise, is_ordinal_variable, baseline_category, pairwise_scale,
+    difference_scale, main_alpha, main_beta, iteration, rng, schedule
+  );
 }
 
 
@@ -993,9 +1337,9 @@ SamplerOutput run_gibbs_sampler_for_bgmCompare(
         iteration, pairwise_effect_indices, sufficient_pairwise, nuts_max_depth,
         hmc_adapt, rwm_adapt_main, rwm_adapt_pair, learn_mass_matrix,
         warmup_schedule, treedepth_samples, divergent_samples, energy_samples,
-        main_effect_indices, projection, num_groups, group_indices, difference_scale,//new line of args
-        rng, inclusion_probability, hmc_num_leapfrogs, update_method,
-        proposal_sd_main, proposal_sd_pair
+        main_effect_indices, projection, num_groups, group_indices,
+        difference_scale, rng, inclusion_probability, hmc_num_leapfrogs,
+        update_method, proposal_sd_main, proposal_sd_pair, index
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)

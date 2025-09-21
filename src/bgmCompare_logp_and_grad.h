@@ -94,3 +94,42 @@ double log_pseudoposterior_pair_component(
     int variable2,
     int h // Overall = 0, differences are 1, ....
 );
+
+
+double log_pseudolikelihood_ratio_main(
+    const arma::mat& current_main_effects,
+    const arma::mat& proposed_main_effects,
+    const arma::mat& current_pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat&  projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const std::vector<arma::imat>& num_obs_categories_group,
+    const std::vector<arma::imat>& sufficient_blume_capel_group,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const int variable
+);
+
+double log_pseudolikelihood_ratio_pairwise(
+    const arma::mat& main_effects,
+    const arma::mat& current_pairwise_effects,
+    const arma::mat& proposed_pairwise_effects,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const std::vector<arma::mat>& sufficient_pairwise_group,
+    const int num_groups,
+    const arma::imat& inclusion_indicator,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const int var1,
+    const int var2
+);
