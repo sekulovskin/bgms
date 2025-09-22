@@ -57,7 +57,7 @@
 #' @section Gibbs Sampling:
 #'
 #' Parameters are estimated using a Metropolis-within-Gibbs sampling scheme.
-#' When \code{difference_selection = TRUE}, the algorithm runs \code{2 * burnin} warmup iterations:
+#' When \code{difference_selection = TRUE}, the algorithm runs \code{2 * warmup} warmup iterations:
 #' \itemize{
 #'   \item First half without difference selection.
 #'   \item Second half with edge selection enabled.
@@ -80,11 +80,11 @@
 #' @param pairwise_difference_prior,main_difference_prior Character. Specifies the inclusion probability model (\code{"Bernoulli"} or \code{"Beta-Bernoulli"}). Default: \code{"Bernoulli"}.
 #' @param pairwise_difference_probability A numeric value or a \eqn{p \times p} matrix specifying the prior inclusion probability of a pairwise difference in the Bernoulli model. A single value applies the same probability to all pairs, while a matrix allows for edge-specific probabilities. Default: 0.5 for equal prior probability for inclusion and exclusion.
 #' @param main_difference_probability A numeric value or a length-\eqn{p} vector specifying the prior inclusion probability of a threshold difference in the Bernoulli model. A single value applies the same probability to all variables, while a vector allows for variable-specific probabilities. Default: 0.5 to indicate no prior preference.
-#' @param iter,burnin Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{burnin}). Defaults: \code{iter = 1e4}, \code{burnin = 1e3}.
+#' @param iter,warmup Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{warmup}). Defaults: \code{iter = 1e4}, \code{warmup = 1e3}.
 #' @param na_action Character. Specifies handling of missing data. \code{"listwise"} deletes rows with missing values; \code{"impute"} imputes values during Gibbs sampling. Default: \code{"listwise"}.
 #' @param display_progress Logical. Show progress bar during computation. Default: \code{TRUE}.
-#' @param threshold_alpha,threshold_beta Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.
-#' @param interaction_scale Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.
+#' @param main_alpha,main_beta Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.
+#' @param pairwise_scale Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.
 #' @param main_beta_bernoulli_alpha,main_beta_bernoulli_beta Double. Shape parameters for the Beta-Bernoulli prior on threshold differences.
 #' @param pairwise_beta_bernoulli_alpha,pairwise_beta_bernoulli_beta Double. Shape parameters for the Beta-Bernoulli prior on pairwise differences.
 #' @param save Logical. If true, sampled states for all parameters are returned. Deprecated.
@@ -116,11 +116,11 @@ bgmCompare = function(
     difference_probability = 0.5,
     beta_bernoulli_alpha = 1,
     beta_bernoulli_beta = 1,
-    interaction_scale = 2.5,
-    threshold_alpha = 0.5,
-    threshold_beta = 0.5,
+    pairwise_scale = 2.5,
+    main_alpha = 0.5,
+    main_beta = 0.5,
     iter = 1e3,
-    burnin = 1e3,
+    warmup = 1e3,
     na_action = c("listwise", "impute"),
     display_progress =  c("per-chain", "total", "none"),
     update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
@@ -181,8 +181,8 @@ bgmCompare = function(
     difference_probability = difference_probability,
     beta_bernoulli_alpha = beta_bernoulli_alpha,
     beta_bernoulli_beta = beta_bernoulli_beta,
-    interaction_scale = interaction_scale, threshold_alpha = threshold_alpha,
-    threshold_beta = threshold_beta
+    pairwise_scale = pairwise_scale, main_alpha = main_alpha,
+    main_beta = main_beta
   )
 
   x = model$x
@@ -192,7 +192,7 @@ bgmCompare = function(
 
   # Check Gibbs input
   check_positive_integer(iter, "iter")
-  check_non_negative_integer(burnin, "burnin")
+  check_non_negative_integer(warmup, "warmup")
 
   # Check na_action
   na_action_input = na_action
@@ -318,13 +318,13 @@ bgmCompare = function(
     blume_capel_stats = blume_capel_stats,
     pairwise_stats = pairwise_stats,
     num_categories = num_categories[, 1],
-    main_alpha = threshold_alpha,
-    main_beta = threshold_beta,
-    pairwise_scale = interaction_scale,
+    main_alpha = main_alpha,
+    main_beta = main_beta,
+    pairwise_scale = pairwise_scale,
     difference_scale = difference_scale,
     difference_selection_alpha = beta_bernoulli_alpha,
     difference_selection_beta = beta_bernoulli_beta,
-    difference_prior = model$difference_prior, iter = iter, burnin = burnin,
+    difference_prior = model$difference_prior, iter = iter, warmup = warmup,
     na_impute = na_impute, missing_data_indices = missing_index,
     is_ordinal_variable = ordinal_variable,
     baseline_category = baseline_category,

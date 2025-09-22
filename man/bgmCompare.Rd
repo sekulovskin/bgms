@@ -16,11 +16,11 @@ bgmCompare(
   difference_probability = 0.5,
   beta_bernoulli_alpha = 1,
   beta_bernoulli_beta = 1,
-  interaction_scale = 2.5,
-  threshold_alpha = 0.5,
-  threshold_beta = 0.5,
+  pairwise_scale = 2.5,
+  main_alpha = 0.5,
+  main_beta = 0.5,
   iter = 1000,
-  burnin = 1000,
+  warmup = 1000,
   na_action = c("listwise", "impute"),
   display_progress = TRUE,
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
@@ -42,11 +42,11 @@ bgmCompare(
 
 \item{variable_type}{Character or vector. Specifies the type of variables in \code{x} (\code{"ordinal"} or \code{"blume-capel"}). Default: \code{"ordinal"}.}
 
-\item{interaction_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.}
+\item{pairwise_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.}
 
-\item{threshold_alpha, threshold_beta}{Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.}
+\item{main_alpha, main_beta}{Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.}
 
-\item{iter, burnin}{Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{burnin}). Defaults: \code{iter = 1e4}, \code{burnin = 1e3}.}
+\item{iter, warmup}{Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{warmup}). Defaults: \code{iter = 1e4}, \code{warmup = 1e3}.}
 
 \item{na_action}{Character. Specifies handling of missing data. \code{"listwise"} deletes rows with missing values; \code{"impute"} imputes values during Gibbs sampling. Default: \code{"listwise"}.}
 
@@ -154,7 +154,7 @@ Bayesian variable selection enables testing of parameter differences or equivale
 
 
 Parameters are estimated using a Metropolis-within-Gibbs sampling scheme.
-When \code{difference_selection = TRUE}, the algorithm runs \code{2 * burnin} warmup iterations:
+When \code{difference_selection = TRUE}, the algorithm runs \code{2 * warmup} warmup iterations:
 \itemize{
   \item First half without difference selection.
   \item Second half with edge selection enabled.

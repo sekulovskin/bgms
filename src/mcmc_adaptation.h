@@ -103,14 +103,14 @@ struct WarmupSchedule {
   int stage1_end;                 // Stage-1   [0 … stage1_end-1]
   std::vector<int> window_ends;   // Stage-2   windows (last index of each)
   int stage3a_start;              // first iter in Stage-3 a
-  int stage3b_start;              // first iter in Stage-3 b (may == total_burnin)
-  int stage3c_start;              // = stage3b_end if selection is ON, else stage3b_end == total_burnin
-  int total_burnin;               // warm-up iterations in total
+  int stage3b_start;              // first iter in Stage-3 b (may == total_warmup)
+  int stage3c_start;              // = stage3b_end if selection is ON, else stage3b_end == total_warmup
+  int total_warmup;               // warm-up iterations in total
   bool learn_proposal_sd;         // do we run the proposal-SD tuner?
   bool enable_selection;          // allow edge-indicator moves (after warm-up)
   /* ------------------------------------------------ */
 
-  WarmupSchedule(int burnin_core,
+  WarmupSchedule(int warmup_core,
                  bool enable_sel,
                  bool learn_sd)
     : stage1_end(0)
@@ -118,15 +118,15 @@ struct WarmupSchedule {
     , stage3a_start(0)
     , stage3b_start(0)
     , stage3c_start(0)
-    , total_burnin(0)             // will be set below
+    , total_warmup(0)             // will be set below
     , learn_proposal_sd(learn_sd)
     , enable_selection(enable_sel)
   {
     /* ---------- Stage-1 (15 % of core warm-up) ---------- */
-    stage1_end      = int(0.15 * burnin_core);
+    stage1_end      = int(0.15 * warmup_core);
 
     /* ---------- Stage-3 a (last 10 % of core warm-up) ---- */
-    stage3a_start   = burnin_core - int(0.10 * burnin_core);
+    stage3a_start   = warmup_core - int(0.10 * warmup_core);
 
     /* ---------- Stage-2 : build doubling windows ---------- */
     int cur   = stage1_end;
@@ -139,7 +139,7 @@ struct WarmupSchedule {
     }
 
     /* ---------- Stage-3 b : proposal-SD learning ---------- */
-    int stage3a_len = burnin_core - stage3a_start;          // 10 % of core
+    int stage3a_len = warmup_core - stage3a_start;          // 10 % of core
     int stage3b_len = (learn_proposal_sd && enable_selection)
       ? std::max(100, stage3a_len)
         : 0;
@@ -147,9 +147,9 @@ struct WarmupSchedule {
       ? std::max(100, stage3a_len)
         : 0;
 
-    stage3b_start = burnin_core;            // begins directly after 3 a
-    stage3c_start = burnin_core + stage3b_len;
-    total_burnin  = stage3c_start + stage3c_len;
+    stage3b_start = warmup_core;            // begins directly after 3 a
+    stage3c_start = warmup_core + stage3b_len;
+    total_warmup  = stage3c_start + stage3c_len;
   }
 
   /* ---------- helpers ---------- */
@@ -157,8 +157,8 @@ struct WarmupSchedule {
   bool in_stage2 (int i) const { return i >= stage1_end   && i < stage3a_start; }
   bool in_stage3a(int i) const { return i >= stage3a_start&& i < stage3b_start; }
   bool in_stage3b(int i) const { return i >= stage3b_start&& i < stage3c_start; }
-  bool in_stage3c(int i) const { return enable_selection && i >= stage3c_start && i < total_burnin; }
-  bool sampling (int i) const { return i >= total_burnin; }
+  bool in_stage3c(int i) const { return enable_selection && i >= stage3c_start && i < total_warmup; }
+  bool sampling (int i) const { return i >= total_warmup; }
 
   /* indicator moves only once warm-up is finished */
   bool selection_enabled(int i) const {
@@ -258,21 +258,21 @@ private:
 class RWMAdaptationController {
 public:
   arma::mat& proposal_sd;
-  const int total_burnin;
+  const int total_warmup;
   const double target_accept;
 
   RWMAdaptationController(arma::mat& proposal_sd_matrix,
                           const WarmupSchedule& warmup,
                           double target_accept_rate = 0.44)
     : proposal_sd(proposal_sd_matrix),
-      total_burnin(warmup.total_burnin),
+      total_warmup(warmup.total_warmup),
       target_accept(target_accept_rate) {}
 
   void update(const arma::umat& index_mask,
               const arma::mat& accept_prob_matrix,
               int iteration) {
 
-    if (iteration >= total_burnin || iteration < 1)
+    if (iteration >= total_warmup || iteration < 1)
       return;
 
     const double rm_decay_rate = 0.75;

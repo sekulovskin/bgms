@@ -1091,8 +1091,8 @@ void gibbs_update_step_bgm (
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
       rng
     );
-    if (iteration >= schedule.total_burnin) {
-      int sample_index = iteration - schedule.total_burnin;
+    if (iteration >= schedule.total_warmup) {
+      int sample_index = iteration - schedule.total_warmup;
       if (auto diag = std::dynamic_pointer_cast<NUTSDiagnostics>(result.diagnostics)) {
         treedepth_samples(sample_index) = diag->tree_depth;
         divergent_samples(sample_index) = diag->divergent ? 1 : 0;
@@ -1134,7 +1134,7 @@ void gibbs_update_step_bgm (
  *  - dirichlet_alpha, lambda: Hyperparameters for SBM prior.
  *  - interaction_index_matrix: Index mapping for candidate interactions.
  *  - iter: Number of post-warmup iterations.
- *  - burnin: Number of warmup iterations.
+ *  - warmup: Number of warmup iterations.
  *  - counts_per_category: Category counts per variable (for ordinal variables).
  *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
  *  - main_alpha, main_beta: Hyperparameters for Beta priors on main effects.
@@ -1180,7 +1180,7 @@ Rcpp::List run_gibbs_sampler_bgm(
     const double lambda,
     const arma::imat& interaction_index_matrix,
     const int iter,
-    const int burnin,
+    const int warmup,
     arma::imat counts_per_category,
     arma::imat blume_capel_stats,
     const double main_alpha,
@@ -1284,7 +1284,7 @@ Rcpp::List run_gibbs_sampler_bgm(
   }
 
   // --- Warmup scheduling + adaptation controller
-  WarmupSchedule warmup_schedule(burnin, edge_selection, (update_method != "adaptive-metropolis"));
+  WarmupSchedule warmup_schedule(warmup, edge_selection, (update_method != "adaptive-metropolis"));
   HMCAdaptationController adapt_joint(
       num_main + num_pairwise, initial_step_size_joint, target_accept,
       warmup_schedule, learn_mass_matrix
@@ -1296,7 +1296,7 @@ Rcpp::List run_gibbs_sampler_bgm(
       proposal_sd_pairwise, warmup_schedule, target_accept
   );
 
-  const int total_iter = warmup_schedule.total_burnin + iter;
+  const int total_iter = warmup_schedule.total_warmup + iter;
 
   bool userInterrupt = false;
   // --- Main Gibbs sampling loop
@@ -1377,8 +1377,8 @@ Rcpp::List run_gibbs_sampler_bgm(
     }
 
     // --- Store states
-    if (iteration >= warmup_schedule.total_burnin) {
-      int sample_index = iteration - warmup_schedule.total_burnin;
+    if (iteration >= warmup_schedule.total_warmup) {
+      int sample_index = iteration - warmup_schedule.total_warmup;
 
       arma::vec vectorized_main = vectorize_main_effects_bgm(main_effects, num_categories, is_ordinal_variable);
       main_effect_samples.row(sample_index) = vectorized_main.t();

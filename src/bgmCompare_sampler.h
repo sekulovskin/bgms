@@ -23,7 +23,7 @@ SamplerOutput run_gibbs_sampler_bgmCompare(
     const double difference_selection_beta,
     const std::string& difference_prior,
     const int iter,
-    const int burnin,
+    const int warmup,
     const bool na_impute,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,

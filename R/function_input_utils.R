@@ -23,9 +23,9 @@ check_logical = function(value, name) {
 check_model = function(x,
                        variable_type,
                        baseline_category,
-                       interaction_scale = 2.5,
-                       threshold_alpha = 0.5,
-                       threshold_beta = 0.5,
+                       pairwise_scale = 2.5,
+                       main_alpha = 0.5,
+                       main_beta = 0.5,
                        edge_selection = TRUE,
                        edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
                        inclusion_probability = 0.5,
@@ -139,14 +139,14 @@ check_model = function(x,
   }
 
   #Check prior set-up for the interaction parameters ---------------------------
-  if(interaction_scale <= 0 || is.na(interaction_scale) || is.infinite(interaction_scale))
+  if(pairwise_scale <= 0 || is.na(pairwise_scale) || is.infinite(pairwise_scale))
     stop("The scale of the Cauchy prior needs to be positive.")
 
   #Check prior set-up for the threshold parameters -----------------------------
-  if(threshold_alpha <= 0 | !is.finite(threshold_alpha))
-    stop("Parameter threshold_alpha needs to be positive.")
-  if(threshold_beta <= 0 | !is.finite(threshold_beta))
-    stop("Parameter threshold_beta needs to be positive.")
+  if(main_alpha <= 0 | !is.finite(main_alpha))
+    stop("Parameter main_alpha needs to be positive.")
+  if(main_beta <= 0 | !is.finite(main_beta))
+    stop("Parameter main_beta needs to be positive.")
 
   #Check set-up for the Bayesian edge selection model --------------------------
   edge_selection = as.logical(edge_selection)
@@ -241,9 +241,9 @@ check_compare_model = function(
     difference_probability = 0.5,
     beta_bernoulli_alpha = 1,
     beta_bernoulli_beta = 1,
-    interaction_scale = 2.5,
-    threshold_alpha = 0.5,
-    threshold_beta = 0.5
+    pairwise_scale = 2.5,
+    main_alpha = 0.5,
+    main_beta = 0.5
 ) {
 
   if(!is.null(group_indicator)) {
@@ -374,7 +374,7 @@ check_compare_model = function(
   }
 
   #Check prior set-up for the interaction parameters ---------------------------
-  if(interaction_scale <= 0 || is.na(interaction_scale) || is.infinite(interaction_scale))
+  if(pairwise_scale <= 0 || is.na(pairwise_scale) || is.infinite(pairwise_scale))
     stop("The scale of the Cauchy prior for the interactions needs to be positive.")
 
   #Check prior set-up for the interaction differences --------------------------
@@ -382,10 +382,10 @@ check_compare_model = function(
     stop("The scale of the Cauchy prior for the differences needs to be positive.")
 
   #Check prior set-up for the threshold parameters -----------------------------
-  if(threshold_alpha <= 0 | !is.finite(threshold_alpha))
-    stop("Parameter threshold_alpha needs to be positive.")
-  if(threshold_beta <= 0 | !is.finite(threshold_beta))
-    stop("Parameter threshold_beta needs to be positive.")
+  if(main_alpha <= 0 | !is.finite(main_alpha))
+    stop("Parameter main_alpha needs to be positive.")
+  if(main_beta <= 0 | !is.finite(main_beta))
+    stop("Parameter main_beta needs to be positive.")
 
   #Check set-up for the Bayesian difference selection model --------------------
   difference_selection = as.logical(difference_selection)

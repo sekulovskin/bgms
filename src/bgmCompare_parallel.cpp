@@ -69,7 +69,7 @@ struct ChainResultCompare {
  *  - difference_scale: Scale for Cauchy prior on group differences.
  *  - difference_selection_alpha, difference_selection_beta: Hyperparameters for difference-selection prior.
  *  - difference_prior: Choice of prior distribution for group differences.
- *  - iter, burnin: Iteration counts.
+ *  - iter, warmup: Iteration counts.
  *  - na_impute: If true, perform missing data imputation.
  *  - missing_data_indices: Indices of missing observations.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
@@ -113,7 +113,7 @@ struct GibbsCompareChainRunner : public Worker {
   const double difference_selection_beta;
   const std::string& difference_prior;
   const int iter;
-  const int burnin;
+  const int warmup;
   const bool na_impute;
   const arma::imat& missing_data_indices;
   const arma::uvec& is_ordinal_variable;
@@ -152,7 +152,7 @@ struct GibbsCompareChainRunner : public Worker {
     double difference_selection_beta,
     const std::string& difference_prior,
     int iter,
-    int burnin,
+    int warmup,
     bool na_impute,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
@@ -188,7 +188,7 @@ struct GibbsCompareChainRunner : public Worker {
     difference_selection_beta(difference_selection_beta),
     difference_prior(difference_prior),
     iter(iter),
-    burnin(burnin),
+    warmup(warmup),
     na_impute(na_impute),
     missing_data_indices(missing_data_indices),
     is_ordinal_variable(is_ordinal_variable),
@@ -245,7 +245,7 @@ struct GibbsCompareChainRunner : public Worker {
           difference_selection_beta,
           difference_prior,
           iter,
-          burnin,
+          warmup,
           na_impute,
           missing_data_indices,
           is_ordinal_variable,
@@ -309,8 +309,8 @@ struct GibbsCompareChainRunner : public Worker {
  *  - difference_scale: Scale for Cauchy prior on group differences.
  *  - difference_selection_alpha, difference_selection_beta: Hyperparameters for difference-selection prior.
  *  - difference_prior: Choice of prior distribution for group differences.
- *  - iter: Number of post-burnin iterations to draw.
- *  - burnin: Number of warmup iterations.
+ *  - iter: Number of post-warmup iterations to draw.
+ *  - warmup: Number of warmup iterations.
  *  - na_impute: If true, perform missing data imputation during sampling.
  *  - missing_data_indices: Indices of missing entries in observations.
  *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
@@ -363,7 +363,7 @@ Rcpp::List run_bgmCompare_parallel(
     double difference_selection_beta,
     const std::string& difference_prior,
     int iter,
-    int burnin,
+    int warmup,
     bool na_impute,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
@@ -394,17 +394,17 @@ Rcpp::List run_bgmCompare_parallel(
     chain_rngs[c] = SafeRNG(seed + c);
   }
 
-  // only used to determine the total no. burnin iterations, a bit hacky
-  WarmupSchedule warmup_schedule_temp(burnin, difference_selection, (update_method != "adaptive-metropolis"));
-  int total_burnin = warmup_schedule_temp.total_burnin;
-  ProgressManager pm(num_chains, iter, total_burnin, 50, progress_type);
+  // only used to determine the total no. warmup iterations, a bit hacky
+  WarmupSchedule warmup_schedule_temp(warmup, difference_selection, (update_method != "adaptive-metropolis"));
+  int total_warmup = warmup_schedule_temp.total_warmup;
+  ProgressManager pm(num_chains, iter, total_warmup, 50, progress_type);
 
   GibbsCompareChainRunner worker(
       observations, num_groups,
       counts_per_category, blume_capel_stats, pairwise_stats,
       num_categories, main_alpha, main_beta, pairwise_scale, difference_scale,
       difference_selection_alpha, difference_selection_beta, difference_prior,
-      iter, burnin, na_impute, missing_data_indices, is_ordinal_variable,
+      iter, warmup, na_impute, missing_data_indices, is_ordinal_variable,
       baseline_category, difference_selection, main_effect_indices,
       pairwise_effect_indices, target_accept, nuts_max_depth, learn_mass_matrix,
       projection, group_membership, group_indices, interaction_index_matrix,

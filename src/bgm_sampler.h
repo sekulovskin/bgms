@@ -17,7 +17,7 @@ Rcpp::List run_gibbs_sampler_bgm(
     const double lambda,
     const arma::imat& interaction_index_matrix,
     const int iter,
-    const int burnin,
+    const int warmup,
     arma::imat counts_per_category,
     arma::imat blume_capel_stats,
     const double main_alpha,

@@ -1455,8 +1455,8 @@ void gibbs_update_step_bgmcompare (
       schedule.selection_enabled(iteration), rng
     );
 
-    if (iteration >= schedule.total_burnin) {
-      int sample_index = iteration - schedule.total_burnin;
+    if (iteration >= schedule.total_warmup) {
+      int sample_index = iteration - schedule.total_warmup;
       if (auto diag = std::dynamic_pointer_cast<NUTSDiagnostics>(result.diagnostics)) {
         treedepth_samples(sample_index) = diag->tree_depth;
         divergent_samples(sample_index) = diag->divergent ? 1 : 0;
@@ -1506,7 +1506,7 @@ void gibbs_update_step_bgmcompare (
  *    for difference-selection prior.
  *  - difference_prior: Prior type for difference-selection ("Beta-Bernoulli", ...).
  *  - iter: Number of post–burn-in sampling iterations.
- *  - burnin: Number of warmup iterations.
+ *  - warmup: Number of warmup iterations.
  *  - na_impute: If true, impute missing observations at each iteration.
  *  - missing_data_indices: Matrix of [person, variable] indices of missings.
  *  - is_ordinal_variable: Marks ordinal vs. Blume–Capel variables.
@@ -1560,7 +1560,7 @@ SamplerOutput run_gibbs_sampler_bgmCompare(
     const double difference_selection_beta,
     const std::string& difference_prior,
     const int iter,
-    const int burnin,
+    const int warmup,
     const bool na_impute,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
@@ -1630,7 +1630,7 @@ SamplerOutput run_gibbs_sampler_bgmCompare(
   }
 
   // --- Warmup scheduling + adaptation controller
-  WarmupSchedule warmup_schedule(burnin, difference_selection, true);
+  WarmupSchedule warmup_schedule(warmup, difference_selection, true);
 
   HMCAdaptationController hmc_adapt(
       (num_main + num_pair) * num_groups, initial_step_size, target_accept,
@@ -1644,7 +1644,7 @@ SamplerOutput run_gibbs_sampler_bgmCompare(
       proposal_sd_pair, warmup_schedule, target_accept
   );
 
-  const int total_iter = warmup_schedule.total_burnin + iter;
+  const int total_iter = warmup_schedule.total_warmup + iter;
   const int print_every = std::max(1, total_iter / 10);
 
   // --- Main Gibbs sampling loop
@@ -1710,8 +1710,8 @@ SamplerOutput run_gibbs_sampler_bgmCompare(
     }
 
     // --- Store states
-    if (iteration >= warmup_schedule.total_burnin) {
-      int sample_index = iteration - warmup_schedule.total_burnin;
+    if (iteration >= warmup_schedule.total_warmup) {
+      int sample_index = iteration - warmup_schedule.total_warmup;
 
 
       int cntr = 0;

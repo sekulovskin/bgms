@@ -69,7 +69,7 @@ struct GibbsChainRunner : public Worker {
   double lambda;
   const arma::imat& interaction_index_matrix;
   int iter;
-  int burnin;
+  int warmup;
   const arma::imat& counts_per_category;
   const arma::imat& blume_capel_stats;
   double main_alpha;
@@ -106,7 +106,7 @@ struct GibbsChainRunner : public Worker {
     double lambda,
     const arma::imat& interaction_index_matrix,
     int iter,
-    int burnin,
+    int warmup,
     const arma::imat& counts_per_category,
     const arma::imat& blume_capel_stats,
     double main_alpha,
@@ -138,7 +138,7 @@ struct GibbsChainRunner : public Worker {
     lambda(lambda),
     interaction_index_matrix(interaction_index_matrix),
     iter(iter),
-    burnin(burnin),
+    warmup(warmup),
     counts_per_category(counts_per_category),
     blume_capel_stats(blume_capel_stats),
     main_alpha(main_alpha),
@@ -182,7 +182,7 @@ struct GibbsChainRunner : public Worker {
           lambda,
           interaction_index_matrix,
           iter,
-          burnin,
+          warmup,
           counts_per_category,
           blume_capel_stats,
           main_alpha,
@@ -235,7 +235,7 @@ struct GibbsChainRunner : public Worker {
  *  - dirichlet_alpha, lambda: Hyperparameters for other prior components.
  *  - interaction_index_matrix: Indexing matrix for candidate interactions.
  *  - iter: Total number of iterations per chain.
- *  - burnin: Number of burn-in iterations.
+ *  - warmup: Number of burn-in iterations.
  *  - counts_per_category: Category counts per variable.
  *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
  *  - main_alpha, main_beta: Hyperparameters for Beta priors on main effects.
@@ -278,7 +278,7 @@ Rcpp::List run_bgm_parallel(
     double lambda,
     const arma::imat& interaction_index_matrix,
     int iter,
-    int burnin,
+    int warmup,
     const arma::imat& counts_per_category,
     const arma::imat& blume_capel_stats,
     double main_alpha,
@@ -308,15 +308,15 @@ Rcpp::List run_bgm_parallel(
     chain_rngs[c] = SafeRNG(seed + c);
   }
 
-  // only used to determine the total no. burnin iterations, a bit hacky
-  WarmupSchedule warmup_schedule_temp(burnin, edge_selection, (update_method != "adaptive-metropolis"));
-  int total_burnin = warmup_schedule_temp.total_burnin;
-  ProgressManager pm(num_chains, iter, total_burnin, 50, progress_type);
+  // only used to determine the total no. warmup iterations, a bit hacky
+  WarmupSchedule warmup_schedule_temp(warmup, edge_selection, (update_method != "adaptive-metropolis"));
+  int total_warmup = warmup_schedule_temp.total_warmup;
+  ProgressManager pm(num_chains, iter, total_warmup, 50, progress_type);
 
   GibbsChainRunner worker(
       observations, num_categories,  pairwise_scale, edge_prior,
       inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta,
-      dirichlet_alpha, lambda, interaction_index_matrix, iter, burnin,
+      dirichlet_alpha, lambda, interaction_index_matrix, iter, warmup,
       counts_per_category, blume_capel_stats, main_alpha, main_beta,
       na_impute, missing_index, is_ordinal_variable, baseline_category,
       edge_selection, update_method, pairwise_effect_indices, target_accept,
