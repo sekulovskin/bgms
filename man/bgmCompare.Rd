@@ -2,7 +2,7 @@
 % Please edit documentation in R/bgmCompare.R
 \name{bgmCompare}
 \alias{bgmCompare}
-\title{Bayesian Variable Selection or Bayesian Estimation for Differences in Markov Random Fields}
+\title{Bayesian Estimation and Variable Selection for Group Differences in Markov Random Fields}
 \usage{
 bgmCompare(
   x,
@@ -34,136 +34,203 @@ bgmCompare(
 )
 }
 \arguments{
-\item{x}{Data frame or matrix with binary and ordinal responses. Regular ordinal variables should be coded as integers starting from 0. Missing categories are collapsed for regular ordinal variables but retained for Blume-Capel variables.}
+\item{x}{A data frame or matrix of binary and ordinal responses for
+Group 1. Variables should be coded as nonnegative integers starting at
+0. For ordinal variables, unused categories are collapsed; for
+Blume–Capel variables, all categories are retained.}
 
-\item{y}{A data frame or matrix similar to \code{x}, used for two-group designs. \code{x} contains Group 1 data, and \code{y} contains Group 2 data. Ignored for multi-group designs.}
+\item{y}{Optional data frame or matrix for Group 2 (two-group designs).
+Must have the same variables (columns) as \code{x}.}
 
-\item{difference_selection}{Logical. If \code{TRUE}, the function models the inclusion or exclusion of parameter differences. Default: \code{TRUE}.}
+\item{group_indicator}{Optional integer vector of group memberships for
+rows of \code{x} (multi-group designs). Ignored if \code{y} is supplied.}
 
-\item{variable_type}{Character or vector. Specifies the type of variables in \code{x} (\code{"ordinal"} or \code{"blume-capel"}). Default: \code{"ordinal"}.}
+\item{difference_selection}{Logical. If \code{TRUE}, spike-and-slab priors
+are applied to difference parameters. Default: \code{TRUE}.}
 
-\item{pairwise_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.}
+\item{variable_type}{Character vector specifying type of each variable:
+\code{"ordinal"} (default) or \code{"blume-capel"}.}
 
-\item{main_alpha, main_beta}{Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.}
+\item{baseline_category}{Integer or vector giving the baseline category
+for Blume–Capel variables.}
 
-\item{iter, warmup}{Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{warmup}). Defaults: \code{iter = 1e4}, \code{warmup = 1e3}.}
+\item{difference_scale}{Double. Scale of the Cauchy prior for difference
+parameters. Default: \code{1}.}
 
-\item{na_action}{Character. Specifies handling of missing data. \code{"listwise"} deletes rows with missing values; \code{"impute"} imputes values during Gibbs sampling. Default: \code{"listwise"}.}
+\item{difference_prior}{Character. Prior for difference inclusion:
+\code{"Bernoulli"} or \code{"Beta-Bernoulli"}. Default: \code{"Bernoulli"}.}
 
-\item{display_progress}{Logical. Show progress bar during computation. Default: \code{TRUE}.}
+\item{difference_probability}{Numeric. Prior inclusion probability for
+differences (Bernoulli prior). Default: \code{0.5}.}
 
-\item{g}{Group membership vector for rows in \code{x}. Required for multi-group designs; ignored if \code{y} is provided.}
+\item{beta_bernoulli_alpha, beta_bernoulli_beta}{Doubles. Shape parameters
+of the Beta prior for inclusion probabilities in the Beta–Bernoulli
+model. Defaults: \code{1}.}
 
-\item{main_difference_model}{Character. Specifies how to handle threshold differences when categories are unmatched. Options: \code{"Collapse"}, \code{"Free"}. The option "Collapse" collapses categories unobserved in one or more groups. The option "Free" option estimates thresholds separately for each group and does not model their difference. Default: \code{"Free"}.}
+\item{pairwise_scale}{Double. Scale of the Cauchy prior for baseline
+pairwise interactions. Default: \code{2.5}.}
 
-\item{reference_category}{Integer or vector. Reference category for Blume-Capel variables. Required if there is at least one Blume-Capel variable.}
+\item{main_alpha, main_beta}{Doubles. Shape parameters of the beta-prime
+prior for baseline threshold parameters. Defaults: \code{0.5}.}
 
-\item{pairwise_difference_scale}{Double. Scale parameter for the Cauchy prior on pairwise differences. Default: \code{1}.}
+\item{iter}{Integer. Number of post–warmup iterations per chain.
+Default: \code{1e3}.}
 
-\item{main_difference_scale}{Double. Scale parameter for the Cauchy prior on threshold differences. Default: \code{1}.}
+\item{warmup}{Integer. Number of warmup iterations before sampling.
+Default: \code{1e3}.}
 
-\item{pairwise_difference_prior, main_difference_prior}{Character. Specifies the inclusion probability model (\code{"Bernoulli"} or \code{"Beta-Bernoulli"}). Default: \code{"Bernoulli"}.}
+\item{na_action}{Character. How to handle missing data:
+\code{"listwise"} (drop rows) or \code{"impute"} (impute within Gibbs).
+Default: \code{"listwise"}.}
 
-\item{pairwise_difference_probability}{A numeric value or a \eqn{p \times p} matrix specifying the prior inclusion probability of a pairwise difference in the Bernoulli model. A single value applies the same probability to all pairs, while a matrix allows for edge-specific probabilities. Default: 0.5 for equal prior probability for inclusion and exclusion.}
+\item{display_progress}{Character. Controls progress reporting:
+\code{"per-chain"}, \code{"total"}, or \code{"none"}.
+Default: \code{"per-chain"}.}
 
-\item{main_difference_probability}{A numeric value or a length-\eqn{p} vector specifying the prior inclusion probability of a threshold difference in the Bernoulli model. A single value applies the same probability to all variables, while a vector allows for variable-specific probabilities. Default: 0.5 to indicate no prior preference.}
+\item{update_method}{Character. Sampling algorithm:
+\code{"adaptive-metropolis"}, \code{"hamiltonian-mc"}, or \code{"nuts"}.
+Default: \code{"nuts"}.}
 
-\item{main_beta_bernoulli_alpha, main_beta_bernoulli_beta}{Double. Shape parameters for the Beta-Bernoulli prior on threshold differences.}
+\item{target_accept}{Numeric between 0 and 1. Target acceptance rate.
+Defaults: 0.44 (Metropolis), 0.65 (HMC), 0.60 (NUTS).}
 
-\item{pairwise_beta_bernoulli_alpha, pairwise_beta_bernoulli_beta}{Double. Shape parameters for the Beta-Bernoulli prior on pairwise differences.}
+\item{hmc_num_leapfrogs}{Integer. Leapfrog steps for HMC. Default: \code{100}.}
 
-\item{save}{Logical. If true, sampled states for all parameters are returned. Deprecated.}
+\item{nuts_max_depth}{Integer. Maximum tree depth for NUTS. Default: \code{10}.}
 
-\item{save_main, save_pairwise, save_indicator}{Logical. Enable saving sampled states for `main_effects`, `pairwise_effects`, and `indicator`, respectively. Default: `FALSE`.}
+\item{learn_mass_matrix}{Logical. If \code{TRUE}, adapt the mass matrix
+during warmup (HMC/NUTS only). Default: \code{FALSE}.}
+
+\item{chains}{Integer. Number of parallel chains. Default: \code{4}.}
+
+\item{cores}{Integer. Number of CPU cores. Default:
+\code{parallel::detectCores()}.}
+
+\item{seed}{Optional integer. Random seed for reproducibility.}
 }
 \value{
-A list containing the posterior means and, optionally, sampled states based on the \code{save_*} options. The returned components include:
+A list of class \code{"bgmCompare"} containing posterior summaries,
+posterior mean matrices, and raw MCMC samples:
 \itemize{
- \item \code{posterior_mean_main}, \code{posterior_mean_pairwise}, and \code{posterior_mean_indicator} for posterior means.
- \item If saving options are enabled, the list also includes:
-   \itemize{
-     \item \code{raw_samples_main} – sampled states of main effects.
-     \item \code{raw_samples_pairwise} – sampled states of pairwise effects.
-     \item \code{raw_samples_indicator} – sampled states of inclusion indicators.
-   }
+  \item \code{posterior_summary_main_baseline},
+    \code{posterior_summary_pairwise_baseline}: summaries of baseline
+    thresholds and pairwise interactions.
+  \item \code{posterior_summary_main_differences},
+    \code{posterior_summary_pairwise_differences}: summaries of group
+    differences in thresholds and pairwise interactions.
+  \item \code{posterior_summary_indicator}: summaries of inclusion
+    indicators (if \code{difference_selection = TRUE}).
+  \item \code{posterior_mean_main_baseline},
+    \code{posterior_mean_pairwise_baseline}: posterior mean matrices
+    (legacy style).
+  \item \code{raw_samples}: list of raw draws per chain for main,
+    pairwise, and indicator parameters.
+  \item \code{arguments}: list of function call arguments and metadata.
 }
-In addition to the results of the analysis, the output lists some of the
-arguments of its call. This is useful for post-processing the results.
+
+The \code{summary()} method prints formatted summaries,
+\code{coef()} extracts posterior means, and \code{as_draws()} converts
+raw samples to a \pkg{posterior} \code{draws_df}.
+
+NUTS diagnostics (tree depth, divergences, energy, E-BFMI) are included
+in \code{fit$nuts_diag} if \code{update_method = "nuts"}.
 }
 \description{
-The \code{bgmCompare} function estimates the pseudoposterior distribution of
-the parameters of a Markov Random Field (MRF) model for mixed binary and ordinal
-variables, as well as differences in pairwise interactions and category thresholds
-across groups. Groups are assumed to be \code{G} independent samples.
+The \code{bgmCompare} function estimates group differences in category
+threshold parameters (main effects) and pairwise interactions (pairwise
+effects) of a Markov Random Field (MRF) for binary and ordinal variables.
+Groups can be defined either by supplying two separate datasets (\code{x} and
+\code{y}) or by a group membership vector. Optionally, Bayesian variable
+selection can be applied to identify differences across groups.
 }
 \details{
-This function models group differences in Markov Random Fields using a Bayesian
-framework. It supports binary and ordinal variables, and includes options for
-Bayesian variable selection on the differences in both pairwise interactions
-and threshold parameters. Key components are described in the sections below.
+This function extends the ordinal MRF framework
+\insertCite{MarsmanVandenBerghHaslbeck_2024;textual}{bgms} to multiple
+groups. The basic idea of modeling, analyzing, and testing group
+differences in MRFs was introduced in
+\insertCite{MarsmanWaldorpSekulovskiHaslbeck_2024;textual}{bgms}, where
+two–group comparisons were conducted using adaptive Metropolis sampling.
+The present implementation generalizes that approach to more than two
+groups and supports additional samplers (HMC and NUTS) with staged warmup
+adaptation.
+
+Key components of the model:
 }
 \section{Pairwise Interactions}{
 
-Pairwise interactions between variables \code{i} and \code{j} are modeled as:
-\deqn{\boldsymbol{\theta}_{ij} = \phi_{ij} + \boldsymbol{\delta}_{ij},}{
-\boldsymbol{\theta}_{ij} = \phi_{ij} + \boldsymbol{\delta}_{ij},}
-where:
-
-\itemize{
- \item \eqn{\boldsymbol{\theta}_{ij}}{\boldsymbol{\theta}_{ij}} is the vector of pairwise interaction parameters of length \code{G}.
- \item \eqn{\phi_{ij}}{\phi_{ij}} is the overall pairwise interaction (nuisance parameter).
- \item \eqn{\boldsymbol{\delta}_{ij}}{\boldsymbol{\delta}_{ij}} represents group-specific differences constrained to sum to zero for identification.
-}
+For variables \eqn{i} and \eqn{j}, the group-specific interaction is
+represented as:
+\deqn{\theta_{ij}^{(g)} = \phi_{ij} + \delta_{ij}^{(g)},}
+where \eqn{\phi_{ij}} is the baseline effect and
+\eqn{\delta_{ij}^{(g)}} are group differences constrained to sum to zero.
 }
 
 \section{Ordinal Variables}{
 
-The function supports two types of ordinal variables:
+\strong{Regular ordinal variables}: category thresholds are decomposed into a
+baseline plus group differences for each category.
 
-\strong{Regular ordinal variables}:
-Introduce a threshold parameter for each category except the lowest, modeled as:
-\deqn{\boldsymbol{\mu}_{ic} = \tau_{ic} + \boldsymbol{\epsilon}_{ic},}{\boldsymbol{\mu}_{ic} = \tau_{ic} + \boldsymbol{\epsilon}_{ic},}
-where:
-\itemize{
- \item \eqn{\tau_{ic}}{\tau_{ic}} denotes an overall effect (nuisance parameter).
- \item \eqn{\boldsymbol{\epsilon}_{ic}}{\boldsymbol{\epsilon}_{ic}} represents group-specific differences constrained to sum to zero.
-}
-
-\strong{Blume-Capel ordinal variables}:
-Assume a specific reference category and score responses based on distance to it:
-\deqn{\boldsymbol{\mu}_{ic} = (\tau_{i1} + \boldsymbol{\epsilon}_{i1}) \cdot c + (\tau_{i2} + \boldsymbol{\epsilon}_{i2}) \cdot (c - r)^2,}{
-\boldsymbol{\mu}_{ic} = (\tau_{i1} + \boldsymbol{\epsilon}_{i1}) \cdot c + (\tau_{i2} + \boldsymbol{\epsilon}_{i2}) \cdot (c - r)^2,}
-where:
-\itemize{
- \item \code{r} is the reference category.
- \item \eqn{\tau_{i1}}{\tau_{i1}} and \eqn{\tau_{i2}}{\tau_{i2}} are nuisance parameters.
- \item \eqn{\boldsymbol{\epsilon}_{i1}}{\boldsymbol{\epsilon}_{i1}} and \eqn{\boldsymbol{\epsilon}_{i2}}{\boldsymbol{\epsilon}_{i2}} represent group-specific differences.
-}
+\strong{Blume–Capel variables}: category thresholds are quadratic in the
+category index, with both the linear and quadratic terms split into a
+baseline plus group differences.
 }
 
 \section{Variable Selection}{
 
-Bayesian variable selection enables testing of parameter differences or equivalence across groups. Independent spike-and-slab priors are applied to difference parameters:
+When \code{difference_selection = TRUE}, spike-and-slab priors are
+applied to difference parameters:
 \itemize{
- \item \strong{Bernoulli Model}: Assigns a fixed probability to parameter inclusion.
- \item \strong{Beta-Bernoulli Model}: Incorporates a beta prior to model inclusion probabilities.
+  \item \strong{Bernoulli}: fixed prior inclusion probability.
+  \item \strong{Beta–Bernoulli}: inclusion probability given a Beta prior.
 }
 }
 
-\section{Gibbs Sampling}{
+\section{Sampling Algorithms and Warmup}{
 
-
-Parameters are estimated using a Metropolis-within-Gibbs sampling scheme.
-When \code{difference_selection = TRUE}, the algorithm runs \code{2 * warmup} warmup iterations:
+Parameters are updated within a Gibbs framework, using the same
+sampling algorithms and staged warmup scheme described in
+\code{\link{bgm}}:
 \itemize{
-  \item First half without difference selection.
-  \item Second half with edge selection enabled.
-}
-This warmup strategy improves stability of adaptive Metropolis-Hastings proposals and starting values.
+  \item \strong{Adaptive Metropolis–Hastings}: componentwise random–walk
+    proposals with Robbins–Monro adaptation of proposal SDs.
+  \item \strong{Hamiltonian Monte Carlo (HMC)}: joint updates with fixed
+    leapfrog trajectories; step size and optionally the mass matrix are
+    adapted during warmup.
+  \item \strong{No–U–Turn Sampler (NUTS)}: an adaptive HMC variant with
+    dynamic trajectory lengths; warmup uses the same staged adaptation
+    schedule as HMC.
 }
 
-\section{Saving Options}{
+For details on the staged adaptation schedule (fast–slow–fast phases),
+see \code{\link{bgm}}. In addition, when
+\code{difference_selection = TRUE}, updates of inclusion indicators are
+delayed until late warmup. In HMC/NUTS, this appends two extra phases
+(Stage-3b and Stage-3c), so that the total number of warmup iterations
+exceeds the user-specified \code{warmup}.
 
-Users can store sampled states for parameters (\code{main_effects}, \code{pairwise_effects}, \code{indicator}) during Gibbs sampling. Enabling these options (\code{save_main}, \code{save_pairwise}, \code{save_indicator}) increases output size and memory usage, so use them judiciously.
+After warmup, adaptation is disabled: step size and mass matrix are fixed
+at their learned values, and proposal SDs remain constant.
 }
 
+\examples{
+\dontrun{
+# Run bgmCompare on subset of the Boredom dataset
+x = Boredom[Boredom$language == "fr", 2:6]
+y = Boredom[Boredom$language != "fr", 2:6]
+
+fit <- bgmCompare(x, y)
+
+# Posterior inclusion probabilities
+summary(fit)$indicator
+
+# Bayesian model averaged main effects for the groups
+coef(fit)$main_effects_groups
+
+# Bayesian model averaged pairwise effects for the groups
+coef(fit)$pairwise_effects_groups
+}
+
+}
+\references{
+\insertAllCited{}
+}
