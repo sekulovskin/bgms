@@ -19,11 +19,7 @@ bgmCompare(
   interaction_scale = 2.5,
   threshold_alpha = 0.5,
   threshold_beta = 0.5,
-<<<<<<< HEAD
-  iter = 10000,
-=======
   iter = 1000,
->>>>>>> adaMala
   burnin = 1000,
   na_action = c("listwise", "impute"),
   display_progress = TRUE,
@@ -42,29 +38,25 @@ bgmCompare(
 
 \item{y}{A data frame or matrix similar to \code{x}, used for two-group designs. \code{x} contains Group 1 data, and \code{y} contains Group 2 data. Ignored for multi-group designs.}
 
-\item{g}{Group membership vector for rows in \code{x}. Required for multi-group designs; ignored if \code{y} is provided.}
-
 \item{difference_selection}{Logical. If \code{TRUE}, the function models the inclusion or exclusion of parameter differences. Default: \code{TRUE}.}
-
-\item{main_difference_model}{Character. Specifies how to handle threshold differences when categories are unmatched. Options: \code{"Collapse"}, \code{"Free"}. The option "Collapse" collapses categories unobserved in one or more groups. The option "Free" option estimates thresholds separately for each group and does not model their difference. Default: \code{"Free"}.}
 
 \item{variable_type}{Character or vector. Specifies the type of variables in \code{x} (\code{"ordinal"} or \code{"blume-capel"}). Default: \code{"ordinal"}.}
 
-\item{baseline_category}{Integer or vector. Reference category for Blume-Capel variables. Required if there is at least one Blume-Capel variable.}
-
-\item{interaction_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: `2.5`.}
+\item{interaction_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.}
 
 \item{threshold_alpha, threshold_beta}{Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.}
 
-\item{iter, burnin}{Integer. Number of Gibbs iterations (`iter`) and burn-in iterations (`burnin`). Defaults: `iter = 1e4`, `burnin = 5e2`.}
+\item{iter, burnin}{Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{burnin}). Defaults: \code{iter = 1e4}, \code{burnin = 1e3}.}
 
-\item{na_action}{Character. Specifies handling of missing data. `"listwise"` deletes rows with missing values; `"impute"` imputes values during Gibbs sampling. Default: `"listwise"`.}
+\item{na_action}{Character. Specifies handling of missing data. \code{"listwise"} deletes rows with missing values; \code{"impute"} imputes values during Gibbs sampling. Default: \code{"listwise"}.}
 
-\item{display_progress}{Logical. Show progress bar during computation. Default: `TRUE`.}
+\item{display_progress}{Logical. Show progress bar during computation. Default: \code{TRUE}.}
 
-\item{g}{Group membership vector for rows in `x`. Required for multi-group designs; ignored if `y` is provided.}
+\item{g}{Group membership vector for rows in \code{x}. Required for multi-group designs; ignored if \code{y} is provided.}
 
-\item{main_difference_model}{Character. Specifies how to handle threshold differences when categories are unmatched. Options: `"Collapse"`, `"Free"`. The option "Collapse" collapses categories unobserved in one or more groups. The option "Free" option estimates thresholds separately for each group and does not model their difference. Default: `"Free"`.}
+\item{main_difference_model}{Character. Specifies how to handle threshold differences when categories are unmatched. Options: \code{"Collapse"}, \code{"Free"}. The option "Collapse" collapses categories unobserved in one or more groups. The option "Free" option estimates thresholds separately for each group and does not model their difference. Default: \code{"Free"}.}
+
+\item{reference_category}{Integer or vector. Reference category for Blume-Capel variables. Required if there is at least one Blume-Capel variable.}
 
 \item{pairwise_difference_scale}{Double. Scale parameter for the Cauchy prior on pairwise differences. Default: \code{1}.}
 
@@ -78,20 +70,11 @@ bgmCompare(
 
 \item{main_beta_bernoulli_alpha, main_beta_bernoulli_beta}{Double. Shape parameters for the Beta-Bernoulli prior on threshold differences.}
 
-\item{interaction_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: \code{2.5}.}
-
-\item{threshold_alpha, threshold_beta}{Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.}
-
-\item{iter, burnin}{Integer. Number of Gibbs iterations (\code{iter}) and burn-in iterations (\code{burnin}). Defaults: \code{iter = 1e4}, \code{burnin = 1e3}.}
-
-\item{na_action}{Character. Specifies handling of missing data. \code{"listwise"} deletes rows with missing values; \code{"impute"} imputes values during Gibbs sampling. Default: \code{"listwise"}.}
+\item{pairwise_beta_bernoulli_alpha, pairwise_beta_bernoulli_beta}{Double. Shape parameters for the Beta-Bernoulli prior on pairwise differences.}
 
 \item{save}{Logical. If true, sampled states for all parameters are returned. Deprecated.}
 
-\item{save_main, save_pairwise, save_indicator}{Logical. Enable saving sampled states for \code{main_effects}, \code{pairwise_effects}, and \code{indicator}, respectively. Default: \code{FALSE}.}
-
-\item{display_progress}{Logical. Show progress bar during computation. Default: \code{TRUE}.}
-
+\item{save_main, save_pairwise, save_indicator}{Logical. Enable saving sampled states for `main_effects`, `pairwise_effects`, and `indicator`, respectively. Default: `FALSE`.}
 }
 \value{
 A list containing the posterior means and, optionally, sampled states based on the \code{save_*} options. The returned components include:
@@ -184,69 +167,3 @@ This warmup strategy improves stability of adaptive Metropolis-Hastings proposal
 Users can store sampled states for parameters (\code{main_effects}, \code{pairwise_effects}, \code{indicator}) during Gibbs sampling. Enabling these options (\code{save_main}, \code{save_pairwise}, \code{save_indicator}) increases output size and memory usage, so use them judiciously.
 }
 
-\examples{
-\donttest{
-# Store user par() settings
-op <- par(no.readonly = TRUE)
-
-# Run bgmCompare on the Boredom dataset
-# For publication-quality results, consider using at least 1e5 iterations
-fit <- bgmCompare(x = Boredom[, -1], g = Boredom[, 1], iter = 1e4)
-
-#--- INCLUSION VS EDGE DIFFERENCE PLOT -------------------------------------
-incl_probs <- fit$posterior_mean_indicator[lower.tri(fit$posterior_mean_indicator)]
-edge_diffs <- 2 * fit$posterior_mean_pairwise[, 3]
-
-par(mar = c(5, 5, 1, 1) + 0.1, cex = 1.7)
-plot(edge_diffs, incl_probs,
-     pch = 21, bg = "gray", cex = 1.3,
-     ylim = c(0, 1), axes = FALSE,
-     xlab = "", ylab = "")
-abline(h = c(0, 0.5, 1), lty = 2, col = "gray")
-axis(1); axis(2, las = 1)
-mtext("Posterior Mean Edge Difference", side = 1, line = 3, cex = 1.7)
-mtext("Posterior Inclusion Probability", side = 2, line = 3, cex = 1.7)
-
-#--- EVIDENCE PLOT ----------------------------------------------------------
-prior_odds <- 1
-post_odds <- incl_probs / (1 - incl_probs)
-log_bf <- log(post_odds / prior_odds)
-log_bf <- pmin(log_bf, 5)  # cap extreme values
-
-plot(edge_diffs, log_bf,
-     pch = 21, bg = "#bfbfbf", cex = 1.3,
-     axes = FALSE, xlab = "", ylab = "",
-     ylim = c(-5, 5.5), xlim = c(-0.3, 0.6))
-axis(1); axis(2, las = 1)
-abline(h = log(c(1/10, 10)), lwd = 2, col = "#bfbfbf")
-text(0.4, log(1/10), "Evidence for Exclusion", pos = 1, cex = 1.1)
-text(0.4, log(10),   "Evidence for Inclusion", pos = 3, cex = 1.1)
-text(0.4, 0,         "Absence of Evidence", cex = 1.1)
-mtext("Log-Inclusion Bayes Factor", side = 2, line = 3, cex = 1.7)
-mtext("Posterior Mean Interaction Difference", side = 1, line = 3, cex = 1.7)
-
-#--- MEDIAN PROBABILITY DIFFERENCE NETWORK ----------------------------------
-median_edges <- ifelse(incl_probs >= 0.5, edge_diffs, 0)
-p <- ncol(Boredom) - 1
-median_net <- matrix(0, nrow = p, ncol = p)
-median_net[lower.tri(median_net)] <- median_edges
-median_net <- median_net + t(median_net)
-
-node_labels <- colnames(Boredom[, -1])
-dimnames(median_net) <- list(node_labels, node_labels)
-
-par(cex = 1)
-if (requireNamespace("qgraph", quietly = TRUE)) {
-  qgraph::qgraph(median_net,
-    theme = "TeamFortress", maximum = 0.5, fade = FALSE,
-    color = "#f0ae0e", vsize = 10, repulsion = 0.9,
-    label.cex = 0.9, label.scale = FALSE,
-    labels = node_labels
-  )
-}
-
-# Restore user par() settings
-par(op)
-}
-
-}

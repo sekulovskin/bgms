@@ -37,12 +37,9 @@ bgm(
 
 \item{variable_type}{Character or character vector. Specifies the type of each variable in \code{x}. Allowed values: \code{"ordinal"} or \code{"blume-capel"}. Binary variables are automatically treated as \code{"ordinal"}. Default: \code{"ordinal"}.}
 
-\item{reference_category}{Integer or vector. Reference category used in Blume-Capel variables. Can be a single integer (applied to all) or a vector of length \code{p}. Required if at least one variable is of type \code{"blume-capel"}.}
-
 \item{iter}{Integer. Number of Gibbs sampling iterations. Default: \code{1e4}. For stable estimates, consider using at least \code{1e5}.}
 
 \item{burnin}{Integer. Number of burn-in iterations before saving samples. When \code{edge_selection = TRUE}, the function runs \code{2 * burnin} iterations: first half without edge selection, second half with edge selection. Default: \code{1e3}.}
-
 
 \item{interaction_scale}{Double. Scale of the Cauchy prior for pairwise interaction parameters. Default: \code{2.5}.}
 
@@ -63,11 +60,30 @@ bgm(
 
 \item{na_action}{Character. Specifies missing data handling. \code{"listwise"} deletes rows with missing values. \code{"impute"} imputes missing values during MCMC. Default: \code{"listwise"}.}
 
-\item{save}{Logical; \strong{deprecated}. Whether to return all sampled states from the Gibbs sampler. If \code{FALSE}, only posterior means are returned. Default: \code{FALSE}.}
-
 \item{display_progress}{Logical. Whether to show a progress bar during sampling. Default: \code{TRUE}.}
-}
 
+\item{update_method}{Character. Specifies how the MCMC sampler updates the
+model parameters:
+\describe{
+  \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
+  \item{"hamiltonian-mc"}{Uses Hamiltonian Monte Carlo with fixed path length.}
+  \item{"nuts"}{Uses NUTS - HMC.}
+}
+Defaults to \code{"adaptive-metropolis"}.}
+
+\item{target_accept}{Target acceptance rate for the methods used for updating
+the model parameters. Default: 0.44 for Adaptive Metropolis, .65 for HMC, .6 for NUTS}
+
+\item{hmc_num_leapfrogs}{Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.}
+
+\item{nuts_max_depth}{Integer. The maximum tree depth in NUTS.}
+
+\item{learn_mass_matrix}{Logical. If TRUE (default), adapt a diagonal mass matrix during warmup. If FALSE, use identity.}
+
+\item{reference_category}{Integer or vector. Reference category used in Blume-Capel variables. Can be a single integer (applied to all) or a vector of length \code{p}. Required if at least one variable is of type \code{"blume-capel"}.}
+
+\item{save}{Logical; \strong{deprecated}. Whether to return all sampled states from the Gibbs sampler. If \code{FALSE}, only posterior means are returned. Default: \code{FALSE}.}
+}
 \value{
 A list of class \code{"bgms"} containing posterior summaries or sampled states, depending on the \code{save} option:
 
@@ -102,11 +118,9 @@ ordinal variables. Optionally, it performs Bayesian edge selection using spike-a
 priors to infer the network structure.
 }
 \details{
-
 This function models the joint distribution of binary and ordinal variables
 using a Markov Random Field, with support for edge selection through Bayesian
 variable selection. Key components of the model are described in the sections below.
-
 }
 \section{Ordinal Variables}{
 
