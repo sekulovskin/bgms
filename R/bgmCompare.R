@@ -189,6 +189,7 @@ bgmCompare = function(
   group = model$group
   ordinal_variable = model$variable_bool
   baseline_category = model$baseline_category
+  difference_prior = model$difference_prior
 
   # Check Gibbs input
   check_positive_integer(iter, "iter")
@@ -346,9 +347,35 @@ bgmCompare = function(
   )
 
   # Main output handler in the wrapper function
-  # output = prepare_output_bgmCompare2(
-  #   out = out, ...
-  # )
+  output = prepare_output_bgmCompare(
+    out = out,
+    observations = observations,
+    num_categories = num_categories[, 1],
+    is_ordinal_variable = ordinal_variable,
+    num_groups = num_groups,
+    iter = iter,
+    warmup = warmup,
+    main_effect_indices = main_effect_indices,
+    pairwise_effect_indices = pairwise_effect_indices,
+    data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
+    difference_selection = difference_selection,
+    difference_prior = difference_prior,
+    difference_selection_alpha = beta_bernoulli_alpha,
+    difference_selection_beta = beta_bernoulli_beta,
+    pairwise_scale = pairwise_scale,
+    difference_scale = difference_scale,
+    update_method = update_method,
+    target_accept = target_accept,
+    nuts_max_depth = nuts_max_depth,
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    learn_mass_matrix = learn_mass_matrix,
+    num_chains = chains, projection = projection
+  )
 
-  return(out)
+  if (update_method == "nuts") {
+    nuts_diag = summarize_nuts_diagnostics(out, nuts_max_depth = nuts_max_depth)
+    output$nuts_diag = nuts_diag
+  }
+
+  return(output)
 }

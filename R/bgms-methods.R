@@ -44,58 +44,6 @@ print.bgms <- function(x, ...) {
   cat("See the `easybgm` package for summary and plotting tools.\n")
 }
 
-#' @name print.bgmCompare
-#' @title  Print method for \code{bgms} objects
-#'
-#' @description Used to prevent bgms output cluttering the console.
-#'
-#' @param x An object of class \code{bgms}.
-#' @param ... Ignored.
-#'
-#' @export
-print.bgmCompare <- function(x, ...) {
-  arguments = extract_arguments(x)
-  if(arguments$difference_selection) {
-    if(arguments$pairwise_difference_prior == "Bernoulli") {
-      cat(paste0("Bayesian Variable Selection using a Bernoulli prior on the inclusion of \n",
-                 "differences in pairwise interactions\n"))
-    } else {
-      cat(paste0("Bayesian Variable Selection using a Beta-Bernoulli prior on the inclusion of \n",
-                 "differences in pairwise interactions\n"))
-    }
-    if(arguments$main_difference_model == "Free") {
-      cat("Group specific category threshold parameters were estimated")
-    } else {
-      if(arguments$main_difference_prior == "Bernoulli") {
-        cat(paste0("Bayesian Variable Selection using a Bernoulli prior on the inclusion of\n",
-                   "differences in the category thresholds\n"))
-      } else {
-        cat(paste0("Bayesian Variable Selection using a Beta-Bernoulli prior on the inclusion of\n",
-                   "differences in the category thresholds\n"))      }
-    }
-  } else {
-    cat("Bayesian Estimation\n")
-  }
-
-  cat(paste0(" Number of variables: ", arguments$num_variables, "\n"))
-  num_groups = length(unique(arguments$group))
-  if(arguments$na_impute) {
-    for(group in 1:num_groups) {
-      cat(paste0(" Number of cases Group ", group,": ", arguments$num_cases[group], " (missings imputed)\n"))
-    }
-  } else {
-    for(group in 1:num_groups) {
-      cat(paste0(" Number of cases Group ", group,": ", arguments$num_cases[group],"\n"))
-    }
-  }
-  if(arguments$save) {
-    cat(paste0(" Number of post-burnin MCMC iterations: ", arguments$iter, " (MCMC output saved)\n"))
-  } else {
-    cat(paste0(" Number of post-burnin MCMC iterations: ", arguments$iter, " (posterior means saved)\n"))
-  }
-  cat("See the easybgm package for extensive summary and plotting functions \n")
-}
-
 
 
 #' @name summary.bgms
@@ -136,7 +84,6 @@ summary.bgms <- function(object, ...) {
           "or use the `easybgm` package for diagnostic summaries and plotting.")
   invisible(NULL)
 }
-
 
 
 
@@ -226,59 +173,59 @@ coef.bgms <- function(object, ...) {
 
 
 
-#' @export
-as_draws.bgms <- function(x, ...) {
-  if (!requireNamespace("posterior", quietly = TRUE)) {
-    stop("Install the 'posterior' package to use this method.")
-  }
-
-  arguments <- extract_arguments(x)
-
-  # Helper to collapse list of chains into matrix and assign names
-  make_matrix_block <- function(samples_list, param_names = NULL) {
-    if (is.null(samples_list) || all(vapply(samples_list, is.null, logical(1)))) {
-      return(NULL)
-    }
-    mat <- do.call(rbind, samples_list)
-    if (!is.null(param_names)) colnames(mat) <- param_names
-    return(mat)
-  }
-
-  # Helper to prefix column names
-  prefix_colnames <- function(mat, prefix) {
-    if (!is.null(mat)) {
-      colnames(mat) <- paste0(prefix, colnames(mat))
-    }
-    mat
-  }
-
-  # Assemble all blocks
-  main_mat <- make_matrix_block(x$raw_samples$main_samples, x$raw_samples$parameter_names$main)
-  pairwise_mat <- make_matrix_block(x$raw_samples$pairwise_samples, x$raw_samples$parameter_names$pairwise)
-  indicator_mat <- make_matrix_block(x$raw_samples$indicator, x$raw_samples$parameter_names$indicator)
-  allocations_mat <- make_matrix_block(x$raw_samples$allocations, x$raw_samples$parameter_names$allocations)
-
-  # Apply prefixes to avoid name duplication
-  main_mat <- prefix_colnames(main_mat, "main_")
-  pairwise_mat <- prefix_colnames(pairwise_mat, "pairwise_")
-  indicator_mat <- prefix_colnames(indicator_mat, "indicator_")
-  allocations_mat <- prefix_colnames(allocations_mat, "allocations_")
-
-  # Issue spike-and-slab warning (only once)
-  if (isTRUE(arguments$edge_selection) && !getOption("bgms.as_draws_warning_given", FALSE)) {
-    warning("This model includes spike-and-slab posteriors (e.g., pairwise effects or indicators).\n",
-            "Posterior summaries and diagnostics for these require special treatment.\n",
-            "See `vignette(\"spike_slab_manual\", package = \"bgms\")` for details.",
-            call. = FALSE)
-    options(bgms.as_draws_warning_given = TRUE)
-  }
-
-  # Combine all available samples
-  all_samples <- cbind(main_mat, pairwise_mat, indicator_mat, allocations_mat)
-
-  # Return draws_df
-  posterior::as_draws_df(all_samples)
-}
+# #' @export
+# as_draws.bgms <- function(x, ...) {
+#   if (!requireNamespace("posterior", quietly = TRUE)) {
+#     stop("Install the 'posterior' package to use this method.")
+#   }
+#
+#   arguments <- extract_arguments(x)
+#
+#   # Helper to collapse list of chains into matrix and assign names
+#   make_matrix_block <- function(samples_list, param_names = NULL) {
+#     if (is.null(samples_list) || all(vapply(samples_list, is.null, logical(1)))) {
+#       return(NULL)
+#     }
+#     mat <- do.call(rbind, samples_list)
+#     if (!is.null(param_names)) colnames(mat) <- param_names
+#     return(mat)
+#   }
+#
+#   # Helper to prefix column names
+#   prefix_colnames <- function(mat, prefix) {
+#     if (!is.null(mat)) {
+#       colnames(mat) <- paste0(prefix, colnames(mat))
+#     }
+#     mat
+#   }
+#
+#   # Assemble all blocks
+#   main_mat <- make_matrix_block(x$raw_samples$main_samples, x$raw_samples$parameter_names$main)
+#   pairwise_mat <- make_matrix_block(x$raw_samples$pairwise_samples, x$raw_samples$parameter_names$pairwise)
+#   indicator_mat <- make_matrix_block(x$raw_samples$indicator, x$raw_samples$parameter_names$indicator)
+#   allocations_mat <- make_matrix_block(x$raw_samples$allocations, x$raw_samples$parameter_names$allocations)
+#
+#   # Apply prefixes to avoid name duplication
+#   main_mat <- prefix_colnames(main_mat, "main_")
+#   pairwise_mat <- prefix_colnames(pairwise_mat, "pairwise_")
+#   indicator_mat <- prefix_colnames(indicator_mat, "indicator_")
+#   allocations_mat <- prefix_colnames(allocations_mat, "allocations_")
+#
+#   # Issue spike-and-slab warning (only once)
+#   if (isTRUE(arguments$edge_selection) && !getOption("bgms.as_draws_warning_given", FALSE)) {
+#     warning("This model includes spike-and-slab posteriors (e.g., pairwise effects or indicators).\n",
+#             "Posterior summaries and diagnostics for these require special treatment.\n",
+#             "See `vignette(\"spike_slab_manual\", package = \"bgms\")` for details.",
+#             call. = FALSE)
+#     options(bgms.as_draws_warning_given = TRUE)
+#   }
+#
+#   # Combine all available samples
+#   all_samples <- cbind(main_mat, pairwise_mat, indicator_mat, allocations_mat)
+#
+#   # Return draws_df
+#   posterior::as_draws_df(all_samples)
+# }
 
 
 .warning_issued <- FALSE

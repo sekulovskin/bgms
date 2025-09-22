@@ -22,7 +22,7 @@ bgmCompare(
   iter = 1000,
   warmup = 1000,
   na_action = c("listwise", "impute"),
-  display_progress = TRUE,
+  display_progress = c("per-chain", "total", "none"),
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
   target_accept,
   hmc_num_leapfrogs = 100,

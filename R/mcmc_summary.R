@@ -445,3 +445,291 @@ posterior_summary_SBM = function(
 }
 
 
+# Combine MCMC chains for bgmCompare into a 3D array [niter x nchains x nparam]
+combine_chains_compare = function(fit, component) {
+  nchains = length(fit)
+  samples_list = lapply(fit, function(x) x[[component]])
+  niter = nrow(samples_list[[1]])
+  nparam = ncol(samples_list[[1]])
+  array3d = array(NA_real_, dim = c(niter, nchains, nparam))
+  for (i in seq_len(nchains)) {
+    array3d[, i, ] = samples_list[[i]]
+  }
+  array3d
+}
+
+
+summarize_manual_compare = function(fit_or_array,
+                                    component = c("main_samples", "pairwise_samples"),
+                                    param_names = NULL) {
+  component = match.arg(component)
+
+  # allow either a fit list or a pre-combined 3D array
+  if (is.array(fit_or_array)) {
+    array3d = fit_or_array
+  } else {
+    array3d = combine_chains_compare(fit_or_array, component)
+  }
+
+  nparam = dim(array3d)[3]
+  result = matrix(NA, nparam, 5)
+  colnames(result) = c("mean", "mcse", "sd", "n_eff", "Rhat")
+
+  for (j in seq_len(nparam)) {
+    draws = array3d[, , j]
+    vec   = as.vector(draws)
+    result[j, "mean"] = mean(vec)
+    result[j, "sd"]   = sd(vec)
+    est = compute_rhat_ess(draws)
+    result[j, "mcse"] = sd(vec) / sqrt(est$ess)
+    result[j, "n_eff"] = est$ess
+    result[j, "Rhat"]  = est$rhat
+  }
+
+  if (is.null(param_names)) {
+    data.frame(parameter = paste0("param [", seq_len(nparam)), result, check.names = FALSE)
+  } else {
+    data.frame(parameter = param_names, result, check.names = FALSE)
+  }
+}
+
+
+
+
+summarize_indicator_compare = function(fit, component = "indicator_samples", param_names = NULL) {
+  array3d = combine_chains_compare(fit, component)
+  nparam = dim(array3d)[3]
+
+  result = matrix(NA, nparam, 9)
+  colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
+
+  for (j in seq_len(nparam)) {
+    draws = array3d[, , j]
+    vec = as.vector(draws)
+    T = length(vec)
+    g_next = vec[-1]
+    g_curr = vec[-T]
+
+    p_hat = mean(vec)
+    sd = sqrt(p_hat * (1 - p_hat))
+    n00 = sum(g_curr == 0 & g_next == 0)
+    n01 = sum(g_curr == 0 & g_next == 1)
+    n10 = sum(g_curr == 1 & g_next == 0)
+    n11 = sum(g_curr == 1 & g_next == 1)
+
+    if (n01 + n10 == 0) {
+      n_eff = mcse = R = NA_real_
+    } else {
+      a = n01 / (n00 + n01)
+      b = n10 / (n10 + n11)
+      tau_int = (2 - (a + b)) / (a + b)
+      n_eff = T / tau_int
+      mcse = sd / sqrt(n_eff)
+      est = compute_rhat_ess(draws)
+      R = est$rhat
+    }
+
+    result[j, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
+  }
+
+  if (is.null(param_names)) {
+    data.frame(parameter = paste0("indicator [", seq_len(nparam), "]"), result, check.names = FALSE)
+  } else {
+    data.frame(parameter = param_names, result, check.names = FALSE)
+  }
+}
+
+summarize_main_diff_compare = function(
+    fit,
+    main_effect_indices,
+    num_groups,
+    param_names = NULL
+) {
+  main_effect_samples = combine_chains_compare(fit, "main_samples")
+  indicator_samples   = combine_chains_compare(fit, "indicator_samples")
+
+  nvars   = nrow(main_effect_indices)
+  results = list()
+  param_counter = 0
+
+  for (v in seq_len(nvars)) {
+    indicator_draws = indicator_samples[, , v]
+    vec_id   = as.vector(indicator_draws)
+    pi_hat   = mean(vec_id)
+
+    start = main_effect_indices[v, 1] + 1L
+    stop  = main_effect_indices[v, 2] + 1L
+
+    for (row in start:stop) {
+      category = row - start + 1
+      for (h in 1:(num_groups - 1)) {
+        param_counter = param_counter + 1
+        col_index = h * nrow(main_effect_indices) + row
+        effect_draws = main_effect_samples[, , col_index]
+        vec_slab   = as.vector(effect_draws)
+
+        eap_slab   = if (any(vec_id == 1)) mean(vec_slab[vec_id == 1]) else 0
+        posterior_mean = pi_hat * eap_slab
+        posterior_var  = (eap_slab^2 * var(vec_id)) + (pi_hat^2 * var(vec_slab))
+        posterior_sd   = sqrt(posterior_var)
+
+        est  = compute_rhat_ess(effect_draws)
+        mcse_est = if (is.finite(est$ess) && est$ess > 0) posterior_sd / sqrt(est$ess) else NA
+
+        results[[param_counter]] = data.frame(
+          parameter = if (!is.null(param_names)) {
+            param_names[param_counter]
+          } else {
+            paste0("var", v, "(diff", h, ", c", category, ")")
+          },
+          mean  = posterior_mean,
+          sd    = posterior_sd,
+          mcse  = mcse_est,
+          n_eff = est$ess,
+          Rhat  = est$rhat,
+          check.names = FALSE
+        )
+      }
+    }
+  }
+
+  out <- do.call(rbind, results)
+  rownames(out) <- NULL
+  out
+}
+
+
+
+summarize_pairwise_diff_compare = function(
+    fit,
+    pairwise_effect_indices,
+    num_variables,
+    num_groups,
+    param_names = NULL
+) {
+  pairwise_effect_samples = combine_chains_compare(fit, "pairwise_samples")
+  indicator_samples = combine_chains_compare(fit, "indicator_samples")
+
+  results = list()
+  param_counter = 0
+  ind_counter   = nrow(pairwise_effect_indices) # offset after diagonals
+
+  for (v1 in 1:(num_variables - 1)) {
+    for (v2 in (v1 + 1):num_variables) {
+      ind_counter = ind_counter + 1
+      indicator_draws = indicator_samples[, , ind_counter]
+      vec_id   = as.vector(indicator_draws)
+      pi_hat   = mean(vec_id)
+
+      row = pairwise_effect_indices[v1, v2] + 1L
+      for (h in 1:(num_groups - 1)) {
+        param_counter = param_counter + 1
+        col_index = h * (num_variables * (num_variables - 1) / 2) + row
+        effect_draws = pairwise_effect_samples[, , col_index]
+        vec_slab   = as.vector(effect_draws)
+
+        eap_slab   = if (any(vec_id == 1)) mean(vec_slab[vec_id == 1]) else 0
+        posterior_mean = pi_hat * eap_slab
+        posterior_var  = (eap_slab^2 * var(vec_id)) + (pi_hat^2 * var(vec_slab))
+        posterior_sd   = sqrt(posterior_var)
+
+        est  = compute_rhat_ess(effect_draws)
+        mcse_est = if (is.finite(est$ess) && est$ess > 0) posterior_sd / sqrt(est$ess) else NA
+
+        results[[param_counter]] = data.frame(
+          parameter = if (!is.null(param_names)) {
+            param_names[param_counter]
+          } else {
+            paste0("V", v1, "-", "V", v2, "(diff", h, ")")
+          },
+          mean  = posterior_mean,
+          sd    = posterior_sd,
+          mcse  = mcse_est,
+          n_eff = est$ess,
+          Rhat  = est$rhat,
+          check.names = FALSE
+        )
+      }
+    }
+  }
+
+  out <- do.call(rbind, results)
+  rownames(out) <- NULL
+  out
+}
+
+
+
+
+summarize_fit_compare = function(
+    fit,
+    main_effect_indices,
+    pairwise_effect_indices,
+    num_variables,
+    num_groups,
+    param_names_main = NULL,
+    param_names_pairwise = NULL,
+    param_names_main_diff = NULL,
+    param_names_pairwise_diff = NULL,
+    param_names_indicators = NULL
+) {
+  # Helper: extract baseline columns (g = 1) for each row
+  extract_baseline = function(array3d, num_rows, num_groups) {
+    idx = as.vector(sapply(0:(num_rows - 1), function(r) r * num_groups + 1))
+    array3d[, , idx, drop = FALSE]
+  }
+
+  # --- main baseline
+  array3d_main = combine_chains_compare(fit, "main_samples")
+  n_main = nrow(main_effect_indices)  # number of rows in main_effects
+  array3d_main_baseline = extract_baseline(array3d_main, n_main, num_groups)
+  main_baseline = summarize_manual_compare(
+    array3d_main_baseline,
+    "main_samples",
+    param_names = param_names_main
+  )
+
+  # --- pairwise baseline
+  array3d_pair = combine_chains_compare(fit, "pairwise_samples")
+  n_pair = num_variables * (num_variables - 1) / 2
+  array3d_pair_baseline = extract_baseline(array3d_pair, n_pair, num_groups)
+  pairwise_baseline = summarize_manual_compare(
+    array3d_pair_baseline,
+    "pairwise_samples",
+    param_names = param_names_pairwise
+  )
+
+  # --- main differences
+  main_differences = summarize_main_diff_compare(
+    fit,
+    main_effect_indices,
+    num_groups,
+    param_names = param_names_main_diff
+  )
+
+  # --- pairwise differences
+  pairwise_differences = summarize_pairwise_diff_compare(
+    fit,
+    pairwise_effect_indices,
+    num_variables,
+    num_groups,
+    param_names = param_names_pairwise_diff
+  )
+
+  # --- indicators
+  indicators = summarize_indicator_compare(
+    fit,
+    "indicator_samples",
+    param_names = param_names_indicators
+  )
+
+  list(
+    main_baseline        = main_baseline,
+    pairwise_baseline    = pairwise_baseline,
+    main_differences     = main_differences,
+    pairwise_differences = pairwise_differences,
+    indicators           = indicators
+  )
+}
+
+

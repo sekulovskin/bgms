@@ -152,220 +152,197 @@ prepare_output_bgm = function(
 
 
 
-prepare_output_bgmCompare = function(out, x, independent_thresholds,
-                                     num_variables, num_categories, group, iter,
-                                     data_columnnames, save_options,
-                                     difference_selection, na_action,
-                                     na_impute, variable_type, warmup,
-                                     pairwise_scale, main_alpha,
-                                     main_beta, main_difference_model,
-                                     pairwise_difference_prior,
-                                     main_difference_prior,
-                                     inclusion_probability_difference,
-                                     pairwise_beta_bernoulli_alpha,
-                                     pairwise_beta_bernoulli_beta,
-                                     main_beta_bernoulli_alpha,
-                                     main_beta_bernoulli_beta,
-                                     main_difference_scale,
-                                     pairwise_difference_scale,
-                                     projection, is_ordinal_variable) {
+# Generate names for bgmCompare parameters
+generate_param_names_bgmCompare = function(
+    data_columnnames,
+    num_categories,
+    is_ordinal_variable,
+    num_variables,
+    num_groups
+) {
+  # --- main baselines
+  names_main_baseline = character()
+  for (v in seq_len(num_variables)) {
+    if (is_ordinal_variable[v]) {
+      cats = seq_len(num_categories[v])
+      names_main_baseline = c(
+        names_main_baseline,
+        paste0(data_columnnames[v], "(baseline, c", cats, ")")
+      )
+    } else {
+      names_main_baseline = c(
+        names_main_baseline,
+        paste0(data_columnnames[v], "(baseline, linear)"),
+        paste0(data_columnnames[v], "(baseline, quadratic)")
+      )
+    }
+  }
 
-  save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
+  # --- main differences
+  names_main_diff = character()
+  for (v in seq_len(num_variables)) {
+    if (is_ordinal_variable[v]) {
+      cats = seq_len(num_categories[v])
+      for (g in 2:num_groups) {
+        names_main_diff = c(
+          names_main_diff,
+          paste0(data_columnnames[v], "(diff_", g - 1, ", c", cats, ")")
+        )
+      }
+    } else {
+      for (g in 2:num_groups) {
+        names_main_diff = c(
+          names_main_diff,
+          paste0(data_columnnames[v], "(diff_", g-1, ", linear)"),
+          paste0(data_columnnames[v], "(diff_", g-1, ", quadratic)")
+        )
+      }
+    }
+  }
+
+  # --- pairwise baselines
+  names_pairwise_baseline = character()
+  for (i in 1:(num_variables - 1)) {
+    for (j in (i + 1):num_variables) {
+      names_pairwise_baseline = c(
+        names_pairwise_baseline,
+        paste0(data_columnnames[i], "-", data_columnnames[j], "(baseline)")
+      )
+    }
+  }
+
+  # --- pairwise differences
+  names_pairwise_diff = character()
+  for (i in 1:(num_variables - 1)) {
+    for (j in (i + 1):num_variables) {
+      for (g in 2:num_groups) {
+        names_pairwise_diff = c(
+          names_pairwise_diff,
+          paste0(data_columnnames[i], "-", data_columnnames[j], "(diff_", g - 1, ")")
+        )
+      }
+    }
+  }
+
+  # --- indicators
+  names_indicators = character()
+  for (i in 1:num_variables) {
+    names_indicators = c(names_indicators,
+                         paste0(data_columnnames[i], " (main)"))
+  }
+  for (i in 1:(num_variables - 1)) {
+    for (j in (i + 1):num_variables) {
+      names_indicators = c(names_indicators,
+                           paste0(data_columnnames[i], "-", data_columnnames[j], " (pairwise)"))
+    }
+  }
+
+  list(
+    main_baseline = names_main_baseline,
+    main_diff = names_main_diff,
+    pairwise_baseline = names_pairwise_baseline,
+    pairwise_diff = names_pairwise_diff,
+    indicators = names_indicators
+  )
+}
+
+
+prepare_output_bgmCompare = function(
+    out, observations, num_categories, is_ordinal_variable,
+    num_groups, iter, warmup,
+    main_effect_indices, pairwise_effect_indices,
+    data_columnnames, difference_selection,
+    difference_prior, difference_selection_alpha, difference_selection_beta,
+    pairwise_scale, difference_scale,
+    update_method, target_accept, nuts_max_depth, hmc_num_leapfrogs,
+    learn_mass_matrix, num_chains, projection
+) {
+  num_variables = ncol(observations)
 
   arguments = list(
-    num_variables = num_variables, group = group, num_cases = tabulate(group),
-    na_action = na_action, na_impute = na_impute, iter = iter, warmup = warmup,
+    prepared_data = observations,
+    num_variables = num_variables,
+    num_cases = nrow(observations),
+    iter = iter,
+    warmup = warmup,
+    pairwise_scale = pairwise_scale,
+    difference_scale = difference_scale,
     difference_selection = difference_selection,
-    independent_thresholds = independent_thresholds,
-    save_main = save_options$save_main,
-    save_pairwise = save_options$save_pairwise,
-    save_indicator = save_options$save_indicator, save = save,
-    variable_type = variable_type, pairwise_scale = pairwise_scale,
-    main_alpha = main_alpha, main_beta = main_beta,
-    main_difference_model = main_difference_model,
-    pairwise_difference_prior = pairwise_difference_prior,
-    main_difference_prior = main_difference_prior,
-    inclusion_probability_difference = inclusion_probability_difference,
-    pairwise_beta_bernoulli_alpha = pairwise_beta_bernoulli_alpha,
-    pairwise_beta_bernoulli_beta = pairwise_beta_bernoulli_beta,
-    main_beta_bernoulli_alpha = main_beta_bernoulli_alpha,
-    main_beta_bernoulli_beta = main_beta_bernoulli_beta,
-    main_difference_scale = main_difference_scale,
-    pairwise_difference_scale = pairwise_difference_scale,
-    version = packageVersion("bgms")
+    difference_prior = difference_prior,
+    difference_selection_alpha = difference_selection_alpha,
+    difference_selection_beta = difference_selection_beta,
+    version = packageVersion("bgms"),
+    update_method = update_method,
+    target_accept = target_accept,
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix,
+    num_chains = num_chains,
+    num_groups = num_groups,
+    data_columnnames = data_columnnames,
+    projection = projection,
+    num_categories = num_categories,
+    is_ordinal_variable = is_ordinal_variable
   )
 
-  # Names for pairwise effects
-  names_bycol = matrix(rep(data_columnnames, each = num_variables), ncol = num_variables)
-  names_byrow = matrix(rep(data_columnnames, each = num_variables), ncol = num_variables, byrow = TRUE)
-  names_comb = matrix(paste0(names_byrow, "-", names_bycol), ncol = num_variables)
-  names_vec = names_comb[lower.tri(names_comb)]
-  names_vec_t = names_comb[lower.tri(names_comb, diag = TRUE)]
+  # --- parameter names
+  names_all = generate_param_names_bgmCompare(
+    data_columnnames, num_categories, is_ordinal_variable,
+    num_variables, num_groups
+  )
 
-  # Prepare output elements
-  results = list()
+  # --- summaries
+  summary_list = summarize_fit_compare(
+    fit = out,
+    main_effect_indices = main_effect_indices,
+    pairwise_effect_indices = pairwise_effect_indices,
+    num_variables = num_variables,
+    num_groups = num_groups,
+    param_names_main = names_all$main_baseline,
+    param_names_pairwise = names_all$pairwise_baseline,
+    param_names_main_diff = names_all$main_diff,
+    param_names_pairwise_diff = names_all$pairwise_diff,
+    param_names_indicators = names_all$indicators
+  )
 
-  # Handle output from the new rcpp function (anova)
-  num_groups = length(unique(group))
-  num_main = nrow(out$posterior_mean_main)
+  results = list(
+    posterior_summary_main_baseline = summary_list$main_baseline,
+    posterior_summary_pairwise_baseline = summary_list$pairwise_baseline,
+    posterior_summary_main_differences = summary_list$main_differences,
+    posterior_summary_pairwise_differences = summary_list$pairwise_differences
+  )
 
-  # Main effects
-  tmp = out$posterior_mean_main
-  if(independent_thresholds) {
-    posterior_mean_main = matrix(NA, nrow = nrow(tmp), ncol = ncol(tmp))
-    for(g in 1:num_groups) {
-      posterior_mean_main[, g] = tmp[, g]
-
-      #This can probably be done prettier
-      if(any(tmp[,g] == 0))
-        posterior_mean_main[tmp[,g] == 0, g] = NA
-    }
-  } else {
-    posterior_mean_main = matrix(NA, nrow = nrow(tmp), ncol = ncol(tmp) + 1)
-    posterior_mean_main[, 1] = tmp[, 1]
-    for (row in 1:nrow(tmp)) {
-      posterior_mean_main[row, -1] = projection %*% tmp[row, -1]
-    }
-  }
-  results$posterior_mean_main = posterior_mean_main
-
-  names_variable_categories = vector(length = nrow(tmp))
-  counter = 0
-  for (v in 1:num_variables) {
-    if(is_ordinal_variable[v]) {
-      for (c in 1:max(num_categories[v, ])) {
-        counter = counter + 1
-        names_variable_categories[counter] = paste0(data_columnnames[v], "(", c, ")")
-      }
-    } else {
-      counter = counter + 1
-      names_variable_categories[counter] = paste0(data_columnnames[v], "(linear)")
-      counter = counter + 1
-      names_variable_categories[counter] = paste0(data_columnnames[v], "(quadratic)")
-    }
-
-  }
-  if(independent_thresholds) {
-    dimnames(results$posterior_mean_main) = list(names_variable_categories, paste0("group_", 1:num_groups))
-  } else {
-    dimnames(results$posterior_mean_main) = list(names_variable_categories, c("overall", paste0("group_", 1:num_groups)))
+  if (difference_selection) {
+    results$posterior_summary_indicator = summary_list$indicators
   }
 
-  # Pairwise effects
-  tmp = out$posterior_mean_pairwise
-  posterior_mean_pairwise = matrix(0, nrow = nrow(tmp), ncol = ncol(tmp) + 1)
-  posterior_mean_pairwise[, 1] = tmp[, 1]
-  for (row in 1:nrow(tmp)) {
-    posterior_mean_pairwise[row, -1] = projection %*% tmp[row, -1]
-  }
+  # --- posterior means (legacy-style matrices)
+  # baselines
+  results$posterior_mean_main_baseline = matrix(
+    summary_list$main_baseline$mean, nrow = num_variables, byrow = TRUE
+  )
+  rownames(results$posterior_mean_main_baseline) = data_columnnames
 
-  results$posterior_mean_pairwise = posterior_mean_pairwise
-  dimnames(results$posterior_mean_pairwise) = list(names_vec, c("overall", paste0("group_", 1:num_groups)))
+  results$posterior_mean_pairwise_baseline = matrix(0, num_variables, num_variables)
+  results$posterior_mean_pairwise_baseline[upper.tri(results$posterior_mean_pairwise_baseline)] =
+    summary_list$pairwise_baseline$mean
+  results$posterior_mean_pairwise_baseline[lower.tri(results$posterior_mean_pairwise_baseline)] =
+    t(results$posterior_mean_pairwise_baseline)[lower.tri(results$posterior_mean_pairwise_baseline)]
+  rownames(results$posterior_mean_pairwise_baseline) = data_columnnames
+  colnames(results$posterior_mean_pairwise_baseline) = data_columnnames
 
-  if (difference_selection && "posterior_mean_indicator" %in% names(out) ) {
-    results$posterior_mean_indicator = out$posterior_mean_indicator
-    dimnames(results$posterior_mean_indicator) = list(data_columnnames,
-                                                      data_columnnames)
-    if(main_difference_model == "Free"){
-      diag(results$posterior_mean_indicator) = NA
-    }
-  }
+  # --- raw samples (like in prepare_output_bgm)
+  results$raw_samples = list(
+    main      = lapply(out, function(chain) chain$main_samples),
+    pairwise  = lapply(out, function(chain) chain$pairwise_samples),
+    indicator = if (difference_selection) lapply(out, function(chain) chain$indicator_samples) else NULL,
+    nchains   = length(out),
+    niter     = nrow(out[[1]]$main_samples),
+    parameter_names = names_all
+  )
 
-
-  # Handle main_effect_samples
-  if (save_options$save_main && "main_effect_samples" %in% names(out)) {
-    main_effect_samples = out$main_effect_samples
-    col_names = character()  # Vector to store column names
-
-    if(independent_thresholds) {
-      for (gr in 1:num_groups) {
-        for (var in 1:num_variables) {
-          if(is_ordinal_variable[var]) {
-            for (cat in 1:max(num_categories[var, ])) {
-              col_names = c(col_names, paste0(data_columnnames[var],"_gr", gr, "(", cat, ")"))
-            }
-          } else {
-            col_names = c(col_names, paste0(data_columnnames[var],"_gr", gr, "(linear)"))
-            col_names = c(col_names, paste0(data_columnnames[var],"_gr", gr, "(quadratic)"))
-          }
-        }
-      }
-
-    } else {
-
-      for (gr in 1:num_groups) {
-        if(gr == 1) {
-          for (var in 1:num_variables) {
-            if(is_ordinal_variable[var]) {
-              for (cat in 1:max(num_categories[var, ])) {
-                col_names = c(col_names, paste0(data_columnnames[var],"_overall", gr, "(", cat, ")"))
-              }
-            } else {
-              col_names = c(col_names, paste0(data_columnnames[var],"_overall", gr, "(linear)"))
-              col_names = c(col_names, paste0(data_columnnames[var],"_overall", gr, "(quadratic)"))
-            }
-          }
-        } else {
-          for (var in 1:num_variables) {
-            if(is_ordinal_variable[var]) {
-              for (cat in 1:max(num_categories[var, ])) {
-                col_names = c(col_names, paste0(data_columnnames[var],"_contrast_#", gr-1, "(", cat, ")"))
-              }
-            } else {
-              col_names = c(col_names, paste0(data_columnnames[var],"_contrast_#", gr-1, "(linear)"))
-              col_names = c(col_names, paste0(data_columnnames[var],"_contrast_#", gr-1, "(quadratic)"))
-            }
-          }
-        }
-      }
-    }
-
-    dimnames(main_effect_samples) = list(Iter. = 1:nrow(main_effect_samples), col_names)
-    results$main_effect_samples = main_effect_samples
-  }
-
-  # Handle pairwise_effect_samples
-  if (save_options$save_pairwise && "pairwise_effect_samples" %in% names(out)) {
-    col_names = character()  # Vector to store column names
-    for (v1 in 1:(num_variables - 1)) {
-      for (v2 in (v1 + 1):num_variables) {
-        col_names = c(col_names, paste0(data_columnnames[v1], "-", data_columnnames[v2]))
-        for (gr in 2:num_groups) {
-          col_names = c(col_names,
-                        paste0("contrast_#",
-                               gr-1,
-                               "(",
-                               data_columnnames[v1],
-                               "-",
-                               data_columnnames[v2],
-                               ")"))
-        }
-      }
-    }
-
-    dimnames(out$pairwise_effect_samples) = list(Iter. = 1:nrow(out$pairwise_effect_samples), col_names)
-    results$pairwise_effect_samples = out$pairwise_effect_samples
-  }
-
-  # Handle inclusion_indicator_samples
-  if (difference_selection && save_options$save_indicator && "inclusion_indicator_samples" %in% names(out)) {
-    if(independent_thresholds) {
-      #
-    } else {
-      col_names = character()  # Vector to store column names
-      for (v1 in 1:num_variables) {
-        for (v2 in v1:num_variables) {
-          col_names = c(col_names, paste0(data_columnnames[v1], "-", data_columnnames[v2]))
-        }
-      }
-      dimnames(out$inclusion_indicator_samples) = list(Iter. = 1:nrow(out$inclusion_indicator_samples), col_names)
-    }
-
-    results$inclusion_indicator_samples = out$inclusion_indicator_samples
-  }
-
-  # Add arguments to the output
   results$arguments = arguments
   class(results) = c("bgmCompare")
-  return(results)
+  results
 }
+
