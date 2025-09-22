@@ -10,9 +10,9 @@
 #include "mcmc_nuts.h"
 #include "mcmc_rwm.h"
 #include "mcmc_utils.h"
-#include "print_mutex.h"
 #include "sbm_edge_prior.h"
 #include "rng_utils.h"
+#include "progress_manager.h"
 
 using namespace Rcpp;
 
@@ -1197,7 +1197,8 @@ Rcpp::List run_gibbs_sampler_bgm(
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
     const bool learn_mass_matrix,
-    SafeRNG& rng
+    SafeRNG& rng,
+    ProgressManager& pm
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -1296,17 +1297,15 @@ Rcpp::List run_gibbs_sampler_bgm(
   );
 
   const int total_iter = warmup_schedule.total_burnin + iter;
-  const int print_every = std::max(1, total_iter / 10);
 
+  bool userInterrupt = false;
   // --- Main Gibbs sampling loop
   for (int iteration = 0; iteration < total_iter; iteration++) {
-    if (iteration % print_every == 0) {
-      tbb::mutex::scoped_lock lock(get_print_mutex());
-      std::cout
-      << "[bgm] chain " << chain_id
-      << " iteration " << iteration
-      << " / " << total_iter
-      << std::endl;
+
+    pm.update(chain_id - 1);
+    if (pm.shouldExit()) {
+      userInterrupt = true;
+      break;
     }
 
     // Shuffle update order of edge indices
@@ -1424,6 +1423,7 @@ Rcpp::List run_gibbs_sampler_bgm(
     out["allocations"] = allocation_samples;
   }
 
+  out["userInterrupt"] = userInterrupt;
   out["chain_id"] = chain_id;
   return out;
 }
