@@ -7,9 +7,9 @@
 bgm(
   x,
   variable_type = "ordinal",
-  reference_category,
-  iter = 10000,
-  burnin = 500,
+  baseline_category,
+  iter = 1000,
+  burnin = 1000,
   interaction_scale = 2.5,
   threshold_alpha = 0.5,
   threshold_beta = 0.5,
@@ -21,8 +21,15 @@ bgm(
   dirichlet_alpha = 1,
   lambda = 1,
   na_action = c("listwise", "impute"),
-  save = FALSE,
-  display_progress = TRUE
+  display_progress = TRUE,
+  update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
+  target_accept,
+  hmc_num_leapfrogs = 100,
+  nuts_max_depth = 10,
+  learn_mass_matrix = FALSE,
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = NULL
 )
 }
 \arguments{
@@ -35,6 +42,7 @@ bgm(
 \item{iter}{Integer. Number of Gibbs sampling iterations. Default: \code{1e4}. For stable estimates, consider using at least \code{1e5}.}
 
 \item{burnin}{Integer. Number of burn-in iterations before saving samples. When \code{edge_selection = TRUE}, the function runs \code{2 * burnin} iterations: first half without edge selection, second half with edge selection. Default: \code{1e3}.}
+
 
 \item{interaction_scale}{Double. Scale of the Cauchy prior for pairwise interaction parameters. Default: \code{2.5}.}
 
@@ -59,6 +67,7 @@ bgm(
 
 \item{display_progress}{Logical. Whether to show a progress bar during sampling. Default: \code{TRUE}.}
 }
+
 \value{
 A list of class \code{"bgms"} containing posterior summaries or sampled states, depending on the \code{save} option:
 
@@ -93,9 +102,11 @@ ordinal variables. Optionally, it performs Bayesian edge selection using spike-a
 priors to infer the network structure.
 }
 \details{
+
 This function models the joint distribution of binary and ordinal variables
 using a Markov Random Field, with support for edge selection through Bayesian
 variable selection. Key components of the model are described in the sections below.
+
 }
 \section{Ordinal Variables}{
 

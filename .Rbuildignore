@@ -9,3 +9,5 @@
 ^docs$
 ^pkgdown$
 ^vignettes/introduction_cache
+^doc$
+^Meta$

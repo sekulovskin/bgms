@@ -1,12 +1,21 @@
-#' Extractor Functions.
+##' Extractor Functions for bgms Objects
 #'
-#' @rdname extractor_functions
-#' @param bgms_object A fit object created by the bgms package or specifically
-#' by the bgm function.
-#' @details Extract results from bgm objects in a safe way. Mainly intended for
-#' developers of packages that build on top of the bgms package.
+#' These functions extract various components from objects returned by the `bgm()` function,
+#' such as edge indicators, posterior inclusion probabilities, and parameter summaries.
+#'
+#' @section Functions:
+#' - `extract_arguments()` – Extract model arguments
+#' - `extract_indicators()` – Get sampled edge indicators
+#' - `extract_posterior_inclusion_probabilities()` – Posterior edge inclusion probabilities
+#' - `extract_pairwise_interactions()` – Posterior mean of pairwise interactions
+#' - `extract_category_thresholds()` – Posterior mean of category thresholds
+#' - `extract_indicator_priors()` – Prior structure used for edge indicators
+#'
+#' @name extractor_functions
+#' @title Extractor Functions for bgms Objects
 #' @keywords internal
-#' @importFrom Rdpack reprompt
+NULL
+
 #' @export
 extract_arguments <- function(bgms_object) {
   UseMethod("extract_arguments")
@@ -15,12 +24,11 @@ extract_arguments <- function(bgms_object) {
 #' @rdname extractor_functions
 #' @export
 extract_arguments.bgms <- function(bgms_object) {
-  if(is.null(bgms_object$arguments)) {
-    stop(paste0("Extractor functions have been defined for bgms versions 0.1.3 and up but not \n",
-                "for older versions. The current fit object predates version 0.1.3."))
-  } else {
-    return(bgms_object$arguments)
+  if (!inherits(bgms_object, "bgms")) stop("Object must be of class 'bgms'.")
+  if (is.null(bgms_object$arguments)) {
+    stop("Fit object predates bgms version 0.1.3. Upgrade the model output.")
   }
+  return(bgms_object$arguments)
 }
 
 #' @rdname extractor_functions
@@ -43,18 +51,34 @@ extract_indicators <- function(bgms_object) {
 #' @rdname extractor_functions
 #' @export
 extract_indicators.bgms <- function(bgms_object) {
-  arguments = extract_arguments(bgms_object)
-  if(arguments$edge_selection & arguments$save) {
-    if(arguments$version < "0.1.4") {
-      edge_indicators = bgms_object$gamma
-    } else {
-      edge_indicators = bgms_object$indicator
-    }
-    return(edge_indicators)
-  } else {
-    stop(paste0("To access the sampled edge indicators the bgms package needs to be run using \n",
-                "edge_selection = TRUE and save = TRUE."))
+  arguments <- extract_arguments(bgms_object)
+
+  if (!isTRUE(arguments$edge_selection)) {
+    stop("To access edge indicators, the model must be run with edge_selection = TRUE.")
   }
+
+  # Resolve indicator samples
+  indicators_list <- bgms_object$raw_samples$indicator
+  if (is.null(indicators_list)) {
+    if (!is.null(bgms_object$indicator)) {
+      indicators_list <- bgms_object$indicator
+    } else if (!is.null(bgms_object$gamma)) {
+      indicators_list <- bgms_object$gamma
+    } else {
+      stop("No indicator samples found in this object.")
+    }
+  }
+
+  # Combine all chains
+  indicator_samples <- do.call(rbind, indicators_list)
+
+  # Assign column names if available
+  param_names <- bgms_object$raw_samples$parameter_names$indicator
+  if (!is.null(param_names)) {
+    colnames(indicator_samples) <- param_names
+  }
+
+  return(indicator_samples)
 }
 
 #' @rdname extractor_functions
@@ -86,30 +110,44 @@ extract_posterior_inclusion_probabilities <- function(bgms_object) {
 #' @rdname extractor_functions
 #' @export
 extract_posterior_inclusion_probabilities.bgms <- function(bgms_object) {
-  arguments = extract_arguments(bgms_object)
+  arguments <- extract_arguments(bgms_object)
 
-  if(!arguments$edge_selection) {
-    stop(paste0("To estimate the posterior edge inclusion probabilities, please run the bgm \n",
-                "function with edge_selection = TRUE."))
+  if (!isTRUE(arguments$edge_selection)) {
+    stop("To estimate posterior inclusion probabilities, run bgm() with edge_selection = TRUE.")
   }
 
-  if(arguments$save) {
-    edge_means = colMeans(bgms_object$indicator)
-    no_variables = arguments$no_variables
+  num_vars <- arguments$num_variables
+  data_columnnames <- arguments$data_columnnames
 
-    posterior_inclusion_probabilities = matrix(0, no_variables, no_variables)
-    posterior_inclusion_probabilities[lower.tri(posterior_inclusion_probabilities)] = edge_means
-    posterior_inclusion_probabilities = posterior_inclusion_probabilities +
-      t(posterior_inclusion_probabilities)
-
-    data_columnnames = arguments$data_columnnames
-    colnames(posterior_inclusion_probabilities) = data_columnnames
-    rownames(posterior_inclusion_probabilities) = data_columnnames
-
+  edge_means <- NULL
+  # New format: use extract_indicators()
+  if (!is.null(bgms_object$raw_samples$indicator)) {
+    indicator_samples <- extract_indicators(bgms_object)
+    edge_means <- colMeans(indicator_samples)
+  } else if (!is.null(bgms_object$indicator)) {
+    if (!is.null(arguments$save) && isTRUE(arguments$save)) {
+      edge_means <- colMeans(bgms_object$indicator)
+    } else {
+      edge_means <- bgms_object$indicator
+    }
+  } else if (!is.null(bgms_object$gamma)) {
+    if (!is.null(arguments$save) && isTRUE(arguments$save)) {
+      edge_means <- colMeans(bgms_object$gamma)
+    } else {
+      edge_means <- bgms_object$gamma
+    }
   } else {
-    posterior_inclusion_probabilities = bgms_object$indicator
+    stop("No indicator data found to compute posterior inclusion probabilities.")
   }
-  return(posterior_inclusion_probabilities)
+
+  pip_matrix <- matrix(0, num_vars, num_vars)
+  pip_matrix[lower.tri(pip_matrix)] <- edge_means
+  pip_matrix = pip_matrix + t(pip_matrix)
+
+  colnames(pip_matrix) <- data_columnnames
+  rownames(pip_matrix) <- data_columnnames
+
+  return(pip_matrix)
 }
 
 #' @rdname extractor_functions
@@ -125,9 +163,9 @@ extract_posterior_inclusion_probabilities.bgmCompare <- function(bgms_object) {
 
   if(arguments$save) {
     pairwise_difference_means = colMeans(bgms_object$pairwise_difference_indicator)
-    no_variables = arguments$no_variables
+    num_variables = arguments$num_variables
 
-    posterior_inclusion_probabilities = matrix(0, no_variables, no_variables)
+    posterior_inclusion_probabilities = matrix(0, num_variables, num_variables)
     posterior_inclusion_probabilities[lower.tri(posterior_inclusion_probabilities)] = pairwise_difference_means
     posterior_inclusion_probabilities = posterior_inclusion_probabilities +
       t(posterior_inclusion_probabilities)
@@ -155,27 +193,20 @@ extract_indicator_priors <- function(bgms_object) {
 #' @rdname extractor_functions
 #' @export
 extract_indicator_priors.bgms <- function(bgms_object) {
-  arguments = extract_arguments(bgms_object)
+  arguments <- extract_arguments(bgms_object)
+  if (!isTRUE(arguments$edge_selection)) stop("No edge selection performed.")
 
-  if(!arguments$edge_selection) {
-    stop(paste0("The bgm function did not perform edge selection, so there are no indicator\n",
-                "priors specified."))
-  } else {
-    if(arguments$edge_prior == "Bernoulli") {
-      indicator_prior = list(type = "Bernoulli",
-                             prior_inclusion_probability = arguments$inclusion_probability)
-    } else if (arguments$edge_prior == "Beta-Bernoulli") {
-      indicator_prior = list(type = "Beta-Bernoulli",
-                             alpha = arguments$beta_bernoulli_alpha,
-                             beta = arguments$beta_bernoulli_beta)
-    } else if (arguments$edge_prior == "Stochastic-Block") {
-      indicator_prior = list(type = "Stochastic-Block",
-                             beta_bernoulli_alpha = arguments$beta_bernoulli_alpha,
-                             beta_bernoulli_beta = arguments$beta_bernoulli_beta,
-                             dirichlet_alpha = arguments$dirichlet_alpha)
-    }
-  }
-  return(indicator_prior)
+  switch(
+    arguments$edge_prior,
+    "Bernoulli" = list(type = "Bernoulli", prior_inclusion_probability = arguments$inclusion_probability),
+    "Beta-Bernoulli" = list(type = "Beta-Bernoulli", alpha = arguments$beta_bernoulli_alpha, beta = arguments$beta_bernoulli_beta),
+    "Stochastic-Block" = list(
+      type = "Stochastic-Block",
+      beta_bernoulli_alpha = arguments$beta_bernoulli_alpha,
+      beta_bernoulli_beta = arguments$beta_bernoulli_beta,
+      dirichlet_alpha = arguments$dirichlet_alpha
+    )
+  )
 }
 
 
@@ -212,18 +243,63 @@ extract_indicator_priors.bgmCompare <- function(bgms_object) {
 
 #' @rdname extractor_functions
 #' @export
-extract_pairwise_interactions <- function(bgms_object) {
-  arguments = extract_arguments(bgms_object)
+extract_pairwise_interactions.bgms <- function(bgms_object) {
+  arguments <- extract_arguments(bgms_object)
+  num_vars <- arguments$num_variables
+  var_names <- arguments$data_columnnames
 
-  return(bgms_object$interactions)
+  if (!is.null(bgms_object$posterior_summary_pairwise)) {
+    vec <- bgms_object$posterior_summary_pairwise[, "mean"]
+    mat <- matrix(0, nrow = num_vars, ncol = num_vars)
+    mat[upper.tri(mat)] <- vec
+    mat[lower.tri(mat)] <- t(mat)[lower.tri(mat)]
+  } else if (!is.null(bgms_object$posterior_mean_pairwise)) {
+    mat <- bgms_object$posterior_mean_pairwise
+  } else if (!is.null(bgms_object$pairwise_effects)) {
+    mat <- bgms_object$pairwise_effects
+  } else {
+    stop("No pairwise interaction effects found in the object.")
+  }
+
+  dimnames(mat) <- list(var_names, var_names)
+  return(mat)
 }
 
 #' @rdname extractor_functions
 #' @export
-extract_category_thresholds <- function(bgms_object) {
-  arguments = extract_arguments(bgms_object)
+extract_category_thresholds.bgms <- function(bgms_object) {
+  arguments <- extract_arguments(bgms_object)
+  var_names <- arguments$data_columnnames
 
-  return(bgms_object$thresholds)
+  if (!is.null(bgms_object$posterior_summary_main)) {
+    vec <- bgms_object$posterior_summary_main[, "mean"]
+    num_vars <- arguments$num_variables
+    num_cats <- lengths(arguments$reference_category)
+    max_cats <- max(num_cats)
+    mat <- matrix(NA_real_, nrow = num_vars, ncol = max_cats)
+    rownames(mat) <- var_names
+    pos <- 1
+    for (v in seq_len(num_vars)) {
+      if (arguments$variable_type[v] == "ordinal") {
+        k <- num_cats[v]
+        mat[v, 1:k] <- vec[pos:(pos + k - 1)]
+        pos <- pos + k
+      } else {
+        mat[v, 1:2] <- vec[pos:(pos + 1)]
+        pos <- pos + 2
+      }
+    }
+    return(mat)
+  } else if (!is.null(bgms_object$posterior_mean_main)) {
+    mat <- bgms_object$posterior_mean_main
+  } else if (!is.null(bgms_object$main_effects)) {
+    mat <- bgms_object$main_effects
+  } else {
+    stop("No threshold or main effects found in the object.")
+  }
+
+  rownames(mat) <- var_names
+  return(mat)
 }
 
 #' @rdname extractor_functions

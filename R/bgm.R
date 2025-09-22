@@ -106,6 +106,20 @@
 #'
 #' @param display_progress Logical. Whether to show a progress bar during sampling. Default: \code{TRUE}.
 #'
+#' @param update_method Character. Specifies how the MCMC sampler updates the
+#' model parameters:
+#' \describe{
+#'   \item{"adaptive-metropolis"}{Uses componentwise adaptive Metropolis-Hastings.}
+#'   \item{"hamiltonian-mc"}{Uses Hamiltonian Monte Carlo with fixed path length.}
+#'   \item{"nuts"}{Uses NUTS - HMC.}
+#' }
+#' Defaults to \code{"adaptive-metropolis"}.
+#' @param target_accept Target acceptance rate for the methods used for updating
+#' the model parameters. Default: 0.44 for Adaptive Metropolis, .65 for HMC, .6 for NUTS
+#' @param hmc_num_leapfrogs Integer. The number of leapfrog steps for Hamiltonian Monte Carlo.
+#' @param nuts_max_depth Integer. The maximum tree depth in NUTS.
+#' @param learn_mass_matrix Logical. If TRUE (default), adapt a diagonal mass matrix during warmup. If FALSE, use identity.
+#'
 #' @return
 #' A list of class \code{"bgms"} containing posterior summaries or sampled states, depending on the \code{save} option:
 #'
@@ -202,26 +216,54 @@
 #' @importFrom utils packageVersion
 #' @importFrom Rcpp evalCpp
 #' @importFrom Rdpack reprompt
+#' @import RcppParallel
+#' @importFrom RcppParallel defaultNumThreads
 #'
 #' @export
-bgm = function(x,
-               variable_type = "ordinal",
-               reference_category,
-               iter = 1e4,
-               burnin = 5e2,
-               interaction_scale = 2.5,
-               threshold_alpha = 0.5,
-               threshold_beta = 0.5,
-               edge_selection = TRUE,
-               edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
-               inclusion_probability = 0.5,
-               beta_bernoulli_alpha = 1,
-               beta_bernoulli_beta = 1,
-               dirichlet_alpha = 1,
-               lambda = 1,
-               na_action = c("listwise", "impute"),
-               save = FALSE,
-               display_progress = TRUE) {
+bgm = function(
+    x,
+    variable_type = "ordinal",
+    baseline_category,
+    iter = 1e3,
+    burnin = 1e3,
+    interaction_scale = 2.5,
+    threshold_alpha = 0.5,
+    threshold_beta = 0.5,
+    edge_selection = TRUE,
+    edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
+    inclusion_probability = 0.5,
+    beta_bernoulli_alpha = 1,
+    beta_bernoulli_beta = 1,
+    dirichlet_alpha = 1,
+    lambda = 1,
+    na_action = c("listwise", "impute"),
+    display_progress = TRUE,
+    update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
+    target_accept,
+    hmc_num_leapfrogs = 100,
+    nuts_max_depth = 10,
+    learn_mass_matrix = FALSE,
+    chains = 4,
+    cores = parallel::detectCores(),
+    seed = NULL
+) {
+  # Check update method
+  update_method_input = update_method
+  update_method = match.arg(update_method)
+
+  # Check target acceptance rate
+  if(hasArg(target_accept)) {
+    target_accept = min(target_accept, 1 - sqrt(.Machine$double.eps))
+    target_accept = max(target_accept, 0 + sqrt(.Machine$double.eps))
+  } else {
+    if(update_method == "adaptive-metropolis") {
+      target_accept = 0.44
+    } else if(update_method == "hamiltonian-mc") {
+      target_accept = 0.65
+    } else if(update_method == "nuts") {
+      target_accept = 0.60
+    }
+  }
 
   #Check data input ------------------------------------------------------------
   if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame"))
@@ -236,7 +278,7 @@ bgm = function(x,
   #Check model input -----------------------------------------------------------
   model = check_model(x = x,
                       variable_type = variable_type,
-                      reference_category = reference_category,
+                      baseline_category = baseline_category,
                       interaction_scale = interaction_scale,
                       threshold_alpha = threshold_alpha,
                       threshold_beta = threshold_beta,
@@ -255,20 +297,23 @@ bgm = function(x,
   variable_bool = model$variable_bool
   # ----------------------------------------------------------------------------
 
-  reference_category = model$reference_category
+  baseline_category = model$baseline_category
   edge_selection = model$edge_selection
   edge_prior = model$edge_prior
-  theta = model$theta
+  inclusion_probability = model$inclusion_probability
 
   #Check Gibbs input -----------------------------------------------------------
-  if(abs(iter - round(iter)) > .Machine$double.eps)
-    stop("Parameter ``iter'' needs to be a positive integer.")
-  if(iter <= 0)
-    stop("Parameter ``iter'' needs to be a positive integer.")
-  if(abs(burnin - round(burnin)) > .Machine$double.eps || burnin < 0)
-    stop("Parameter ``burnin'' needs to be a non-negative integer.")
-  if(burnin <= 0)
-    stop("Parameter ``burnin'' needs to be a positive integer.")
+  check_positive_integer(iter, "iter")
+  check_non_negative_integer(burnin, "burnin")
+  if(burnin < 1e3)
+    warning("The burnin parameter is set to a low value. This may lead to unreliable results. Reset to a minimum of 1000 iterations.")
+  burnin = max(burnin, 1e3) # Set minimum burnin to 1000 iterations
+
+  check_positive_integer(hmc_num_leapfrogs, "hmc_num_leapfrogs")
+  hmc_num_leapfrogs = max(hmc_num_leapfrogs, 1) # Set minimum hmc_num_leapfrogs to 1
+
+  check_positive_integer(nuts_max_depth, "nuts_max_depth")
+  nuts_max_depth = max(nuts_max_depth, 1) # Set minimum nuts_max_depth to 1
 
   #Check na_action -------------------------------------------------------------
   na_action_input = na_action
@@ -277,261 +322,140 @@ bgm = function(x,
     stop(paste0("The na_action argument should equal listwise or impute, not ",
                 na_action_input,
                 "."))
-  #Check save ------------------------------------------------------------------
-  save_input = save
-  save = as.logical(save)
-  if(is.na(save))
-    stop(paste0("The save argument should equal TRUE or FALSE, not ",
-                save_input,
-                "."))
 
   #Check display_progress ------------------------------------------------------
-  display_progress = as.logical(display_progress)
-  if(is.na(display_progress))
-    stop("The display_progress argument should equal TRUE or FALSE.")
+  display_progress = check_logical(display_progress, "display_progress")
 
   #Format the data input -------------------------------------------------------
   data = reformat_data(x = x,
                        na_action = na_action,
                        variable_bool = variable_bool,
-                       reference_category = reference_category)
+                       baseline_category = baseline_category)
   x = data$x
-  no_categories = data$no_categories
+  num_categories = data$num_categories
   missing_index = data$missing_index
   na_impute = data$na_impute
-  reference_category = data$reference_category
+  baseline_category = data$baseline_category
 
-  no_variables = ncol(x)
-  no_interactions = no_variables * (no_variables - 1) / 2
-  no_thresholds = sum(no_categories)
-
-  #Specify the variance of the (normal) proposal distribution ------------------
-  proposal_sd = matrix(1,
-                       nrow = no_variables,
-                       ncol = no_variables)
-  proposal_sd_blumecapel = matrix(1,
-                                  nrow = no_variables,
-                                  ncol = 2)
+  num_variables = ncol(x)
+  num_interactions = num_variables * (num_variables - 1) / 2
+  num_thresholds = sum(num_categories)
 
   # Starting value of model matrix ---------------------------------------------
   indicator = matrix(1,
-                 nrow = no_variables,
-                 ncol = no_variables)
+                 nrow = num_variables,
+                 ncol = num_variables)
 
 
   #Starting values of interactions and thresholds (posterior mode) -------------
-  interactions = matrix(0, nrow = no_variables, ncol = no_variables)
-  thresholds = matrix(0, nrow = no_variables, ncol = max(no_categories))
+  interactions = matrix(0, nrow = num_variables, ncol = num_variables)
+  thresholds = matrix(0, nrow = num_variables, ncol = max(num_categories))
 
   #Precompute the number of observations per category for each variable --------
-  n_cat_obs = matrix(0,
-                     nrow = max(no_categories) + 1,
-                     ncol = no_variables)
-  for(variable in 1:no_variables) {
-    for(category in 0:no_categories[variable]) {
-      n_cat_obs[category + 1, variable] = sum(x[, variable] == category)
+  counts_per_category = matrix(0,
+                     nrow = max(num_categories) + 1,
+                     ncol = num_variables)
+  for(variable in 1:num_variables) {
+    for(category in 0:num_categories[variable]) {
+      counts_per_category[category + 1, variable] = sum(x[, variable] == category)
     }
   }
 
   #Precompute the sufficient statistics for the two Blume-Capel parameters -----
-  sufficient_blume_capel = matrix(0, nrow = 2, ncol = no_variables)
+  blume_capel_stats = matrix(0, nrow = 2, ncol = num_variables)
   if(any(!variable_bool)) {
     # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
     bc_vars = which(!variable_bool)
     for(i in bc_vars) {
-      sufficient_blume_capel[1, i] = sum(x[, i])
-      sufficient_blume_capel[2, i] = sum((x[, i] - reference_category[i]) ^ 2)
+      blume_capel_stats[1, i] = sum(x[, i])
+      blume_capel_stats[2, i] = sum((x[, i] - baseline_category[i]) ^ 2)
     }
   }
+  pairwise_stats = t(x) %*% x
 
-  # Index vector used to sample interactions in a random order -----------------
-  Index = matrix(0,
-                 nrow = no_variables * (no_variables - 1) / 2,
+  # Index matrix used in the c++ functions  ------------------------------------
+  interaction_index_matrix = matrix(0,
+                 nrow = num_variables * (num_variables - 1) / 2,
                  ncol = 3)
   cntr = 0
-  for(variable1 in 1:(no_variables - 1)) {
-    for(variable2 in (variable1 + 1):no_variables) {
+  for(variable1 in 1:(num_variables - 1)) {
+    for(variable2 in (variable1 + 1):num_variables) {
       cntr =  cntr + 1
-      Index[cntr, 1] = cntr
-      Index[cntr, 2] = variable1 - 1
-      Index[cntr, 3] = variable2 - 1
+      interaction_index_matrix[cntr, 1] = cntr - 1
+      interaction_index_matrix[cntr, 2] = variable1 - 1
+      interaction_index_matrix[cntr, 3] = variable2 - 1
     }
   }
 
-  #Preparing the output --------------------------------------------------------
-  arguments = list(
-    no_variables = no_variables,
-    no_cases = nrow(x),
-    na_impute = na_impute,
-    variable_type = variable_type,
-    iter = iter,
-    burnin = burnin,
-    interaction_scale = interaction_scale,
-    threshold_alpha = threshold_alpha,
-    threshold_beta = threshold_beta,
-    edge_selection = edge_selection,
-    edge_prior = edge_prior,
-    inclusion_probability = theta,
-    beta_bernoulli_alpha = beta_bernoulli_alpha ,
-    beta_bernoulli_beta =  beta_bernoulli_beta,
-    dirichlet_alpha = dirichlet_alpha,
-    lambda = lambda,
-    na_action = na_action,
-    save = save,
-    version = packageVersion("bgms")
+  pairwise_effect_indices = matrix(NA, nrow = num_variables, ncol = num_variables)
+  tel = 0
+  for (v1 in seq_len(num_variables - 1)) {
+    for (v2 in seq((v1 + 1), num_variables)) {
+      pairwise_effect_indices[v1, v2] = tel
+      pairwise_effect_indices[v2, v1] = tel
+      tel = tel + 1  # C++ starts at zero
+    }
+  }
+
+  #Setting the seed
+  if (missing(seed) || is.null(seed)) {
+    # Draw a random seed if none provided
+    seed = sample.int(.Machine$integer.max, 1)
+  }
+
+  if (!is.numeric(seed) || length(seed) != 1 || is.na(seed) || seed < 0) {
+    stop("Argument 'seed' must be a single non-negative integer.")
+  }
+
+  seed <- as.integer(seed)
+
+  out = run_bgm_parallel(
+    observations = x, num_categories = num_categories,
+    pairwise_scale = interaction_scale, edge_prior = edge_prior,
+    inclusion_probability = inclusion_probability,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
+    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
+    interaction_index_matrix = interaction_index_matrix, iter = iter,
+    burnin = burnin, counts_per_category = counts_per_category,
+    blume_capel_stats = blume_capel_stats,
+    main_alpha = threshold_alpha, main_beta = threshold_beta,
+    na_impute = na_impute, missing_index = missing_index,
+    is_ordinal_variable = variable_bool,
+    baseline_category = baseline_category, edge_selection = edge_selection,
+    update_method = update_method,
+    pairwise_effect_indices = pairwise_effect_indices,
+    target_accept = target_accept, pairwise_stats = pairwise_stats,
+    hmc_num_leapfrogs = hmc_num_leapfrogs, nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix, num_chains = chains,
+    nThreads = cores, seed = seed
   )
 
-  #The Metropolis within Gibbs sampler -----------------------------------------
-  out = gibbs_sampler(observations = x,
-                      indicator = indicator,
-                      interactions = interactions,
-                      thresholds = thresholds,
-                      no_categories  = no_categories,
-                      interaction_scale = interaction_scale,
-                      proposal_sd = proposal_sd,
-                      proposal_sd_blumecapel = proposal_sd_blumecapel,
-                      edge_prior = edge_prior,
-                      theta = theta,
-                      beta_bernoulli_alpha = beta_bernoulli_alpha,
-                      beta_bernoulli_beta = beta_bernoulli_beta,
-                      dirichlet_alpha = dirichlet_alpha,
-                      lambda = lambda,
-                      Index = Index,
-                      iter = iter,
-                      burnin = burnin,
-                      n_cat_obs = n_cat_obs,
-                      sufficient_blume_capel = sufficient_blume_capel,
-                      threshold_alpha = threshold_alpha,
-                      threshold_beta = threshold_beta,
-                      na_impute = na_impute,
-                      missing_index = missing_index,
-                      variable_bool = variable_bool,
-                      reference_category = reference_category,
-                      save = save,
-                      display_progress = display_progress,
-                      edge_selection = edge_selection)
+  # Main output handler in the wrapper function
+  output = prepare_output_bgm (
+    out = out, x = x, num_categories = num_categories, iter = iter,
+    data_columnnames = if (is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
+    is_ordinal_variable = variable_bool,
+    burnin = burnin, interaction_scale = interaction_scale,
+    threshold_alpha = threshold_alpha, threshold_beta = threshold_beta,
+    na_action = na_action, na_impute = na_impute,
+    edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
+    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
+    variable_type = variable_type,
+    update_method = update_method,
+    target_accept = target_accept,
+    hmc_num_leapfrogs = hmc_num_leapfrogs,
+    nuts_max_depth = nuts_max_depth,
+    learn_mass_matrix = learn_mass_matrix,
+    num_chains = chains
+  )
 
-  if(save == FALSE) {
-    if(edge_selection == TRUE) {
-      indicator = out$indicator
-    }
-    interactions = out$interactions
-    tresholds = out$thresholds
-
-    if(is.null(colnames(x))){
-      data_columnnames = paste0("variable ", 1:no_variables)
-      colnames(interactions) = data_columnnames
-      rownames(interactions) = data_columnnames
-      if(edge_selection == TRUE) {
-        colnames(indicator) = data_columnnames
-        rownames(indicator) = data_columnnames
-      }
-      rownames(thresholds) = data_columnnames
-    } else {
-      data_columnnames <- colnames(x)
-      colnames(interactions) = data_columnnames
-      rownames(interactions) = data_columnnames
-      if(edge_selection == TRUE) {
-        colnames(indicator) = data_columnnames
-        rownames(indicator) = data_columnnames
-      }
-      rownames(thresholds) = data_columnnames
-    }
-
-    if(any(variable_bool)) {
-      colnames(thresholds) = paste0("category ", 1:max(no_categories))
-    } else {
-      thresholds = thresholds[, 1:2]
-      colnames(thresholds) = c("linear", "quadratic")
-    }
-
-    arguments$data_columnnames = data_columnnames
-
-    if(edge_selection == TRUE) {
-      if(edge_prior == "Stochastic-Block"){
-        output = list(
-          indicator = indicator, interactions = interactions,
-          thresholds = thresholds, allocations = out$allocations,
-          arguments = arguments)
-        class(output) = "bgms"
-        summary_Sbm = summarySBM(output,
-                                 internal_call = TRUE)
-
-        output$components = summary_Sbm$components
-        output$allocations = summary_Sbm$allocations
-      } else {
-
-        output = list(
-          indicator = indicator, interactions = interactions,
-          thresholds = thresholds, arguments = arguments)
-        }
-
-    } else {
-      output = list(
-        interactions = interactions, thresholds = thresholds,
-        arguments = arguments)
-    }
-
-    class(output) = "bgms"
-  } else {
-    if(edge_selection == TRUE) {
-      indicator = out$indicator
-    }
-    interactions = out$interactions
-    thresholds = out$thresholds
-
-    if(is.null(colnames(x))){
-      data_columnnames <- 1:ncol(x)
-    } else {
-      data_columnnames <- colnames(x)
-    }
-    p <- ncol(x)
-    names_bycol <- matrix(rep(data_columnnames, each = p), ncol = p)
-    names_byrow <- matrix(rep(data_columnnames, each = p), ncol = p, byrow = T)
-    names_comb <- matrix(paste0(names_byrow, "-", names_bycol), ncol = p)
-    names_vec <- names_comb[lower.tri(names_comb)]
-
-    if(edge_selection == TRUE) {
-      colnames(indicator) = names_vec
-    }
-    colnames(interactions) = names_vec
-    names = character(length = sum(no_categories))
-    cntr = 0
-    for(variable in 1:no_variables) {
-      for(category in 1:no_categories[variable]) {
-        cntr = cntr + 1
-        names[cntr] = paste0("threshold(",variable, ", ",category,")")
-      }
-    }
-    colnames(thresholds) = names
-
-    if(edge_selection == TRUE) {
-      dimnames(indicator) = list(Iter. = 1:iter, colnames(indicator))
-    }
-    dimnames(interactions) = list(Iter. = 1:iter, colnames(interactions))
-    dimnames(thresholds) = list(Iter. = 1:iter, colnames(thresholds))
-
-    arguments$data_columnnames = data_columnnames
-
-    if(edge_selection == TRUE) {
-      if(edge_prior == "Stochastic-Block"){
-        output = list(indicator = indicator,
-                      interactions = interactions,
-                      thresholds = thresholds,
-                      allocations = out$allocations,
-                      arguments = arguments)
-      } else {
-        output = list(indicator = indicator,
-                      interactions = interactions,
-                      thresholds = thresholds,
-                      arguments = arguments)
-      }
-    } else {
-      output = list(interactions = interactions,
-                    thresholds = thresholds,
-                    arguments = arguments)
-    }
-    class(output) = "bgms"
+  if (update_method == "nuts") {
+    nuts_diag = summarize_nuts_diagnostics(out, nuts_max_depth = nuts_max_depth)
+    output$nuts_diag = nuts_diag
   }
+
   return(output)
 }

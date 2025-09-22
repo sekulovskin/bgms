@@ -7,32 +7,34 @@
 bgmCompare(
   x,
   y,
-  g,
+  group_indicator,
   difference_selection = TRUE,
-  main_difference_model = c("Free", "Collapse", "Constrain"),
   variable_type = "ordinal",
-  reference_category,
-  pairwise_difference_scale = 1,
-  main_difference_scale = 1,
-  pairwise_difference_prior = c("Bernoulli", "Beta-Bernoulli"),
-  main_difference_prior = c("Bernoulli", "Beta-Bernoulli"),
-  pairwise_difference_probability = 0.5,
-  main_difference_probability = 0.5,
-  pairwise_beta_bernoulli_alpha = 1,
-  pairwise_beta_bernoulli_beta = 1,
-  main_beta_bernoulli_alpha = 1,
-  main_beta_bernoulli_beta = 1,
+  baseline_category,
+  difference_scale = 1,
+  difference_prior = c("Bernoulli", "Beta-Bernoulli"),
+  difference_probability = 0.5,
+  beta_bernoulli_alpha = 1,
+  beta_bernoulli_beta = 1,
   interaction_scale = 2.5,
   threshold_alpha = 0.5,
   threshold_beta = 0.5,
+<<<<<<< HEAD
   iter = 10000,
+=======
+  iter = 1000,
+>>>>>>> adaMala
   burnin = 1000,
   na_action = c("listwise", "impute"),
-  save = FALSE,
-  save_main = FALSE,
-  save_pairwise = FALSE,
-  save_indicator = FALSE,
-  display_progress = TRUE
+  display_progress = TRUE,
+  update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
+  target_accept,
+  hmc_num_leapfrogs = 100,
+  nuts_max_depth = 10,
+  learn_mass_matrix = FALSE,
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = NULL
 )
 }
 \arguments{
@@ -48,7 +50,21 @@ bgmCompare(
 
 \item{variable_type}{Character or vector. Specifies the type of variables in \code{x} (\code{"ordinal"} or \code{"blume-capel"}). Default: \code{"ordinal"}.}
 
-\item{reference_category}{Integer or vector. Reference category for Blume-Capel variables. Required if there is at least one Blume-Capel variable.}
+\item{baseline_category}{Integer or vector. Reference category for Blume-Capel variables. Required if there is at least one Blume-Capel variable.}
+
+\item{interaction_scale}{Double. Scale of the Cauchy prior for nuisance pairwise interactions. Default: `2.5`.}
+
+\item{threshold_alpha, threshold_beta}{Double. Shape parameters for the beta-prime prior on nuisance threshold parameters.}
+
+\item{iter, burnin}{Integer. Number of Gibbs iterations (`iter`) and burn-in iterations (`burnin`). Defaults: `iter = 1e4`, `burnin = 5e2`.}
+
+\item{na_action}{Character. Specifies handling of missing data. `"listwise"` deletes rows with missing values; `"impute"` imputes values during Gibbs sampling. Default: `"listwise"`.}
+
+\item{display_progress}{Logical. Show progress bar during computation. Default: `TRUE`.}
+
+\item{g}{Group membership vector for rows in `x`. Required for multi-group designs; ignored if `y` is provided.}
+
+\item{main_difference_model}{Character. Specifies how to handle threshold differences when categories are unmatched. Options: `"Collapse"`, `"Free"`. The option "Collapse" collapses categories unobserved in one or more groups. The option "Free" option estimates thresholds separately for each group and does not model their difference. Default: `"Free"`.}
 
 \item{pairwise_difference_scale}{Double. Scale parameter for the Cauchy prior on pairwise differences. Default: \code{1}.}
 
@@ -59,8 +75,6 @@ bgmCompare(
 \item{pairwise_difference_probability}{A numeric value or a \eqn{p \times p} matrix specifying the prior inclusion probability of a pairwise difference in the Bernoulli model. A single value applies the same probability to all pairs, while a matrix allows for edge-specific probabilities. Default: 0.5 for equal prior probability for inclusion and exclusion.}
 
 \item{main_difference_probability}{A numeric value or a length-\eqn{p} vector specifying the prior inclusion probability of a threshold difference in the Bernoulli model. A single value applies the same probability to all variables, while a vector allows for variable-specific probabilities. Default: 0.5 to indicate no prior preference.}
-
-\item{pairwise_beta_bernoulli_alpha, pairwise_beta_bernoulli_beta}{Double. Shape parameters for the Beta-Bernoulli prior on pairwise differences.}
 
 \item{main_beta_bernoulli_alpha, main_beta_bernoulli_beta}{Double. Shape parameters for the Beta-Bernoulli prior on threshold differences.}
 
@@ -77,6 +91,7 @@ bgmCompare(
 \item{save_main, save_pairwise, save_indicator}{Logical. Enable saving sampled states for \code{main_effects}, \code{pairwise_effects}, and \code{indicator}, respectively. Default: \code{FALSE}.}
 
 \item{display_progress}{Logical. Show progress bar during computation. Default: \code{TRUE}.}
+
 }
 \value{
 A list containing the posterior means and, optionally, sampled states based on the \code{save_*} options. The returned components include:
