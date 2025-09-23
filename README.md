@@ -63,7 +63,6 @@ You can also access these directly from R with:
 
 ``` r
 browseVignettes("bgms")
-#> No vignettes found by browseVignettes("bgms")
 ```
 
 ## Why use Markov Random Fields?
