@@ -206,12 +206,12 @@
 #'   of each edge (used with the Bernoulli prior). Default: \code{0.5}.
 #'
 #' @param beta_bernoulli_alpha,beta_bernoulli_beta Double. Shape parameters
-#'   for the beta distribution in the Beta–Bernoulli prior. Must be positive.
-#'   Defaults: \code{beta_bernoulli_alpha = 1} and
+#'   for the beta distribution in the Beta–Bernoulli and the Stochastic-Block
+#'   priors. Must be positive. Defaults: \code{beta_bernoulli_alpha = 1} and
 #'   \code{beta_bernoulli_beta = 1}.
 #'
 #' @param dirichlet_alpha Double. Concentration parameter of the Dirichlet
-#'   prior on block assignments (used with the Stochastic Block Model).
+#'   prior on block assignments (used with the Stochastic Block model).
 #'   Default: \code{1}.
 #'
 #' @param lambda Double. Rate of the zero-truncated Poisson prior on the
@@ -285,14 +285,27 @@
 #'   \item \code{posterior_mean_indicator}: Symmetric matrix of posterior mean
 #'     inclusion probabilities (if edge selection was enabled).
 #'
-#'   \item \code{posterior_summary_pairwise_allocations},
-#'     \code{posterior_coclustering_matrix},
-#'     \code{posterior_mean_allocations},
-#'     \code{posterior_mode_allocations},
-#'     \code{posterior_num_blocks}:
-#'     Additional summaries returned when
-#'     \code{edge_prior = "Stochastic-Block"}.
-#'
+#'   \item  Additional summaries returned when
+#'     \code{edge_prior = "Stochastic-Block"}. For more details about this prior
+#'     see \insertCite{SekulovskiEtAl_2025;textual}{bgms}.
+#'    \itemize{
+#'       \item \code{posterior_summary_pairwise_allocations}: Data frame with
+#'       posterior summaries (mean, sd, MCSE, ESS, Rhat) for the pairwise
+#'       cluster co-occurrence of the nodes. This serves to indicate
+#'       whether the estimated posterior allocations,co-clustering matrix
+#'       and posterior cluster probabilities (see blow) have converged.
+#'       \item \code{posterior_coclustering_matrix}: a symmetric matrix of
+#'       pairwise proportions of occurrence of every variable. This matrix
+#'       can be plotted to visually inspect the estimated number of clusters
+#'       and visually inspect nodes that tend to switch clusters.
+#'       \item \code{posterior_mean_allocations}: A vector with the posterior mean
+#'       of the cluster allocations of the nodes. This is calculated using the method
+#'       proposed in \insertCite{Dahl_2009;textual}{bgms}.
+#'       \item \code{posterior_mode_allocations}: A vector with the posterior
+#'        mode of the cluster allocations of the nodes.
+#'       \item \code{posterior_num_blocks}: A data frame with the estimated
+#'       posterior inclusion probabilities for all the possible number of clusters.
+#'       }
 #'   \item \code{raw_samples}: A list of raw MCMC draws per chain:
 #'     \describe{
 #'       \item{\code{main}}{List of main effect samples.}
