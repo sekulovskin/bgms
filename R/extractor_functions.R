@@ -258,9 +258,8 @@ extract_pairwise_interactions.bgms <- function(bgms_object) {
   if(!is.null(bgms_object$raw_samples)) {
     nchains = length(bgms_object$raw_samples$pairwise)
     mat = NULL
-    for(l in 1:nchains) {
-      mat = rbind(samples_, bgms_object$raw_samples$pairwise[[l]])
-    }
+    mats <- bgms_object$raw_samples$pairwise
+    mat  <- do.call(rbind, mats)
   } else if (!is.null(bgms_object$posterior_summary_pairwise)) {
     vec <- bgms_object$posterior_summary_pairwise[, "mean"]
     mat <- matrix(0, nrow = num_vars, ncol = num_vars)
