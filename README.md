@@ -7,9 +7,10 @@ Version](https://www.r-pkg.org/badges/version/bgms)](https://cran.r-project.org/
 [![Total](https://cranlogs.r-pkg.org/badges/grand-total/bgms)](https://cran.r-project.org/package=bgms)
 <!-- badges: end -->
 
-# bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables
+# bgms <a href="https://bayesiangraphicalmodeling.com"><img src="inst/bgms_sticker.svg" height="200" align="right" /></a>
 
-<a href="https://bayesiangraphicalmodeling.com"><img src="inst/bgms_sticker.svg" height="200" align="right" /></a>
+**Bayesian analysis of graphical models with binary and ordinal
+variables**
 
 The **bgms** package implements Bayesian estimation and model comparison
 for **ordinal Markov random fields (MRFs)**, graphical models that
@@ -63,57 +64,47 @@ You can also access these directly from R with:
 
 ``` r
 browseVignettes("bgms")
+#> No vignettes found by browseVignettes("bgms")
 ```
 
 ## Why use Markov Random Fields?
 
-Multivariate analysis using graphical models has received much attention
-in the recent psychological and psychometric literature (Contreras et
-al., 2019; Marsman & Rhemtulla, 2022; Robinaugh et al., 2020). Most of
-these graphical models are Markov Random Field (MRF) models, whose graph
-structure reflects the partial associations between variables
-(Kindermann & Snell, 1980). In these models, a missing edge between two
-variables in the network implies that these variables are independent,
-given the remaining variables (Lauritzen, 2004). In other words, the
-remaining variables of the network fully account for the potential
-association between the unconnected variables.
+Graphical models or networks have become central in recent psychological
+and psychometric research (Contreras et al., 2019; Marsman & Rhemtulla,
+2022; Robinaugh et al., 2020). Most are **Markov random field (MRF)**
+models, where the graph structure reflects partial associations between
+variables (Kindermann & Snell, 1980).
 
-## Why use a Bayesian approach to analyze the MRF?
+In an MRF, a missing edge between two variables implies **conditional
+independence** given the rest of the network (Lauritzen, 2004). In other
+words, the remaining variables fully explain away any potential
+association between the unconnected pair.
 
-Testing the structure of the MRF in a one-sample design requires us to
-determine the plausibility of the opposing hypotheses of conditional
-dependence and conditional independence. That is, how plausible is it
-that the observed data come from a network with a structure that
-includes the edge between two variables compared to a network structure
-that excludes that edge? Similarly, testing for group differences in the
-MRF in an independent-samples design requires us to determine the
-plausibility of the opposing hypotheses of parameter difference and
-parameter equivalence. That is, how plausible is it that the observed
-data come from MRFs with differences in specific edge weights or
-threshold parameters compared to MRFs that do not differ in these
-parameter?
+## Why use a Bayesian approach?
 
-Frequentist approaches are limited in this respect because they can only
-reject, not support, null hypotheses of conditional independence or
-parameter equivalence. This leads to the problem that if an edge is
-excluded, we do not know whether this is because the edge is absent in
-the population or because we do not have enough data to reject the null
-hypothesis of independence. Similarly, if a difference is excluded, we
-do not know whether this is because there is no difference in the
-parameter between the different groups or because we do not have enough
-data to reject the null hypothesis of parameter equivalence.
+When analyzing an MRF, we often want to compare competing hypotheses:
 
-To avoid this problem, we will advocate a Bayesian approach using Bayes
-factors. In one-sample designs, the inclusion Bayes factor (Huth et al.,
-2023; Sekulovski et al., 2024) allows us to quantify how much the data
-support both conditional dependence -<em>evidence of edge
-presence</em> - or conditional independence -<em>evidence of edge
-absence</em>. It also allows us to conclude that there is limited
-support for either hypothesis - an <em>absence of evidence</em>. In
-independent-sample designs, they can be used to quantify how much the
-data support the hypotheses of parameter difference and equivalence. The
-output of the <strong>bgm</strong> and <strong>bgmCompare</strong>
-functions can be used to estimate these inclusion Bayes factors.
+- **Edge presence vs. edge absence** (conditional dependence
+  vs. independence) in one-sample designs.  
+- **Parameter difference vs. parameter equivalence** in
+  independent-sample designs.
+
+Frequentist approaches are limited in such comparisons: they can reject
+a null hypothesis, but they cannot provide evidence *for* it.  
+As a result, when an edge or difference is excluded, it remains unclear
+whether this reflects true absence or simply insufficient power.
+
+Bayesian inference avoids this problem.  
+Using **inclusion Bayes factors** (Huth et al., 2023; Sekulovski et al.,
+2024), we can quantify evidence in both directions:
+
+- **Evidence of edge presence** vs. **evidence of edge absence**, or  
+- **Evidence of parameter difference** vs. **evidence of parameter
+  equivalence**.
+
+This makes it possible not only to detect structure and group
+differences, but also to conclude when there is an *absence of
+evidence*.
 
 ## Installation
 
