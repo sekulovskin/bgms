@@ -55,10 +55,12 @@ Both functions support **effect selection** with spike-and-slab priors:
 
 For worked examples and tutorials, see the package vignettes:
 
-- [Getting Started](https://yourpkgdownsite/articles/intro.html)  
-- [Model Comparison](https://yourpkgdownsite/articles/comparison.html)  
+- [Getting
+  Started](https://bayesian-graphical-modelling-lab.github.io/bgms/articles/intro.html)  
+- [Model
+  Comparison](https://bayesian-graphical-modelling-lab.github.io/bgms/articles/comparison.html)  
 - [Diagnostics and Spike-and-Slab
-  Summaries](https://yourpkgdownsite/articles/diagnostics.html)
+  Summaries](https://bayesian-graphical-modelling-lab.github.io/bgms/articles/diagnostics.html)
 
 You can also access these directly from R with:
 
