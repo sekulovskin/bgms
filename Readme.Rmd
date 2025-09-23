@@ -72,7 +72,7 @@ For worked examples and tutorials, see the package vignettes:
 
 You can also access these directly from R with:
 
-```{r}
+```r
 browseVignettes("bgms")
 ```
 
