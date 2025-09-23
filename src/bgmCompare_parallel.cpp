@@ -58,7 +58,7 @@ struct ChainResultCompare {
  *  - Store results into the shared `results` vector at the chain index.
  *
  * Inputs (stored as const references or values):
- *  - observations: Input observation matrix (persons × variables).
+ *  - observations_master: Input observation matrix (persons × variables).
  *  - num_groups: Number of groups.
  *  - counts_per_category_master: Group-level category counts.
  *  - blume_capel_stats_master: Group-level Blume–Capel sufficient statistics.
@@ -99,7 +99,7 @@ struct ChainResultCompare {
  *  - Errors are caught locally so one failing chain does not crash the entire run.
  */
 struct GibbsCompareChainRunner : public Worker {
-  const arma::imat& observations;
+  const arma::imat& observations_master;
   const int num_groups;
   const std::vector<arma::imat>& counts_per_category_master;
   const std::vector<arma::imat>& blume_capel_stats_master;
@@ -138,7 +138,7 @@ struct GibbsCompareChainRunner : public Worker {
   std::vector<ChainResultCompare>& results;
 
   GibbsCompareChainRunner(
-    const arma::imat& observations,
+    const arma::imat& observations_master,
     int num_groups,
     const std::vector<arma::imat>& counts_per_category_master,
     const std::vector<arma::imat>& blume_capel_stats_master,
@@ -174,7 +174,7 @@ struct GibbsCompareChainRunner : public Worker {
     ProgressManager& pm,
     std::vector<ChainResultCompare>& results
   ) :
-    observations(observations),
+    observations_master(observations_master),
     num_groups(num_groups),
     counts_per_category_master(counts_per_category_master),
     blume_capel_stats_master(blume_capel_stats_master),
@@ -226,12 +226,12 @@ struct GibbsCompareChainRunner : public Worker {
         std::vector<arma::imat> blume_capel_stats = blume_capel_stats_master;
         std::vector<arma::mat>  pairwise_stats = pairwise_stats_master;
         arma::mat inclusion_probability = inclusion_probability_master;
-        arma::imat observations_copy = observations;
+        arma::imat observations = observations_master;
 
         // run sampler (pure C++)
         SamplerOutput result = run_gibbs_sampler_bgmCompare(
           out.chain_id,
-          observations_copy,
+          observations,
           num_groups,
           counts_per_category,
           blume_capel_stats,

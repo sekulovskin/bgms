@@ -79,7 +79,7 @@ void impute_missing_bgmcompare(
     std::vector<arma::imat>& counts_per_category,
     std::vector<arma::imat>& blume_capel_stats,
     std::vector<arma::mat>& pairwise_stats,
-    const arma::imat& num_categories,
+    const arma::ivec& num_categories,
     const arma::imat& missing_data_indices,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
@@ -87,7 +87,7 @@ void impute_missing_bgmcompare(
 ) {
   const int num_variables = observations.n_cols;
   const int num_missings = missing_data_indices.n_rows;
-  const int max_num_categories = arma::max(arma::vectorise(num_categories));
+  const int max_num_categories = arma::max(num_categories);
 
   arma::vec category_response_probabilities(max_num_categories + 1);
   double exponent, cumsum, u;
@@ -120,11 +120,12 @@ void impute_missing_bgmcompare(
 
     double rest_score =
       arma::as_scalar(observations.row(person) * group_pairwise_effects.col(variable));
+
     if(is_ordinal_variable[variable] == true) {
       // For regular binary or ordinal variables
       cumsum = 1.0;
       category_response_probabilities[0] = 1.0;
-      for(int category = 1; category <= num_categories(variable, group); category++) {
+      for(int category = 1; category <= num_categories(variable); category++) {
         exponent = group_main_effects(category - 1);
         exponent += category * rest_score;
         cumsum += MY_EXP(exponent);
@@ -133,7 +134,7 @@ void impute_missing_bgmcompare(
     } else {
       // For Blume-Capel variables
       cumsum = 0.0;
-      for(int category = 0; category <= num_categories(variable, group); category++) {
+      for(int category = 0; category <= num_categories(variable); category++) {
         exponent = group_main_effects[0] * category;
         exponent += group_main_effects[1] *
           (category - baseline_category[variable]) *
@@ -161,9 +162,9 @@ void impute_missing_bgmcompare(
       if(is_ordinal_variable[variable] == true) {
         arma::imat counts_per_category_group = counts_per_category[group];
         if(old_observation > 0)
-          counts_per_category_group(old_observation, variable)--;
+          counts_per_category_group(old_observation-1, variable)--;
         if(new_observation > 0)
-          counts_per_category_group(new_observation, variable)++;
+          counts_per_category_group(new_observation-1, variable)++;
         counts_per_category[group] = counts_per_category_group;
       } else {
         arma::imat blume_capel_stats_group = blume_capel_stats[group];
