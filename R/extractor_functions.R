@@ -256,25 +256,36 @@ extract_pairwise_interactions.bgms <- function(bgms_object) {
   num_vars <- arguments$num_variables
   var_names <- arguments$data_columnnames
 
-  if(!is.null(bgms_object$raw_samples)) {
+  if(!is.null(bgms_object$raw_samples) || arguments$save == TRUE) {
     nchains = length(bgms_object$raw_samples$pairwise)
     mat = NULL
     mats <- bgms_object$raw_samples$pairwise
     mat  <- do.call(rbind, mats)
+
+    edge_names = character()
+    for (i in 1:(num_vars - 1)) {
+      for (j in (i + 1):num_vars) {
+        edge_names = c(edge_names, paste0(var_names[i], "-", var_names[j]))
+      }
+    }
+
+    dimnames(mat) <- list(paste0("iter", 1:nrow(mat)), edge_names)
   } else if (!is.null(bgms_object$posterior_summary_pairwise)) {
     vec <- bgms_object$posterior_summary_pairwise[, "mean"]
     mat <- matrix(0, nrow = num_vars, ncol = num_vars)
     mat[upper.tri(mat)] <- vec
     mat[lower.tri(mat)] <- t(mat)[lower.tri(mat)]
+    dimnames(mat) <- list(var_names, var_names)
   } else if (!is.null(bgms_object$posterior_mean_pairwise)) {
     mat <- bgms_object$posterior_mean_pairwise
+    dimnames(mat) <- list(var_names, var_names)
   } else if (!is.null(bgms_object$pairwise_effects)) {
     mat <- bgms_object$pairwise_effects
+    dimnames(mat) <- list(var_names, var_names)
   } else {
     stop("No pairwise interaction effects found in the object.")
   }
 
-  dimnames(mat) <- list(var_names, var_names)
   return(mat)
 }
 

@@ -392,6 +392,8 @@ bgm = function(
   }
   if(hasArg(save)) {
     warning("The argument save is deprecated. Everything is saved in the function output.")
+  } else {
+    save = TRUE
   }
   if(hasArg(threshold_alpha) || hasArg(threshold_beta)) {
     if(!hasArg(main_alpha))
@@ -402,8 +404,6 @@ bgm = function(
     warning(paste0("The arguments threshold_alpha, threshold_beta are deprecated.\n",
                    "Please use main_alpha, main_beta instead."))
   }
-
-
 
   # Check update method
   update_method_input = update_method
@@ -607,7 +607,7 @@ bgm = function(
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix,
-    num_chains = chains
+    num_chains = chains, save = save
   )
 
   if (update_method == "nuts") {
