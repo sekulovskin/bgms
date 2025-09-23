@@ -241,6 +241,13 @@ extract_indicator_priors.bgmCompare <- function(bgms_object) {
 }
 
 
+
+#' @rdname extractor_functions
+#' @export
+extract_pairwise_interactions <- function(bgms_object) {
+  UseMethod("extract_pairwise_interactions")
+}
+
 #' @rdname extractor_functions
 #' @export
 extract_pairwise_interactions.bgms <- function(bgms_object) {
@@ -248,7 +255,13 @@ extract_pairwise_interactions.bgms <- function(bgms_object) {
   num_vars <- arguments$num_variables
   var_names <- arguments$data_columnnames
 
-  if (!is.null(bgms_object$posterior_summary_pairwise)) {
+  if(!is.null(bgms_object$raw_samples)) {
+    nchains = length(bgms_object$raw_samples$pairwise)
+    mat = NULL
+    for(l in 1:nchains) {
+      mat = rbind(samples_, bgms_object$raw_samples$pairwise[[l]])
+    }
+  } else if (!is.null(bgms_object$posterior_summary_pairwise)) {
     vec <- bgms_object$posterior_summary_pairwise[, "mean"]
     mat <- matrix(0, nrow = num_vars, ncol = num_vars)
     mat[upper.tri(mat)] <- vec
@@ -265,6 +278,13 @@ extract_pairwise_interactions.bgms <- function(bgms_object) {
   return(mat)
 }
 
+
+#' @rdname extractor_functions
+#' @export
+extract_category_thresholds <- function(bgms_object) {
+  UseMethod("extract_category_thresholds")
+}
+
 #' @rdname extractor_functions
 #' @export
 extract_category_thresholds.bgms <- function(bgms_object) {
@@ -274,13 +294,17 @@ extract_category_thresholds.bgms <- function(bgms_object) {
   if (!is.null(bgms_object$posterior_summary_main)) {
     vec <- bgms_object$posterior_summary_main[, "mean"]
     num_vars <- arguments$num_variables
-    num_cats <- lengths(arguments$reference_category)
+    variable_type <- arguments$variable_type
+    if(length(variable_type) == 1) {
+      variable_type <- rep(variable_type, num_vars)
+    }
+    num_cats <- arguments$num_categories
     max_cats <- max(num_cats)
     mat <- matrix(NA_real_, nrow = num_vars, ncol = max_cats)
     rownames(mat) <- var_names
     pos <- 1
     for (v in seq_len(num_vars)) {
-      if (arguments$variable_type[v] == "ordinal") {
+      if (variable_type[v] == "ordinal") {
         k <- num_cats[v]
         mat[v, 1:k] <- vec[pos:(pos + k - 1)]
         pos <- pos + k
