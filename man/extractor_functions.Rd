@@ -13,7 +13,9 @@
 \alias{extract_indicator_priors}
 \alias{extract_indicator_priors.bgms}
 \alias{extract_indicator_priors.bgmCompare}
+\alias{extract_pairwise_interactions}
 \alias{extract_pairwise_interactions.bgms}
+\alias{extract_category_thresholds}
 \alias{extract_category_thresholds.bgms}
 \alias{extract_pairwise_difference.bgmCompare}
 \alias{extract_main_difference.bgmCompare}
@@ -43,9 +45,13 @@ extract_indicator_priors(bgms_object)
 
 \method{extract_indicator_priors}{bgmCompare}(bgms_object)
 
-extract_pairwise_interactions.bgms(bgms_object)
+extract_pairwise_interactions(bgms_object)
 
-extract_category_thresholds.bgms(bgms_object)
+\method{extract_pairwise_interactions}{bgms}(bgms_object)
+
+extract_category_thresholds(bgms_object)
+
+\method{extract_category_thresholds}{bgms}(bgms_object)
 
 extract_pairwise_difference.bgmCompare(bgms_object)
 

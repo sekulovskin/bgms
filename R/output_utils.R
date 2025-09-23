@@ -31,7 +31,10 @@ prepare_output_bgm = function(
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix,
-    num_chains = num_chains
+    num_chains = num_chains,
+    num_categories = num_categories,
+    no_variables = ncol(x), #backwards compatibility easybgm
+    save = TRUE #backwards compatibility easybgm
   )
 
   num_variables = ncol(x)
