@@ -14,7 +14,7 @@ print.bgmCompare = function(x, ...) {
     prior_msg = switch(
       as.character(arguments$difference_prior),
       "Bernoulli" = "Bayesian Difference Selection (Bernoulli prior on inclusion)",
-      "Beta-Bernoulli" = "Bayesian Difference Selection (Beta–Bernoulli prior on inclusion)",
+      "Beta-Bernoulli" = "Bayesian Difference Selection (Beta-Bernoulli prior on inclusion)",
       "Bayesian Difference Selection"
     )
     cat(prior_msg, "\n")
@@ -97,7 +97,6 @@ summary.bgmCompare = function(object, ...) {
 
 
 #' @export
-#' @export
 print.summary.bgmCompare = function(x, digits = 3, ...) {
   cat("Posterior summaries from Bayesian grouped MRF estimation (bgmCompare):\n\n")
 
@@ -127,11 +126,31 @@ print.summary.bgmCompare = function(x, digits = 3, ...) {
 
   if (!is.null(x$indicator)) {
     cat("Inclusion probabilities:\n")
-    print_df(x$indicator, digits)
+    ind <- head(x$indicator, 6)
+
+    # round only numeric columns
+    ind[] <- lapply(ind, function(col) {
+      if (is.numeric(col)) {
+        round(col, digits)
+      } else {
+        col
+      }
+    })
+
+    # replace NA with empty string for printing
+    ind[] <- lapply(ind, function(col) {
+      ifelse(is.na(col), "", col)
+    })
+
+    print(ind, row.names = FALSE)
     if (nrow(x$indicator) > 6)
       cat("... (use `summary(fit)$indicator` to see full output)\n")
     cat("\n")
+    cat("Note: NA values are suppressed in the print table. They occur when an indicator\n")
+    cat("was constant (all 0 or all 1) across all iterations, so sd/mcse/n_eff/Rhat\n")
+    cat("are undefined; `summary(fit)$indicator` still contains the NA values.\n\n")
   }
+
 
   if (!is.null(x$main_diff)) {
     cat("Group differences (main effects):\n")
@@ -166,13 +185,13 @@ print.summary.bgmCompare = function(x, digits = 3, ...) {
 #' @return A list with components:
 #' \describe{
 #'   \item{main_effects_raw}{Posterior means of the raw main-effect parameters
-#'   (variables × [baseline + differences]).}
+#'   (variables x [baseline + differences]).}
 #'   \item{pairwise_effects_raw}{Posterior means of the raw pairwise-effect parameters
-#'   (pairs × [baseline + differences]).}
+#'   (pairs x [baseline + differences]).}
 #'   \item{main_effects_groups}{Posterior means of group-specific main effects
-#'   (variables × groups), computed as baseline plus projected differences.}
+#'   (variables x groups), computed as baseline plus projected differences.}
 #'   \item{pairwise_effects_groups}{Posterior means of group-specific pairwise effects
-#'   (pairs × groups), computed as baseline plus projected differences.}
+#'   (pairs x groups), computed as baseline plus projected differences.}
 #'   \item{indicators}{Posterior mean inclusion probabilities as a symmetric matrix,
 #'   with diagonals corresponding to main effects and off-diagonals to pairwise effects.}
 #' }

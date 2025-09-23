@@ -107,9 +107,15 @@ print.summary.bgms <- function(x, digits = 3, ...) {
 
   if (!is.null(x$indicator)) {
     cat("Inclusion probabilities:\n")
-    print(round(head(x$indicator, 6), digits = digits))
-    if (nrow(x$indicator) > 6) cat("... (use `summary(fit)$indicator` to see full output)\n")
+    ind <- head(x$indicator, 6)
+    ind[] <- lapply(ind, function(col) ifelse(is.na(col), "", round(col, digits)))
+    print(ind, row.names = FALSE)
+    if (nrow(x$indicator) > 6)
+      cat("... (use `summary(fit)$indicator` to see full output)\n")
     cat("\n")
+    cat("Note: NA values are suppressed in the print table. They occur when an indicator\n")
+    cat("was constant (all 0 or all 1) across all iterations, so sd/mcse/n_eff/Rhat\n")
+    cat("are undefined; `summary(fit)$indicator` still contains the NA values.\n\n")
   }
 
   if (!is.null(x$pairwise_allocations)) {
