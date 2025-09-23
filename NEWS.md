@@ -10,10 +10,12 @@
 
 * Improved progress bar for parallel sampling
 * User interrupt for parallel sampling
+* More extensive summary and print options are provided
 
 ## Bug fixes
 
 * Fixed a bug in the bgmCompare function with missing data handling
+* Fixed a bug in the SBM prior handling
 
 # bgms 0.1.5.0
 

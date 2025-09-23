@@ -49,7 +49,7 @@ Both functions support **effect selection** with spike-and-slab priors:
 - **Edges in one-sample designs**:  
   `bgm()` models the presence or absence of edges between variables. Posterior
   inclusion probabilities indicate the plausibility of each edge and can be
-  converted into Bayes factors for conditional independence tests [see @MarsmanVandenBerghHaslbeck_2024, @SekulovskiEtAl_2024].
+  converted into Bayes factors for conditional independence tests [see @MarsmanVandenBerghHaslbeck_2024; @SekulovskiEtAl_2024].
 
 - **Communities/clusters in one-sample designs**:  
   `bgm()` can also model community structure. Posterior probabilities for the
@@ -60,7 +60,7 @@ Both functions support **effect selection** with spike-and-slab priors:
   `bgmCompare()` models differences in edge weights and category thresholds
   between groups. Posterior inclusion probabilities indicate the plausibility
   of parameter differences and can be converted into Bayes factors for tests of
-  parameter equivalence [see MarsmanWaldorpSekulovskiHaslbeck_2024].
+  parameter equivalence [see @MarsmanWaldorpSekulovskiHaslbeck_2024].
   
 ## Learn more
 
