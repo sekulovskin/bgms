@@ -1,3 +1,22 @@
+# bgms 0.1.6.0
+
+## New features
+
+* NUTS and HMC options are not provided for sampling the bgm and bgmCompare model
+* Sampling for multiple chains can now be done in parallel
+* Markov chain diagnostics are now offered for the sampled parameters
+
+## Other changes
+
+* Improved progress bar for parallel sampling
+* User interrupt for parallel sampling
+* More extensive summary and print options are provided
+
+## Bug fixes
+
+* Fixed a bug in the bgmCompare function with missing data handling
+* Fixed a bug in the SBM prior handling
+
 # bgms 0.1.5.0
 
 ## New features

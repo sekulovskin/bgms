@@ -33,6 +33,7 @@ prepare_output_bgm = function(
     learn_mass_matrix = learn_mass_matrix,
     num_chains = num_chains,
     num_categories = num_categories,
+    data_columnnames = data_columnnames,
     no_variables = ncol(x), #backwards compatibility easybgm
     save = TRUE #backwards compatibility easybgm
   )

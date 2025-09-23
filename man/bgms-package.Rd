@@ -52,6 +52,16 @@ the MRF:
  }
 }
 }
+\section{Vignettes}{
+
+For tutorials and worked examples, see:
+\itemize{
+  \item \code{vignette("intro", package = "bgms")} for a getting started guide.
+  \item \code{vignette("comparison", package = "bgms")} for model comparison.
+  \item \code{vignette("diagnostics", package = "bgms")} for diagnostics and spike-and-slab summaries.
+}
+}
+
 \references{
 \insertAllCited{}
 }

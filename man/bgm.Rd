@@ -159,21 +159,21 @@ Main components include:
     inclusion probabilities (if edge selection was enabled).
 
   \item  Additional summaries returned when
-    \code{edge_prior = "Stochastic-Block"}. For more details see
-    \insertCite{SekulovskiEtAl_2025;textual}{bgms}.
+    \code{edge_prior = "Stochastic-Block"}. For more details about this prior
+    see \insertCite{SekulovskiEtAl_2025;textual}{bgms}.
    \itemize{
       \item \code{posterior_summary_pairwise_allocations}: Data frame with
       posterior summaries (mean, sd, MCSE, ESS, Rhat) for the pairwise
       cluster co-occurrence of the nodes. This serves to indicate
-      whether the estimated posterior allocations and co-clustering matrix
-      (see blow) have converged.
+      whether the estimated posterior allocations,co-clustering matrix
+      and posterior cluster probabilities (see blow) have converged.
       \item \code{posterior_coclustering_matrix}: a symmetric matrix of
       pairwise proportions of occurrence of every variable. This matrix
       can be plotted to visually inspect the estimated number of clusters
-      as well as gaugge into nodes that tend to switch between clusters.
+      and visually inspect nodes that tend to switch clusters.
       \item \code{posterior_mean_allocations}: A vector with the posterior mean
-      of the cluster allications of the nodes. This is calculated using the method
-      proposed in \insertCite{Dahl_2009;textual}{bgms}.
+      of the cluster allocations of the nodes. This is calculated using the method
+      proposed in \insertCite{Dahl2009;textual}{bgms}.
       \item \code{posterior_mode_allocations}: A vector with the posterior
        mode of the cluster allocations of the nodes.
       \item \code{posterior_num_blocks}: A data frame with the estimated
@@ -392,4 +392,7 @@ summary(fit)$pairwise
 }
 \references{
 \insertAllCited{}
+}
+\seealso{
+\code{vignette("intro", package = "bgms")} for a worked example.
 }

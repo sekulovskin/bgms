@@ -18,7 +18,8 @@
 #' original framework.
 #'
 #' Key components of the model are described in the sections below.
-
+#'
+#' @seealso \code{vignette("intro", package = "bgms")} for a worked example.
 #'
 #' @section Ordinal Variables:
 #' The function supports two types of ordinal variables:
@@ -299,7 +300,7 @@
 #'       and visually inspect nodes that tend to switch clusters.
 #'       \item \code{posterior_mean_allocations}: A vector with the posterior mean
 #'       of the cluster allocations of the nodes. This is calculated using the method
-#'       proposed in \insertCite{Dahl_2009;textual}{bgms}.
+#'       proposed in \insertCite{Dahl2009;textual}{bgms}.
 #'       \item \code{posterior_mode_allocations}: A vector with the posterior
 #'        mode of the cluster allocations of the nodes.
 #'       \item \code{posterior_num_blocks}: A data frame with the estimated
