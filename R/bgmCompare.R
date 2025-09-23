@@ -187,7 +187,6 @@ bgmCompare = function(
     iter = 1e3,
     warmup = 1e3,
     na_action = c("listwise", "impute"),
-    display_progress =  c("per-chain", "total", "none"),
     update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
     target_accept,
     hmc_num_leapfrogs = 100,
@@ -195,6 +194,7 @@ bgmCompare = function(
     learn_mass_matrix = FALSE,
     chains = 4,
     cores = parallel::detectCores(),
+    display_progress =  c("per-chain", "total", "none"),
     seed = NULL
 ) {
   # Check update method

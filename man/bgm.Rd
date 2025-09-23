@@ -21,7 +21,6 @@ bgm(
   dirichlet_alpha = 1,
   lambda = 1,
   na_action = c("listwise", "impute"),
-  display_progress = c("per-chain", "total", "none"),
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
   target_accept,
   hmc_num_leapfrogs = 100,
@@ -29,10 +28,13 @@ bgm(
   learn_mass_matrix = FALSE,
   chains = 4,
   cores = parallel::detectCores(),
+  display_progress = c("per-chain", "total", "none"),
   seed = NULL,
   interaction_scale,
   burnin,
-  save
+  save,
+  threshold_alpha,
+  threshold_beta
 )
 }
 \arguments{
@@ -93,9 +95,6 @@ number of clusters in the Stochastic Block Model. Default: \code{1}.}
 \code{"listwise"} (drop rows with missing values) or \code{"impute"}
 (perform single imputation during sampling). Default: \code{"listwise"}.}
 
-\item{display_progress}{Logical. Whether to show a progress bar during
-sampling. Default: \code{TRUE}.}
-
 \item{update_method}{Character. Specifies how the MCMC sampler updates
 the model parameters:
 \describe{
@@ -128,8 +127,14 @@ matrix. Default: \code{FALSE}.}
 \item{cores}{Integer. Number of CPU cores for parallel execution.
 Default: \code{parallel::detectCores()}.}
 
+\item{display_progress}{Logical. Whether to show a progress bar during
+sampling. Default: \code{TRUE}.}
+
 \item{seed}{Optional integer. Random seed for reproducibility. Must be a
 single non-negative integer.}
+
+\item{interaction_scale, burnin, save, threshold_alpha, threshold_beta}{Deprecated arguments. Use \code{pairwise_scale}, \code{warmup},
+\code{main_alpha}, and \code{main_beta} instead.}
 }
 \value{
 A list of class \code{"bgms"} with posterior summaries, posterior mean

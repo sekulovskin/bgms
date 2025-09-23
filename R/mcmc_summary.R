@@ -300,7 +300,7 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   list(sbm_summary = sbm_summary, co_occur_matrix = co_occur_matrix)
 }
 
-# calculate a representative allication vector using
+# calculate a representative allocation vector using
 # (1) the median of the posterior distribution of the cluster allocations
 # (2) the mean which is based on Dahl's method: This part of the code
 # was adapted from the R

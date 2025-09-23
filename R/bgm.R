@@ -258,6 +258,10 @@
 #' @param seed Optional integer. Random seed for reproducibility. Must be a
 #'   single non-negative integer.
 #'
+#' @param interaction_scale,burnin,save,threshold_alpha,threshold_beta
+#' Deprecated arguments. Use \code{pairwise_scale}, \code{warmup},
+#' \code{main_alpha}, and \code{main_beta} instead.
+#'
 #' @return
 #' A list of class \code{"bgms"} with posterior summaries, posterior mean
 #' matrices, and access to raw MCMC draws. The object can be passed to
@@ -346,7 +350,6 @@ bgm = function(
     dirichlet_alpha = 1,
     lambda = 1,
     na_action = c("listwise", "impute"),
-    display_progress = c("per-chain", "total", "none"),
     update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
     target_accept,
     hmc_num_leapfrogs = 100,
@@ -354,22 +357,39 @@ bgm = function(
     learn_mass_matrix = FALSE,
     chains = 4,
     cores = parallel::detectCores(),
+    display_progress = c("per-chain", "total", "none"),
     seed = NULL,
     interaction_scale,
     burnin,
-    save
+    save,
+    threshold_alpha,
+    threshold_beta
 ) {
   if(hasArg(interaction_scale)) {
-    pairwise_scale = interaction_scale
+    if(!hasArg(pairwise_scale))
+      pairwise_scale = interaction_scale
+
     warning("The argument interaction_scale is deprecated. Please use pairwise_scale instead.")
   }
   if(hasArg(burnin)) {
-    warmup = burnin
+    if(!hasArg(warmup))
+      warmup = burnin
     warning("The argument burnin is deprecated. Please use warmup instead.")
   }
   if(hasArg(save)) {
     warning("The argument save is deprecated. Everything is saved in the function output.")
   }
+  if(hasArg(threshold_alpha) || hasArg(threshold_beta)) {
+    if(!hasArg(main_alpha))
+      main_alpha = threshold_alpha
+    if(!hasArg(main_beta))
+      main_beta = threshold_beta
+    warmup = burnin
+    warning(paste0("The arguments threshold_alpha, threshold_beta are deprecated.\n",
+                   "Please use main_alpha, main_beta instead."))
+  }
+
+
 
   # Check update method
   update_method_input = update_method

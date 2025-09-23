@@ -71,7 +71,7 @@ summary.bgms <- function(object, ...) {
 
     if (!is.null(object$posterior_summary_pairwise_allocations)) {
       out$pairwise_allocations <- object$posterior_summary_pairwise_allocations
-      out$allications_mean <- object$posterior_mean_allocations
+      out$allocations_mean <- object$posterior_mean_allocations
       out$num_blocks <- object$posterior_num_blocks
     }
 
@@ -125,9 +125,9 @@ print.summary.bgms <- function(x, digits = 3, ...) {
     cat("\n")
   }
 
-  if (!is.null(x$allications_mean)) {
+  if (!is.null(x$allocations_mean)) {
     cat("Mean posterior node allocation vector :\n")
-    print(round(head(x$allications_mean, 6), digits = digits))
+    print(round(head(x$allocations_mean, 6), digits = digits))
     cat("\n")
   }
 

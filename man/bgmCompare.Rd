@@ -22,7 +22,6 @@ bgmCompare(
   iter = 1000,
   warmup = 1000,
   na_action = c("listwise", "impute"),
-  display_progress = c("per-chain", "total", "none"),
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
   target_accept,
   hmc_num_leapfrogs = 100,
@@ -30,6 +29,7 @@ bgmCompare(
   learn_mass_matrix = FALSE,
   chains = 4,
   cores = parallel::detectCores(),
+  display_progress = c("per-chain", "total", "none"),
   seed = NULL
 )
 }
@@ -83,10 +83,6 @@ Default: \code{1e3}.}
 \code{"listwise"} (drop rows) or \code{"impute"} (impute within Gibbs).
 Default: \code{"listwise"}.}
 
-\item{display_progress}{Character. Controls progress reporting:
-\code{"per-chain"}, \code{"total"}, or \code{"none"}.
-Default: \code{"per-chain"}.}
-
 \item{update_method}{Character. Sampling algorithm:
 \code{"adaptive-metropolis"}, \code{"hamiltonian-mc"}, or \code{"nuts"}.
 Default: \code{"nuts"}.}
@@ -105,6 +101,10 @@ during warmup (HMC/NUTS only). Default: \code{FALSE}.}
 
 \item{cores}{Integer. Number of CPU cores. Default:
 \code{parallel::detectCores()}.}
+
+\item{display_progress}{Character. Controls progress reporting:
+\code{"per-chain"}, \code{"total"}, or \code{"none"}.
+Default: \code{"per-chain"}.}
 
 \item{seed}{Optional integer. Random seed for reproducibility.}
 }

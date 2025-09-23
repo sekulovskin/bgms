@@ -15,13 +15,13 @@
 A list with components:
 \describe{
   \item{main_effects_raw}{Posterior means of the raw main-effect parameters
-  (variables × [baseline + differences]).}
+  (variables x [baseline + differences]).}
   \item{pairwise_effects_raw}{Posterior means of the raw pairwise-effect parameters
-  (pairs × [baseline + differences]).}
+  (pairs x [baseline + differences]).}
   \item{main_effects_groups}{Posterior means of group-specific main effects
-  (variables × groups), computed as baseline plus projected differences.}
+  (variables x groups), computed as baseline plus projected differences.}
   \item{pairwise_effects_groups}{Posterior means of group-specific pairwise effects
-  (pairs × groups), computed as baseline plus projected differences.}
+  (pairs x groups), computed as baseline plus projected differences.}
   \item{indicators}{Posterior mean inclusion probabilities as a symmetric matrix,
   with diagonals corresponding to main effects and off-diagonals to pairwise effects.}
 }
