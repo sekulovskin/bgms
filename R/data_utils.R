@@ -193,9 +193,9 @@ data_check = function(data, name) {
 compute_counts_per_category = function(x, num_categories, group = NULL) {
   counts_per_category = list()
   for (g in unique(group)) {
-    counts_per_category_gr = matrix(0, nrow = max(num_categories[, g]), ncol = ncol(x))
+    counts_per_category_gr = matrix(0, nrow = max(num_categories), ncol = ncol(x))
     for (variable in seq_len(ncol(x))) {
-      for (category in seq_len(num_categories[variable, g])) {
+      for (category in seq_len(num_categories[variable])) {
         counts_per_category_gr[category, variable] = sum(x[group == g, variable] == category)
       }
     }
@@ -323,9 +323,7 @@ compare_reformat_data = function(
 
   check_fail_zero = FALSE
   num_variables = ncol(x)
-  num_categories = matrix(0,
-                          nrow = num_variables,
-                          ncol = max(group))
+  num_categories = vector (length = num_variables)
 
   for(node in 1:num_variables) {
     unq_vls = sort(unique(x[,  node]))
@@ -417,15 +415,15 @@ compare_reformat_data = function(
 
     # Warn that maximum category value is large --------------------------------
 
-    num_categories[node, ] = max(x[, node])
+    num_categories[node] = max(x[, node])
 
-    if(!variable_bool[node] & max(num_categories[node, ]) > 10) {
+    if(!variable_bool[node] & max(num_categories[node]) > 10) {
       # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
       warning(paste0("In the (pseudo) likelihood of Blume-Capel variables, the normalization constant \n",
                      "is a sum over all possible values of the ordinal variable. The range of \n",
                      "observed values, possibly after recoding to integers, is assumed to be the \n",
                      "number of possible response categories.  For node ", node,", in group 1, this \n",
-                     "range was equal to ", max(num_categories[node,]), "which may cause the analysis to take some \n",
+                     "range was equal to ", max(num_categories[node]), "which may cause the analysis to take some \n",
                      "time to run. Note that for the Blume-Capel model, the bgm function does not \n",
                      "collapse the categories that have no observations between zero and the last \n",
                      "category. This may explain the large discrepancy between the first and last \n",
@@ -434,10 +432,8 @@ compare_reformat_data = function(
 
 
     # Check to see if not all responses are in one category --------------------
-    if(any(num_categories[node, ] == 0))
-      stop(paste0("Only one value was observed for variable ",
-                  node,
-                  ", in at least one of the groups."))
+    if(any(num_categories[node] == 0))
+      stop(paste0("Only one value was observed for variable ", node, "."))
   }
 
 

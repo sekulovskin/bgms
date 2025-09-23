@@ -242,7 +242,7 @@ bgmCompare = function(
     group_indicator = NULL
 
   model = check_compare_model(
-    x = x, y = y, g = group_indicator, difference_selection = difference_selection,
+    x = x, y = y, group_indicator = group_indicator, difference_selection = difference_selection,
     variable_type = variable_type, baseline_category = baseline_category,
     difference_scale = difference_scale, difference_prior = difference_prior,
     difference_probability = difference_probability,
@@ -328,7 +328,7 @@ bgmCompare = function(
       main_effect_indices[variable, 1] = 0  # C++ starts at zero
     }
     if (ordinal_variable[variable]) {
-      main_effect_indices[variable, 2] = main_effect_indices[variable, 1] + max(num_categories[variable, ]) - 1
+      main_effect_indices[variable, 2] = main_effect_indices[variable, 1] + num_categories[variable] - 1
     } else {
       main_effect_indices[variable, 2] = main_effect_indices[variable, 1] + 1
     }
@@ -385,7 +385,7 @@ bgmCompare = function(
     counts_per_category = counts_per_category,
     blume_capel_stats = blume_capel_stats,
     pairwise_stats = pairwise_stats,
-    num_categories = num_categories[, 1],
+    num_categories = num_categories,
     main_alpha = main_alpha,
     main_beta = main_beta,
     pairwise_scale = pairwise_scale,
@@ -417,7 +417,7 @@ bgmCompare = function(
   output = prepare_output_bgmCompare(
     out = out,
     observations = observations,
-    num_categories = num_categories[, 1],
+    num_categories = num_categories,
     is_ordinal_variable = ordinal_variable,
     num_groups = num_groups,
     iter = iter,

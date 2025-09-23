@@ -16,6 +16,7 @@
 #' @keywords internal
 NULL
 
+#' @name extractor_functions
 #' @export
 extract_arguments <- function(bgms_object) {
   UseMethod("extract_arguments")

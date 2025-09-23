@@ -419,7 +419,7 @@ check_compare_model = function(
         if(inherits(difference_probability, what = "data.frame")) {
           inclusion_probability_difference = data.matrix(difference_probability)
         } else {
-          inclusion_probability_difference = pairwise_difference_probability
+          inclusion_probability_difference = difference_probability
         }
 
         if(!isSymmetric(inclusion_probability_difference))

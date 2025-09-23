@@ -2,6 +2,7 @@
 % Please edit documentation in R/extractor_functions.R
 \name{extractor_functions}
 \alias{extractor_functions}
+\alias{extract_arguments}
 \alias{extract_arguments.bgms}
 \alias{extract_arguments.bgmCompare}
 \alias{extract_indicators}
@@ -23,6 +24,8 @@
 \alias{extract_pairwise_thresholds}
 \title{Extractor Functions for bgms Objects}
 \usage{
+extract_arguments(bgms_object)
+
 \method{extract_arguments}{bgms}(bgms_object)
 
 \method{extract_arguments}{bgmCompare}(bgms_object)

@@ -21,9 +21,20 @@ Copyright: Includes datasets 'ADHD' and 'Boredom', which are licensed under CC-B
 License: GPL (>= 2)
 URL: https://Bayesian-Graphical-Modelling-Lab.github.io/bgms/
 BugReports: https://github.com/Bayesian-Graphical-Modelling-Lab/bgms/issues
-Imports: Rcpp (>= 1.0.7), RcppParallel, Rdpack, methods, coda, dqrng
+Imports: 
+    Rcpp (>= 1.0.7), 
+    RcppParallel, 
+    Rdpack, 
+    methods, 
+    coda
 RdMacros: Rdpack
-LinkingTo: Rcpp, RcppProgress, RcppArmadillo, RcppParallel, dqrng, BH
+LinkingTo: 
+    Rcpp, 
+    RcppProgress, 
+    RcppArmadillo, 
+    RcppParallel, 
+    dqrng, 
+    BH
 RoxygenNote: 7.3.2
 Depends: 
     R (>= 3.5)
