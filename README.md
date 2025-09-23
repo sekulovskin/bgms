@@ -11,38 +11,59 @@ Version](https://www.r-pkg.org/badges/version/bgms)](https://cran.r-project.org/
 
 <a href="https://bayesiangraphicalmodeling.com"><img src="inst/bgms_sticker.svg" height="200" align="right" /></a>
 
-The `R` package <strong>bgms</strong> provides tools for Bayesian
-analysis of the ordinal Markov random field, a graphical model
-describing a network of binary and/or ordinal variables (Marsman et al.,
-2025). A pseudolikelihood is used to approximate the likelihood of the
-graphical model, and Markov chain Monte Carlo methods are used to
-simulate from the corresponding pseudoposterior distribution of the
-graphical model parameters.
+The **bgms** package implements Bayesian estimation and model comparison
+for **ordinal Markov random fields (MRFs)**, graphical models that
+represent networks of binary and/or ordinal variables (Marsman et al.,
+2025). The likelihood is approximated with a pseudolikelihood, and
+Markov chain Monte Carlo (MCMC) methods are used to sample from the
+corresponding pseudoposterior distribution of the model parameters.
 
-The <strong>bgm</strong> function can be used for a one-sample design
-and the <strong>bgmCompare</strong> function can be used for an
-independent-sample design (see Marsman et al., 2024). Both functions can
-model the selection of effects. In one-sample designs, the
-<strong>bgm</strong> function models the presence or absence of edges
-between pairs of variables in the network. The estimated posterior
-inclusion probability indicates how plausible it is that a network with
-an edge between the two corresponding variables produced the observed
-data, and can be converted into a Bayes factor test for conditional
-independence. The <strong>bgm</strong> function can also model the
-presence or absence of communities or clusters of variables in the
-network. The estimated posterior probability distribution of the number
-of clusters indicates how plausible it is that a network with the
-corresponding number of clusters produced the observed data, and can be
-converted into a Bayes factor test for clustering (see Sekulovski et
-al., 2025).
+## Main functions
 
-In an independent-sample design, the <strong>bgmCompare</strong>
-function models the selection of group differences in edge weights and
-possibly category thresholds. The estimated posterior inclusion
-probability indicates how plausible it is that graphical models with a
-difference in the corresponding edge weight or category threshold
-generated the data at hand, and can be converted to a Bayes factor test
-for parameter equivalence.
+The package has two main entry points:
+
+- `bgm()` – estimates a single network in a one-sample design.  
+- `bgmCompare()` – compares networks between groups in an
+  independent-sample design (see Marsman et al., 2024).
+
+## Effect selection
+
+Both functions support **effect selection** with spike-and-slab priors:
+
+- **Edges in one-sample designs**:  
+  `bgm()` models the presence or absence of edges between variables.
+  Posterior inclusion probabilities indicate the plausibility of each
+  edge and can be converted into Bayes factors for conditional
+  independence tests Sekulovski et al. (2024).
+
+- **Communities/clusters in one-sample designs**:  
+  `bgm()` can also model community structure. Posterior probabilities
+  for the number of clusters quantify the plausibility of clustering
+  solutions and can be converted into Bayes factors (see Sekulovski et
+  al., 2025).
+
+- **Group differences in independent-sample designs**:  
+  `bgmCompare()` models differences in edge weights and category
+  thresholds between groups. Posterior inclusion probabilities indicate
+  the plausibility of parameter differences and can be converted into
+  Bayes factors for tests of parameter equivalence \[see
+  MarsmanWaldorpSekulovskiHaslbeck_2024\].
+
+## Learn more
+
+For worked examples and tutorials, see the package vignettes:
+
+- [Getting Started](https://yourpkgdownsite/articles/intro.html)  
+- [Model Comparison](https://yourpkgdownsite/articles/comparison.html)  
+- [Diagnostics and Spike-and-Slab
+  Summaries](https://yourpkgdownsite/articles/diagnostics.html)
+
+You can also access these directly from R with:
+
+``` r
+browseVignettes("bgms")
+#> No vignettes found by browseVignettes("bgms")
+```
 
 ## Why use Markov Random Fields?
 
@@ -162,9 +183,8 @@ analysis of the ordinal Markov random field. *Psychometrika*, *90*,
 <div id="ref-MarsmanWaldorpSekulovskiHaslbeck_2024" class="csl-entry">
 
 Marsman, M., Waldorp, L. J., Sekulovski, N., & Haslbeck, J. M. B.
-(2024). A bayesian independent samples $t$ test for parameter
-differences in networks of binary and ordinal variables. *Retrieved from
-Https://Osf.io/Preprints/Osf/F4pk9*.
+(2024). Bayes factor tests for group differences in ordinal and binary
+graphical models. *Retrieved from Https://Osf.io/Preprints/Osf/F4pk9*.
 
 </div>
 

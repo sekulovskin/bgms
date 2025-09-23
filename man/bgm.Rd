@@ -380,3 +380,6 @@ summary(fit)$pairwise
 \references{
 \insertAllCited{}
 }
+\seealso{
+\code{vignette("intro", package = "bgms")} for a worked example.
+}

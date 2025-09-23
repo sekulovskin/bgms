@@ -234,3 +234,6 @@ coef(fit)$pairwise_effects_groups
 \references{
 \insertAllCited{}
 }
+\seealso{
+\code{vignette("comparison", package = "bgms")} for a worked example.
+}

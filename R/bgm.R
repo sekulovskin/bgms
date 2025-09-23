@@ -18,7 +18,8 @@
 #' original framework.
 #'
 #' Key components of the model are described in the sections below.
-
+#'
+#' @seealso \code{vignette("intro", package = "bgms")} for a worked example.
 #'
 #' @section Ordinal Variables:
 #' The function supports two types of ordinal variables:
