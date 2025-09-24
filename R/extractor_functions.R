@@ -87,7 +87,7 @@ extract_indicators.bgms <- function(bgms_object) {
 extract_indicators.bgmCompare <- function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
-  if(arguments$difference_selection & arguments$save) {
+  if(arguments$difference_selection) {
     pairwise_difference_indicator = bgms_object$pairwise_difference_indicator
     if(arguments$independent_thresholds == FALSE) {
       main_difference_indicator = bgms_object$main_difference_indicator
@@ -256,7 +256,7 @@ extract_pairwise_interactions.bgms <- function(bgms_object) {
   num_vars <- arguments$num_variables
   var_names <- arguments$data_columnnames
 
-  if(!is.null(bgms_object$raw_samples) || arguments$save == TRUE) {
+  if(!is.null(bgms_object$raw_samples)) {
     nchains = length(bgms_object$raw_samples$pairwise)
     mat = NULL
     mats <- bgms_object$raw_samples$pairwise
