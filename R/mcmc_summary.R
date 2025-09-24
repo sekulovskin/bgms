@@ -16,10 +16,10 @@ combine_chains = function(fit, component) {
 # Compute effective sample size and Rhat (Gelman-Rubin diagnostic)
 compute_rhat_ess = function(draws) {
   tryCatch({
-    nchains = ncol(draws)
-    if (nchains > 1) {
-      #mcmc_list = coda::mcmc.list(apply(draws, 2, coda::mcmc))
-      mcmc_list = coda::mcmc.list(lapply(1:ncol(draws), function(i) coda::mcmc(draws[, i])))
+    if (is.matrix(draws) && ncol(draws) > 1) {
+      mcmc_list = coda::mcmc.list(
+        lapply(seq_len(ncol(draws)), function(i) coda::mcmc(draws[, i]))
+      )
       ess = coda::effectiveSize(mcmc_list)
       rhat = coda::gelman.diag(mcmc_list, autoburnin = FALSE)$psrf[1]
     } else {
