@@ -100,8 +100,16 @@ print.summary.bgms <- function(x, digits = 3, ...) {
 
   if (!is.null(x$pairwise)) {
     cat("Pairwise interactions:\n")
-    print(round(head(x$pairwise, 6), digits = digits))
+    pair <- head(x$pairwise, 6)
+    pair[] <- lapply(pair, function(col) ifelse(is.na(col), "", round(col, digits)))
+    print(pair)
+    #print(round(head(x$pairwise, 6), digits = digits))
     if (nrow(x$pairwise) > 6) cat("... (use `summary(fit)$pairwise` to see full output)\n")
+    if (!is.null(x$indicator)) {
+      cat("Note: NA values are suppressed in the print table. They occur here when an \n")
+      cat("indicator was zero across all iterations, so mcse/n_eff/Rhat are undefined;\n")
+      cat("`summary(fit)$pairwise` still contains the NA values.\n")
+    }
     cat("\n")
   }
 
@@ -112,7 +120,6 @@ print.summary.bgms <- function(x, digits = 3, ...) {
     print(ind, row.names = FALSE)
     if (nrow(x$indicator) > 6)
       cat("... (use `summary(fit)$indicator` to see full output)\n")
-    cat("\n")
     cat("Note: NA values are suppressed in the print table. They occur when an indicator\n")
     cat("was constant (all 0 or all 1) across all iterations, so sd/mcse/n_eff/Rhat\n")
     cat("are undefined; `summary(fit)$indicator` still contains the NA values.\n\n")

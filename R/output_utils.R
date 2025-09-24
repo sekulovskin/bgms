@@ -48,13 +48,13 @@ prepare_output_bgm = function(
       cats = seq_len(num_categories[v])
       names_variable_categories = c(
         names_variable_categories,
-        paste0(data_columnnames[v], "(", cats, ")")
+        paste0(data_columnnames[v], " (", cats, ")")
       )
     } else {
       names_variable_categories = c(
         names_variable_categories,
-        paste0(data_columnnames[v], "(linear)"),
-        paste0(data_columnnames[v], "(quadratic)")
+        paste0(data_columnnames[v], " (linear)"),
+        paste0(data_columnnames[v], " (quadratic)")
       )
     }
   }
@@ -171,34 +171,32 @@ generate_param_names_bgmCompare = function(
       cats = seq_len(num_categories[v])
       names_main_baseline = c(
         names_main_baseline,
-        paste0(data_columnnames[v], "(baseline, c", cats, ")")
+        paste0(data_columnnames[v], " (", cats, ")")
       )
     } else {
       names_main_baseline = c(
         names_main_baseline,
-        paste0(data_columnnames[v], "(baseline, linear)"),
-        paste0(data_columnnames[v], "(baseline, quadratic)")
+        paste0(data_columnnames[v], " (linear)"),
+        paste0(data_columnnames[v], " (quadratic)")
       )
     }
   }
 
   # --- main differences
   names_main_diff = character()
-  for (v in seq_len(num_variables)) {
-    if (is_ordinal_variable[v]) {
-      cats = seq_len(num_categories[v])
-      for (g in 2:num_groups) {
+  for (g in 2:num_groups) {
+    for (v in seq_len(num_variables)) {
+      if (is_ordinal_variable[v]) {
+        cats = seq_len(num_categories[v])
         names_main_diff = c(
           names_main_diff,
-          paste0(data_columnnames[v], "(diff_", g - 1, ", c", cats, ")")
+          paste0(data_columnnames[v], " (diff", g - 1, "; ", cats, ")")
         )
-      }
-    } else {
-      for (g in 2:num_groups) {
+      } else {
         names_main_diff = c(
           names_main_diff,
-          paste0(data_columnnames[v], "(diff_", g-1, ", linear)"),
-          paste0(data_columnnames[v], "(diff_", g-1, ", quadratic)")
+          paste0(data_columnnames[v], " (diff", g - 1, "; linear)"),
+          paste0(data_columnnames[v], " (diff", g - 1, "; quadratic)")
         )
       }
     }
@@ -210,36 +208,43 @@ generate_param_names_bgmCompare = function(
     for (j in (i + 1):num_variables) {
       names_pairwise_baseline = c(
         names_pairwise_baseline,
-        paste0(data_columnnames[i], "-", data_columnnames[j], "(baseline)")
+        paste0(data_columnnames[i], "-", data_columnnames[j])
       )
     }
   }
 
   # --- pairwise differences
   names_pairwise_diff = character()
-  for (i in 1:(num_variables - 1)) {
-    for (j in (i + 1):num_variables) {
-      for (g in 2:num_groups) {
+  for (g in 2:num_groups) {
+    for (i in 1:(num_variables - 1)) {
+      for (j in (i + 1):num_variables) {
         names_pairwise_diff = c(
           names_pairwise_diff,
-          paste0(data_columnnames[i], "-", data_columnnames[j], "(diff_", g - 1, ")")
+          paste0(data_columnnames[i], "-", data_columnnames[j], " (diff", g - 1, ")")
         )
       }
     }
   }
 
   # --- indicators
-  names_indicators = character()
-  for (i in 1:num_variables) {
-    names_indicators = c(names_indicators,
-                         paste0(data_columnnames[i], " (main)"))
-  }
-  for (i in 1:(num_variables - 1)) {
-    for (j in (i + 1):num_variables) {
-      names_indicators = c(names_indicators,
-                           paste0(data_columnnames[i], "-", data_columnnames[j], " (pairwise)"))
+  generate_indicator_names <- function(data_columnnames) {
+    V   <- length(data_columnnames)
+    out <- character()
+    for (i in seq_len(V)) {
+      # main (diagonal)
+      out <- c(out, paste0(data_columnnames[i], " (main)"))
+      # then all pairs with i as the first index
+      if (i < V) {
+        for (j in seq.int(i + 1L, V)) {
+          out <- c(out, paste0(data_columnnames[i], "-", data_columnnames[j], " (pairwise)"))
+        }
+      }
     }
+    # optional sanity check: length must be V*(V+1)/2
+    stopifnot(length(out) == V * (V + 1L) / 2L)
+    out
   }
+  names_indicators <- generate_indicator_names(data_columnnames)
 
   list(
     main_baseline = names_main_baseline,
@@ -302,6 +307,7 @@ prepare_output_bgmCompare = function(
     pairwise_effect_indices = pairwise_effect_indices,
     num_variables = num_variables,
     num_groups = num_groups,
+    difference_selection = difference_selection,
     param_names_main = names_all$main_baseline,
     param_names_pairwise = names_all$pairwise_baseline,
     param_names_main_diff = names_all$main_diff,
