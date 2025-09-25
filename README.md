@@ -25,7 +25,7 @@ The package has two main entry points:
 
 - `bgm()` – estimates a single network in a one-sample design.  
 - `bgmCompare()` – compares networks between groups in an
-  independent-sample design (see Marsman et al., 2024).
+  independent-sample design.
 
 ## Effect selection
 
@@ -91,13 +91,13 @@ When analyzing an MRF, we often want to compare competing hypotheses:
   independent-sample designs.
 
 Frequentist approaches are limited in such comparisons: they can reject
-a null hypothesis, but they cannot provide evidence *for* it.  
-As a result, when an edge or difference is excluded, it remains unclear
+a null hypothesis, but they cannot provide evidence *for* it. As a
+result, when an edge or difference is excluded, it remains unclear
 whether this reflects true absence or simply insufficient power.
 
-Bayesian inference avoids this problem.  
-Using **inclusion Bayes factors** (Huth et al., 2023; Sekulovski et al.,
-2024), we can quantify evidence in both directions:
+Bayesian inference avoids this problem. Using **inclusion Bayes
+factors** (Huth et al., 2023; Sekulovski et al., 2024), we can quantify
+evidence in both directions:
 
 - **Evidence of edge presence** vs. **evidence of edge absence**, or  
 - **Evidence of parameter difference** vs. **evidence of parameter
