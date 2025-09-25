@@ -392,8 +392,6 @@ bgm = function(
   }
   if(hasArg(save)) {
     warning("The argument save is deprecated. Everything is saved in the function output.")
-  } else {
-    save = TRUE
   }
   if(hasArg(threshold_alpha) || hasArg(threshold_beta)) {
     if(!hasArg(main_alpha))
@@ -607,12 +605,32 @@ bgm = function(
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix,
-    num_chains = chains, save = save
+    num_chains = chains
   )
 
   if (update_method == "nuts") {
     nuts_diag = summarize_nuts_diagnostics(out, nuts_max_depth = nuts_max_depth)
     output$nuts_diag = nuts_diag
+  }
+
+  # -------------------------------------------------------------------
+  # TODO: REMOVE after easybgm >= 0.2.2 is on CRAN
+  # Compatibility shim for easybgm <= 0.2.1
+  # -------------------------------------------------------------------
+  if ("easybgm" %in% loadedNamespaces()) {
+    ebgm_version <- utils::packageVersion("easybgm")
+    if (ebgm_version <= "0.2.1") {
+      warning("bgms is running in compatibility mode for easybgm (<= 0.2.1). ",
+              "This will be removed once easybgm is updated on CRAN.")
+
+      # Add legacy variables to output
+      output$arguments$save <- TRUE
+      if (edge_selection) {
+        output$indicator <- extract_indicators(output)
+      }
+      output$interactions <- extract_pairwise_interactions(output)
+      output$thresholds   <- extract_category_thresholds(output)
+    }
   }
 
   userInterrupt = any(vapply(out, FUN = `[[`, FUN.VALUE = logical(1L), "userInterrupt"))

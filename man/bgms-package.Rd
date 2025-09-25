@@ -7,58 +7,58 @@
 \title{bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables}
 \description{
 The \code{R} package \strong{bgms} provides tools for Bayesian analysis of
-the ordinal Markov random field, a graphical model describing a network of
-binary and/or ordinal variables \insertCite{MarsmanVandenBerghHaslbeck_2024}{bgms}.
-A pseudolikelihood is used to approximate the likelihood of the graphical
-model, and Markov chain Monte Carlo methods are used to simulate from the
-corresponding pseudoposterior distribution of the graphical model parameters.
+the ordinal Markov random field (MRF), a graphical model describing networks
+of binary and/or ordinal variables \insertCite{MarsmanVandenBerghHaslbeck_2024}{bgms}.
+The likelihood is approximated via a pseudolikelihood, and Markov chain Monte
+Carlo (MCMC) methods are used to sample from the corresponding pseudoposterior
+distribution of model parameters.
 
-The \strong{bgm} function can be used for a one-sample design and the
-\strong{bgmCompare} function can be used for a two-independent-samples design
-\insertCite{MarsmanWaldorpSekulovskiHaslbeck_2024}{bgms}. Both functions can
-model the selection of effects. In one-sample designs, the \strong{bgm}
-function models the presence or absence of edges between pairs of variables
-in the network. The estimated posterior inclusion probability indicates how
-plausible it is that a network with an edge between the two corresponding
-variables produced the observed data, and can be converted into a Bayes
-factor test for conditional independence.
+The main entry points are:
+\itemize{
+  \item \strong{bgm}: estimation in a one-sample design.
+  \item \strong{bgmCompare}: estimation and group comparison in an
+        independent-sample design.
+}
 
-In two-independent-samples designs, the \strong{bgmCompare} function models
-the selection of group differences in edge weights and possibly category
-thresholds. The estimated posterior inclusion probability indicates how
-plausible it is that graphical models with a difference in the corresponding
-edge weight or category threshold generated the data at hand, and can be
-converted to a Bayes factor test for parameter equivalence.
+Both functions support Bayesian effect selection with spike-and-slab priors.
+\itemize{
+  \item In one-sample designs, \code{bgm} models the presence or absence of
+  edges between variables. Posterior inclusion probabilities quantify the
+  plausibility of each edge and can be converted into Bayes factors for
+  conditional independence tests.
 
-The \strong{bgms} package offers several tools for analyzing the structure of
-the MRF:
+  \item \code{bgm} can also model communities (clusters) of variables. The
+  posterior distribution of the number of clusters provides evidence for or
+  against clustering \insertCite{SekulovskiEtAl_2025}{bgms}.
 
+  \item In independent-sample designs, \code{bgmCompare} estimates group
+  differences in edge weights and category thresholds. Posterior inclusion
+  probabilities quantify the evidence for differences and can be converted
+  into Bayes factors for parameter equivalence tests
+  \insertCite{MarsmanWaldorpSekulovskiHaslbeck_2024}{bgms}.
+}
+}
+\section{Tools}{
+
+The package also provides:
 \enumerate{
- \item Simulate response data from the MRF using the Gibbs sampler.
- \itemize{
-   \item Simulate \code{\link{mrfSampler}}.
- }
- \item Estimate the posterior distribution of the MRF's parameters and
- possibly its network structure in one-sample designs.
- \itemize{
- \item Bayesian estimation or Bayesian edge selection with \code{\link{bgm}}.
- }
+  \item Simulation of response data from MRFs with a Gibbs sampler
+        (\code{\link{mrfSampler}}).
+  \item Posterior estimation and edge selection in one-sample designs
+        (\code{\link{bgm}}).
+  \item Posterior estimation and group-difference selection in
+        independent-sample designs (\code{\link{bgmCompare}}).
+}
+}
 
- \item Estimate the posterior distribution of the MRF's parameters in a
- two-independent-sample design, and possibly perform selection on group
- differences in MRF parameters.
- \itemize{
- \item Bayesian estimation or Bayesian difference selection with \code{\link{bgmCompare}}.
- }
-}
-}
 \section{Vignettes}{
 
 For tutorials and worked examples, see:
 \itemize{
-  \item \code{vignette("intro", package = "bgms")} for a getting started guide.
-  \item \code{vignette("comparison", package = "bgms")} for model comparison.
-  \item \code{vignette("diagnostics", package = "bgms")} for diagnostics and spike-and-slab summaries.
+  \item \code{vignette("intro", package = "bgms")} — Getting started.
+  \item \code{vignette("comparison", package = "bgms")} — Model comparison.
+  \item \code{vignette("diagnostics", package = "bgms")} — Diagnostics and
+        spike-and-slab summaries.
 }
 }
 
