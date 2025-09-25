@@ -159,12 +159,12 @@ package to create a traceplot for a pairwise effect parameter.</p>
 edges:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">indicator</span></span>
-<span><span class="co">#&gt;           intrusion dreams  flash   upset physior</span></span>
-<span><span class="co">#&gt; intrusion   0.00000 1.0000 1.0000 0.93975  0.0570</span></span>
-<span><span class="co">#&gt; dreams      1.00000 0.0000 0.9665 1.00000  0.0745</span></span>
-<span><span class="co">#&gt; flash       1.00000 0.9665 0.0000 0.99800  1.0000</span></span>
-<span><span class="co">#&gt; upset       0.93975 1.0000 0.9980 0.00000  1.0000</span></span>
-<span><span class="co">#&gt; physior     0.05700 0.0745 1.0000 1.00000  0.0000</span></span></code></pre></div>
+<span><span class="co">#&gt;           intrusion dreams  flash  upset physior</span></span>
+<span><span class="co">#&gt; intrusion   0.00000  1.000 1.0000 0.9665 0.93975</span></span>
+<span><span class="co">#&gt; dreams      1.00000  0.000 1.0000 0.9980 0.05700</span></span>
+<span><span class="co">#&gt; flash       1.00000  1.000 0.0000 0.0745 1.00000</span></span>
+<span><span class="co">#&gt; upset       0.96650  0.998 0.0745 0.0000 1.00000</span></span>
+<span><span class="co">#&gt; physior     0.93975  0.057 1.0000 1.0000 0.00000</span></span></code></pre></div>
 <ul>
 <li>Values near 1.0: strong evidence the edge is present.</li>
 <li>Values near 0.0: strong evidence the edge is absent.</li>
@@ -185,14 +185,14 @@ absence:</p>
 <span><span class="va">p</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">indicator</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">5</span><span class="op">]</span></span>
 <span><span class="va">BF_10</span> <span class="op">=</span> <span class="va">p</span> <span class="op">/</span> <span class="op">(</span><span class="fl">1</span> <span class="op">-</span> <span class="va">p</span><span class="op">)</span></span>
 <span><span class="va">BF_10</span></span>
-<span><span class="co">#&gt; [1] 0.06044539</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 15.59751</span></span></code></pre></div>
 <p>Here the Bayes factor in favor of inclusion (H1) is small, meaning
 that there is little evidence for inclusion. Since the Bayes factor is
 transitive, we can use it to express the evidence in favor of exclusion
 (H0) as</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fl">1</span> <span class="op">/</span> <span class="va">BF_10</span></span>
-<span><span class="co">#&gt; [1] 16.54386</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 0.0641128</span></span></code></pre></div>
 <p>This Bayes factor shows that there is strong evidence for the absence
 of a network relation between the variables <code>intrusion</code> and
 <code>physior</code>.</p>
