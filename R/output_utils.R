@@ -91,15 +91,14 @@ prepare_output_bgm = function(
     }
   }
 
-  # ======= Posterior mean matrices (for legacy compatibility) =======
+  # ======= Posterior mean matrices =======
   results$posterior_mean_main = matrix(main_summary$mean, nrow = num_variables, byrow = TRUE)
   rownames(results$posterior_mean_main) = data_columnnames
   colnames(results$posterior_mean_main) = NULL
 
   results$posterior_mean_pairwise = matrix(0, nrow = num_variables, ncol = num_variables)
-  results$posterior_mean_pairwise[upper.tri(results$posterior_mean_pairwise)] = pairwise_summary$mean
-  results$posterior_mean_pairwise[lower.tri(results$posterior_mean_pairwise)] =
-    t(results$posterior_mean_pairwise)[lower.tri(results$posterior_mean_pairwise)]
+  results$posterior_mean_pairwise[lower.tri(results$posterior_mean_pairwise)] = pairwise_summary$mean
+  results$posterior_mean_pairwise = results$posterior_mean_pairwise + t(results$posterior_mean_pairwise)
   rownames(results$posterior_mean_pairwise) = data_columnnames
   colnames(results$posterior_mean_pairwise) = data_columnnames
 
@@ -333,10 +332,10 @@ prepare_output_bgmCompare = function(
   rownames(results$posterior_mean_main_baseline) = data_columnnames
 
   results$posterior_mean_pairwise_baseline = matrix(0, num_variables, num_variables)
-  results$posterior_mean_pairwise_baseline[upper.tri(results$posterior_mean_pairwise_baseline)] =
-    summary_list$pairwise_baseline$mean
   results$posterior_mean_pairwise_baseline[lower.tri(results$posterior_mean_pairwise_baseline)] =
-    t(results$posterior_mean_pairwise_baseline)[lower.tri(results$posterior_mean_pairwise_baseline)]
+    summary_list$pairwise_baseline$mean
+  results$posterior_mean_pairwise_baseline = results$posterior_mean_pairwise_baseline +
+    t(results$posterior_mean_pairwise_baseline)
   rownames(results$posterior_mean_pairwise_baseline) = data_columnnames
   colnames(results$posterior_mean_pairwise_baseline) = data_columnnames
 
