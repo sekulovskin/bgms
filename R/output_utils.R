@@ -92,9 +92,28 @@ prepare_output_bgm = function(
   }
 
   # ======= Posterior mean matrices =======
-  results$posterior_mean_main = matrix(main_summary$mean, nrow = num_variables, byrow = TRUE)
+  if(any(is_ordinal_variable)) {
+    max_num_categories = max(2, num_categories[is_ordinal_variable])
+    pmm = matrix(NA, nrow = num_variables, ncol = max_num_categories)
+  } else {
+    pmm = matrix(NA, nrow = num_variables, ncol = 2)
+  }
+  start = stop = 0
+  for(v in 1:num_variables) {
+    if(is_ordinal_variable[v]) {
+      start = stop + 1
+      stop = start + num_categories[v] - 1
+      pmm[v, 1:num_categories[v]] = main_summary$mean[start:stop]
+    } else {
+      start = stop + 1
+      stop = start + 1
+      pmm[v, 1:2] = main_summary$mean[start:stop]
+    }
+  }
+
+  results$posterior_mean_main = pmm
   rownames(results$posterior_mean_main) = data_columnnames
-  colnames(results$posterior_mean_main) = NULL
+  colnames(results$posterior_mean_main) = paste0("cat (",1:ncol(pmm), ")")
 
   results$posterior_mean_pairwise = matrix(0, nrow = num_variables, ncol = num_variables)
   results$posterior_mean_pairwise[lower.tri(results$posterior_mean_pairwise)] = pairwise_summary$mean
@@ -326,10 +345,28 @@ prepare_output_bgmCompare = function(
 
   # --- posterior means (legacy-style matrices)
   # baselines
-  results$posterior_mean_main_baseline = matrix(
-    summary_list$main_baseline$mean, nrow = num_variables, byrow = TRUE
-  )
+  if(any(is_ordinal_variable)) {
+    max_num_categories = max(2, num_categories[is_ordinal_variable])
+    pmm = matrix(NA, nrow = num_variables, ncol = max_num_categories)
+  } else {
+    pmm = matrix(NA, nrow = num_variables, ncol = 2)
+  }
+  start = stop = 0
+  for(v in 1:num_variables) {
+    if(is_ordinal_variable[v]) {
+      start = stop + 1
+      stop = start + num_categories[v] - 1
+      pmm[v, 1:num_categories[v]] = summary_list$main_baseline$mean[start:stop]
+    } else {
+      start = stop + 1
+      stop = start + 1
+      pmm[v, 1:2] = summary_list$main_baseline$mean[start:stop]
+    }
+  }
+
+  results$posterior_mean_main_baseline = pmm
   rownames(results$posterior_mean_main_baseline) = data_columnnames
+  colnames(results$posterior_mean_main_baseline) = paste0("cat (",1:ncol(pmm), ")")
 
   results$posterior_mean_pairwise_baseline = matrix(0, num_variables, num_variables)
   results$posterior_mean_pairwise_baseline[lower.tri(results$posterior_mean_pairwise_baseline)] =
