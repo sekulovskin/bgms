@@ -31,12 +31,15 @@ can be summarized with inclusion probabilities and Bayes factors.
 
 We use a subset of the Wenchuan dataset:
 
-```{r, cache = TRUE, results='hide'}
+```{r, eval=FALSE}
 library(bgms)
-
-?Wenchuan
 data = Wenchuan[, 1:5]
 fit = bgm(data, seed = 1234)
+```
+```{r, include=FALSE}
+library(bgms)
+data = Wenchuan[, 1:5]
+fit <- readRDS(system.file("extdata", "fit_5items.rds", package = "bgms"))
 ```
 
 Note: During fitting, progress bars are shown in interactive sessions.

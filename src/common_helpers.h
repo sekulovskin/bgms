@@ -44,7 +44,7 @@ inline UpdateMethod update_method_from_string(const std::string& update_method) 
 enum EdgePrior { Stochastic_Block, Beta_Bernoulli, Bernoulli, Not_Applicable };
 
 inline EdgePrior edge_prior_from_string(const std::string& edge_prior) {
-  if (edge_prior == "stochastic-block")
+  if (edge_prior == "Stochastic-Block")
     return Stochastic_Block;
 
   if (edge_prior == "Beta-Bernoulli")

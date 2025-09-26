@@ -2,7 +2,7 @@
 
 ## New features
 
-* NUTS and HMC options are not provided for sampling the bgm and bgmCompare model
+* NUTS and HMC options are now provided for sampling the bgm and bgmCompare model
 * Sampling for multiple chains can now be done in parallel
 * Markov chain diagnostics are now offered for the sampled parameters
 
@@ -10,12 +10,13 @@
 
 * Improved progress bar for parallel sampling
 * User interrupt for parallel sampling
-* More extensive summary and print options are provided
+* More extensive summary and print options are provided; integrates summary_SBM
+* Removed the options for modeling the main differences; main differences are now always estimated or selected similar to the old `main_difference_model = "collapse"` option.
 
 ## Bug fixes
 
-* Fixed a bug in the bgmCompare function with missing data handling
-* Fixed a bug in the SBM prior handling
+* Fixed an out-of-bounds bug in the bgmCompare function with missing data handling
+* Fixed a bug in the SBM prior computation
 
 # bgms 0.1.5.0
 

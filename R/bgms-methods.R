@@ -117,7 +117,7 @@ print.summary.bgms <- function(x, digits = 3, ...) {
     cat("Inclusion probabilities:\n")
     ind <- head(x$indicator, 6)
     ind[] <- lapply(ind, function(col) ifelse(is.na(col), "", round(col, digits)))
-    print(ind, row.names = FALSE)
+    print(ind)
     if (nrow(x$indicator) > 6)
       cat("... (use `summary(fit)$indicator` to see full output)\n")
     cat("Note: NA values are suppressed in the print table. They occur when an indicator\n")

@@ -41,8 +41,10 @@ data_english = data_english[, 1:5]
 ```
 
 # Fitting a model
-
-```{r, cache=TRUE, results = "hide"}
+```{r, include=FALSE}
+  fit <- readRDS(system.file("extdata", "fit_boredom.rds", package = "bgms"))
+```
+```{r, eval = FALSE}
 fit = bgmCompare(x = data_french, y = data_english, seed = 1234)
 ```
 Note: During fitting, progress bars are shown in interactive sessions.
