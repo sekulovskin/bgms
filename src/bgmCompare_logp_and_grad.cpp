@@ -3,6 +3,7 @@
 #include "bgmCompare_logp_and_grad.h"
 #include <cmath>
 #include "explog_switch.h"
+#include "common_helpers.h"
 
 using namespace Rcpp;
 
@@ -211,55 +212,271 @@ double log_pseudoposterior(
 
 
 /**
+ * Compute the total length of the parameter vector in the bgmCompare model.
+ *
+ * The parameter vector consists of:
+ *  1. Main-effect overall parameters (column 0).
+ *  2. Pairwise-effect overall parameters (column 0).
+ *  3. Main-effect group-difference parameters (columns 1..G-1) for variables
+ *     with inclusion_indicator(v,v) == 1.
+ *  4. Pairwise-effect group-difference parameters (columns 1..G-1) for pairs
+ *     with inclusion_indicator(v1,v2) == 1.
+ *
+ * Inputs:
+ *  - num_variables: Number of observed variables.
+ *  - main_effect_indices: Row ranges [start,end] in main_effects for each variable.
+ *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
+ *  - inclusion_indicator: Symmetric binary matrix; diagonal entries control main-effect
+ *    differences, off-diagonal entries control pairwise-effect differences.
+ *  - num_categories: Vector of category counts per variable.
+ *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel) for each variable.
+ *  - num_groups: Number of groups in the model.
+ *
+ * Returns:
+ *  - arma::uword: Total number of parameters in the vectorized model.
+ *
+ * Notes:
+ *  - This function must be consistent with vectorize_model_parameters_bgmcompare().
+ *  - Used to allocate gradient vectors, prior vectors, and mass matrices.
+ */
+arma::uword total_length(
+    const int num_variables,
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::imat& inclusion_indicator,
+    const arma::ivec& num_categories,
+    const arma::uvec& is_ordinal_variable,
+    const int num_groups
+) {
+  const int n_main_rows = count_num_main_effects(
+    num_categories, is_ordinal_variable
+  );
+  const int n_pair_rows = num_variables * (num_variables - 1) / 2;
+
+  arma::uword total_len = 0;
+  total_len += n_main_rows;      // main col 0
+  total_len += n_pair_rows;      // pair col 0
+  for (int v = 0; v < num_variables; ++v) {
+    if (inclusion_indicator(v, v) == 1) {
+      const int r0 = main_effect_indices(v, 0);
+      const int r1 = main_effect_indices(v, 1);
+      total_len += static_cast<long long>(r1 - r0 + 1) * (num_groups - 1);
+    }
+  }
+  for (int v2 = 0; v2 < num_variables - 1; ++v2) {
+    for (int v1 = v2 + 1; v1 < num_variables; ++v1) {
+      total_len += (inclusion_indicator(v1, v2) == 1) * (num_groups - 1);
+    }
+  }
+
+  return total_len;
+}
+
+
+
+/**
+ * Compute the observed-data contribution to the gradient vector
+ * in the bgmCompare model (active parameterization).
+ *
+ * This function accumulates observed sufficient statistics from the data
+ * and projects them into the parameter vector space. The output has the
+ * same length and ordering as `vectorize_model_parameters_bgmcompare()`,
+ * and includes:
+ *  1. Main-effect overall parameters (column 0).
+ *  2. Pairwise-effect overall parameters (column 0).
+ *  3. Main-effect group-difference parameters (columns 1..G-1) if
+ *     inclusion_indicator(v,v) == 1.
+ *  4. Pairwise-effect group-difference parameters (columns 1..G-1) if
+ *     inclusion_indicator(v1,v2) == 1.
+ *
+ * Inputs:
+ *  - main_effect_indices: Row ranges [start,end] in main_effects for each variable.
+ *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
+ *  - projection: Matrix of size (num_groups × (num_groups-1)) containing group projections.
+ *  - observations: Matrix of observed variable values (N × V).
+ *  - group_indices: Index ranges [start,end] defining which rows in `observations`
+ *    belong to each group.
+ *  - num_categories: Vector giving the number of categories per variable.
+ *  - inclusion_indicator: Symmetric binary matrix; diagonal entries control inclusion
+ *    of main-effect differences, off-diagonal entries control inclusion of pairwise
+ *    differences.
+ *  - counts_per_category_group: Per-group category count tables (list of matrices).
+ *  - blume_capel_stats_group: Per-group Blume–Capel sufficient statistics (list of matrices).
+ *  - pairwise_stats_group: Per-group pairwise sufficient statistics (list of matrices).
+ *  - num_groups: Number of groups.
+ *  - is_ordinal_variable: Indicator vector (1 = ordinal, 0 = Blume–Capel) per variable.
+ *  - baseline_category: Vector of baseline categories per variable (Blume–Capel).
+ *  - main_index: Index map for main effects (from build_index_maps()).
+ *  - pair_index: Index map for pairwise effects (from build_index_maps()).
+ *
+ * Returns:
+ *  - arma::vec: Observed-data contribution to the gradient (length = total_length()).
+ *
+ * Notes:
+ *  - This function computes the *data-dependent* part of the gradient only;
+ *    parameter-dependent expected statistics and priors must be added separately.
+ *  - The output ordering must remain consistent with `vectorize_model_parameters_bgmcompare()`.
+ */
+arma::vec gradient_observed_active(
+    const arma::imat& main_effect_indices,
+    const arma::imat& pairwise_effect_indices,
+    const arma::mat& projection,
+    const arma::imat& observations,
+    const arma::imat& group_indices,
+    const arma::ivec& num_categories,
+    const arma::imat& inclusion_indicator,
+    const std::vector<arma::imat>& counts_per_category_group,
+    const std::vector<arma::imat>& blume_capel_stats_group,
+    const std::vector<arma::mat>&  pairwise_stats_group,
+    const int num_groups,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const arma::imat main_index,
+    const arma::imat pair_index
+) {
+  const int num_variables = observations.n_cols;
+  arma::uword total_len = total_length(
+    num_variables, main_effect_indices, pairwise_effect_indices,
+    inclusion_indicator, num_categories, is_ordinal_variable, num_groups
+  );
+
+  arma::vec grad_obs(total_len, arma::fill::zeros);
+  int off;
+
+  // -------------------------------
+  // Observed sufficient statistics
+  // -------------------------------
+  for (int g = 0; g < num_groups; ++g) {
+    // list access
+    arma::imat counts_per_category = counts_per_category_group[g];
+    arma::imat blume_capel_stats = blume_capel_stats_group[g];
+    const arma::vec proj_g = projection.row(g).t(); // length = num_groups-1
+
+    // Main effects
+    for (int v = 0; v < num_variables; ++v) {
+      const int base     = main_effect_indices(v, 0);
+      const int num_cats = num_categories(v);
+
+      if (is_ordinal_variable(v)) {
+        for (int c = 0; c < num_cats; ++c) {
+          const int count = counts_per_category(c, v);
+          // overall
+          off = main_index(base + c, 0);
+          grad_obs(off) += count;
+
+          // diffs
+          if(inclusion_indicator(v, v) != 0) {
+            for (int k = 1; k < num_groups; ++k) {
+              off = main_index(base + c, k);
+              grad_obs(off) += count * proj_g(k-1);
+            }
+          }
+        }
+      } else {
+        const int bc_0 = blume_capel_stats(0, v);
+        const int bc_1 = blume_capel_stats(1, v);
+
+        // overall (2 stats)
+        off = main_index(base, 0);
+        grad_obs(off) += bc_0;
+
+        off = main_index(base + 1, 0);
+        grad_obs(off) += bc_1;
+
+        // diffs
+        if(inclusion_indicator(v, v) != 0) {
+          for (int k = 1; k < num_groups; ++k) {
+            off = main_index(base, k);
+            grad_obs(off) += bc_0 * proj_g(k-1);
+
+            off = main_index(base + 1, k);
+            grad_obs(off) += bc_1 * proj_g(k-1);
+          }
+        }
+      }
+    }
+
+    // Pairwise (observed)
+    arma::mat pairwise_stats = pairwise_stats_group[g];
+    for (int v1 = 0; v1 < num_variables - 1; ++v1) {
+      for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
+        const int row = pairwise_effect_indices(v1, v2);
+        const double pw_stats = 2.0 * pairwise_stats(v1, v2);
+
+        off = pair_index(row, 0);
+        grad_obs(off) += pw_stats; // upper tri counted once
+
+        if(inclusion_indicator(v1, v2) != 0){
+          for (int k = 1; k < num_groups; ++k) {
+            off = pair_index(row, k);
+            grad_obs(off) += pw_stats * proj_g(k-1);
+          }
+        }
+      }
+    }
+  }
+
+  return grad_obs;
+}
+
+
+
+/**
  * Computes the gradient of the log pseudoposterior for the bgmCompare model.
  *
- * The gradient combines contributions from:
- *  - Observed sufficient statistics (counts, Blume–Capel stats, pairwise stats).
- *  - Expected sufficient statistics under the model (via softmax probabilities).
- *  - Priors on main effects, pairwise effects, and group differences.
+ * The gradient combines three contributions:
+ *  1. Observed sufficient statistics (precomputed and supplied via `grad_obs`).
+ *  2. Expected sufficient statistics under the current parameter values
+ *     (computed using softmax probabilities for ordinal or Blume–Capel variables).
+ *  3. Prior contributions on main effects, pairwise effects, and group differences.
  *
  * Procedure:
+ *  - Initialize gradient with `grad_obs` (observed-data contribution).
  *  - Loop over groups:
- *    * Add observed sufficient statistics to gradient.
- *    * Build group-specific main and pairwise effects
- *      (`compute_group_main_effects()`, `compute_group_pairwise_effects()`).
- *    * Compute expected sufficient statistics from residual scores and subtract them.
+ *    * Build group-specific main and pairwise effects using
+ *      `compute_group_main_effects()` and `compute_group_pairwise_effects()`.
+ *    * Compute expected sufficient statistics from residual scores and
+ *      subtract them from the gradient.
  *  - Add prior contributions:
- *    * Logistic–Beta prior gradient for main-effect baselines.
- *    * Cauchy prior gradient for main-effect differences and pairwise effects.
+ *    * Logistic–Beta prior gradient for main-effect baseline parameters.
+ *    * Cauchy prior gradient for group-difference parameters and pairwise effects.
  *
  * Inputs:
  *  - main_effects: Matrix of main-effect parameters (rows = categories, cols = groups).
  *  - pairwise_effects: Matrix of pairwise-effect parameters (rows = pairs, cols = groups).
- *  - main_effect_indices: Index ranges [row_start,row_end] for each variable.
+ *  - main_effect_indices: Index ranges [row_start,row_end] for each variable in main_effects.
  *  - pairwise_effect_indices: Lookup table mapping (var1,var2) → row in pairwise_effects.
  *  - projection: Group projection matrix (num_groups × (num_groups − 1)).
- *  - observations: Observation matrix (persons × variables).
- *  - group_indices: Row ranges [start,end] for each group in observations.
+ *  - observations: Observation matrix (N × V).
+ *  - group_indices: Row ranges [start,end] for each group in `observations`.
  *  - num_categories: Number of categories per variable.
- *  - counts_per_category_group: Per-group category counts (for ordinal variables).
- *  - blume_capel_stats_group: Per-group sufficient statistics (for Blume–Capel variables).
+ *  - counts_per_category_group: Per-group category counts (ordinal variables).
+ *  - blume_capel_stats_group: Per-group sufficient statistics (Blume–Capel variables).
  *  - pairwise_stats_group: Per-group pairwise sufficient statistics.
  *  - num_groups: Number of groups.
- *  - inclusion_indicator: Symmetric binary matrix of active variables (diag) and pairs (off-diag).
- *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
+ *  - inclusion_indicator: Symmetric binary matrix; diagonal entries control inclusion
+ *    of main-effect differences, off-diagonal entries control inclusion of pairwise
+ *    differences.
+ *  - is_ordinal_variable: Indicator vector (1 = ordinal, 0 = Blume–Capel).
  *  - baseline_category: Reference categories for Blume–Capel variables.
  *  - main_alpha, main_beta: Hyperparameters for Beta priors on main effects.
  *  - interaction_scale: Scale parameter for Cauchy prior on baseline pairwise effects.
  *  - difference_scale: Scale parameter for Cauchy prior on group differences.
  *  - main_index: Index map for main-effect parameters (from build_index_maps()).
  *  - pair_index: Index map for pairwise-effect parameters (from build_index_maps()).
+ *  - grad_obs: Precomputed observed-data contribution to the gradient
+ *    (output of `gradient_observed_active()`).
  *
  * Returns:
- *  - A vector containing the gradient of the log pseudoposterior
- *    with respect to all active parameters (layout matches vectorization).
+ *  - arma::vec: Gradient of the log pseudoposterior with respect to all active
+ *    parameters, in the layout defined by `vectorize_model_parameters_bgmcompare()`.
  *
  * Notes:
- *  - Must be consistent with `vectorize_model_parameters_bgmcompare()` and
+ *  - Must remain consistent with `vectorize_model_parameters_bgmcompare()` and
  *    `unvectorize_model_parameters_bgmcompare()`.
- *  - Uses logistic–Beta gradient for main baselines, and Cauchy gradients for differences.
- *  - Index maps (`main_index`, `pair_index`) are required to map parameters
- *    back into the flat gradient vector.
+ *  - Expected sufficient statistics are computed on-the-fly, while observed
+ *    statistics are passed in via `grad_obs`.
+ *  - Priors are applied after observed and expected contributions.
  */
 arma::vec gradient(
     const arma::mat& main_effects,
@@ -282,31 +499,15 @@ arma::vec gradient(
     const double interaction_scale,
     const double difference_scale,
     const arma::imat& main_index,
-    const arma::imat& pair_index
+    const arma::imat& pair_index,
+    const arma::vec& grad_obs
 ) {
-  const int num_variables      = observations.n_cols;
+  const int num_variables  = observations.n_cols;
   const int max_num_categories = num_categories.max();
-  const int n_main_rows        = main_effects.n_rows;
-  const int n_pair_rows        = pairwise_effects.n_rows;
 
-  // total length (must match vectorize_model_parameters_bgmcompare)
-  long long total_len = 0;
-  total_len += n_main_rows;      // main col 0
-  total_len += n_pair_rows;      // pair col 0
-  for (int v = 0; v < num_variables; ++v) {
-    if (inclusion_indicator(v, v) == 1) {
-      const int r0 = main_effect_indices(v, 0);
-      const int r1 = main_effect_indices(v, 1);
-      total_len += static_cast<long long>(r1 - r0 + 1) * (num_groups - 1);
-    }
-  }
-  for (int v2 = 0; v2 < num_variables - 1; ++v2) {
-    for (int v1 = v2 + 1; v1 < num_variables; ++v1) {
-      total_len += (inclusion_indicator(v1, v2) == 1) * (num_groups - 1);
-    }
-  }
+  arma::vec grad = grad_obs;
 
-  arma::vec grad(total_len, arma::fill::zeros);
+
   int off;
 
   // -------------------------------------------------
@@ -314,70 +515,6 @@ arma::vec gradient(
   // -------------------------------------------------
   arma::mat main_group(num_variables, max_num_categories, arma::fill::none);
   arma::mat pairwise_group(num_variables, num_variables, arma::fill::none);
-
-  // -------------------------------
-  // Observed sufficient statistics
-  // -------------------------------
-  for (int g = 0; g < num_groups; ++g) {
-    // list access
-    arma::imat counts_per_category      = counts_per_category_group[g];
-    arma::imat blume_capel_stats  = blume_capel_stats_group[g];
-
-    // Main effects
-    for (int v = 0; v < num_variables; ++v) {
-      const int base     = main_effect_indices(v, 0);
-      const int num_cats = num_categories(v);
-
-      if (is_ordinal_variable(v)) {
-        for (int c = 0; c < num_cats; ++c) {
-          off = main_index(base + c, 0);
-          grad(off) += counts_per_category(c, v);
-
-          if (inclusion_indicator(v, v) != 0) {
-            const int cnt = counts_per_category(c, v);
-            for (int k = 1; k < num_groups; ++k) {
-              off = main_index(base + c, k);
-              grad(off) += cnt * projection(g, k - 1);
-            }
-          }
-        }
-      } else {
-        // overall (2 stats)
-        off = main_index(base, 0);
-        grad(off) += blume_capel_stats(0, v);
-
-        off = main_index(base + 1, 0);
-        grad(off) += blume_capel_stats(1, v);
-
-        if (inclusion_indicator(v, v) != 0) {
-          for (int k = 1; k < num_groups; ++k) {
-            off = main_index(base, k);
-            grad(off) += blume_capel_stats(0, v) * projection(g, k - 1);
-
-            off = main_index(base + 1, k);
-            grad(off) += blume_capel_stats(1, v) * projection(g, k - 1);
-          }
-        }
-      }
-    }
-
-    // Pairwise (observed)
-    arma::mat pairwise_stats = pairwise_stats_group[g];
-    for (int v1 = 0; v1 < num_variables - 1; ++v1) {
-      for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
-        const int row = pairwise_effect_indices(v1, v2);
-
-        off = pair_index(row, 0);
-        grad(off) += 2.0 * pairwise_stats(v1, v2); // upper tri counted once
-
-        if (inclusion_indicator(v1, v2) == 0) continue;
-        for (int k = 1; k < num_groups; ++k) {
-          off = pair_index(row, k);
-          grad(off) += 2.0 * pairwise_stats(v1, v2) * projection(g, k - 1);
-        }
-      }
-    }
-  }
 
   // --------------------------------
   // Expected sufficient statistics
@@ -438,7 +575,7 @@ arma::vec gradient(
         }
       }
 
-      arma::mat probs = arma::exp(exponents);
+      arma::mat probs = ARMA_MY_EXP(exponents);
       arma::vec denom = arma::sum(probs, 1); // base term
       probs.each_col() /= denom;
 
@@ -449,20 +586,16 @@ arma::vec gradient(
           const int j = s - 1;
           double sum_col_s = arma::accu(probs.col(s));
 
-
           off = main_index(base + j, 0);
           grad(off) -= sum_col_s;
-
 
           if (inclusion_indicator(v, v) == 0) continue;
           for (int k = 1; k < num_groups; ++k) {
             off = main_index(base + j, k);
-            grad(off) -= projection(g, k - 1) * sum_col_s;
-
+            grad(off) -= proj_g(k - 1) * sum_col_s;
           }
         }
       } else {
-
         arma::vec lin_score  = arma::regspace<arma::vec>(0, K);          // length K+1
         arma::vec quad_score = arma::square(lin_score - ref);
 
@@ -477,10 +610,9 @@ arma::vec gradient(
         if (inclusion_indicator(v, v) == 0) continue;
         for (int k = 1; k < num_groups; ++k) {
           off = main_index(base, k);
-          grad(off) -= projection(g, k - 1) * sum_lin;
-
+          grad(off) -= proj_g(k - 1) * sum_lin;
           off = main_index(base + 1, k);
-          grad(off) -= projection(g, k - 1) * sum_quad;
+          grad(off) -= proj_g(k - 1) * sum_quad;
         }
       }
 
@@ -494,12 +626,6 @@ arma::vec gradient(
         }
         double sum_expectation = arma::accu(expected_value);
 
-        // this is mathematically equivalent but numerically different...
-        // double sum_expectation = 0.0;
-        // for (int s = 1; s <= K; ++s) {
-        //   sum_expectation += s * arma::dot(probs.col(s), obs.col(v2));
-        // }
-
         const int row = (v < v2) ? pairwise_effect_indices(v, v2)
           : pairwise_effect_indices(v2, v);
 
@@ -509,7 +635,8 @@ arma::vec gradient(
         if (inclusion_indicator(v, v2) == 0) continue;
         for (int k = 1; k < num_groups; ++k) {
           off = pair_index(row, k);
-          grad(off) -= projection(g, k - 1) * sum_expectation;
+          grad(off) -= proj_g(k - 1) * sum_expectation;
+
         }
       }
     }

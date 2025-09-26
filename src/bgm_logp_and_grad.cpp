@@ -349,18 +349,14 @@ double log_pseudoposterior (
 
 
 /**
- * Computes the gradient of the log-pseudoposterior with respect to all parameters (bgm model).
- *
- * The gradient is assembled for both main-effect and pairwise-effect parameters in the same
- * order as produced by `vectorize_model_parameters_bgm()`. It is used in gradient-based
- * samplers such as HMC and NUTS.
+ * Computes the gradient of the log-pseudoposterior for main and active pairwise parameters.
  *
  * Gradient components:
  *  - Observed sufficient statistics (from counts_per_category, blume_capel_stats, pairwise_stats).
  *  - Minus expected sufficient statistics (computed via probabilities over categories).
  *  - Plus gradient contributions from priors:
  *    * Beta priors on main effects.
- *    * Cauchy priors on pairwise effects.
+ *    * Cauchy priors on active pairwise effects.
  *
  * Inputs:
  *  - main_effects: Matrix of main-effect parameters (variables × categories).
@@ -379,14 +375,10 @@ double log_pseudoposterior (
  *
  * Returns:
  *  - A vector containing the gradient of the log-pseudoposterior with respect to
- *    all main and active pairwise parameters.
- *
- * Notes:
- *  - The gradient is aligned with the parameter layout of `vectorize_model_parameters_bgm()`.
- *  - For ordinal variables, expected sufficient statistics include a baseline (0-category).
- *  - Numerical stability is enforced by bounding exponentials with nonnegative terms.
+ *    all main and active pairwise parameters, in the same order as
+ *    `vectorize_model_parameters_bgm()`.
  */
-arma::vec gradient_log_pseudoposterior (
+arma::vec gradient_log_pseudoposterior(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,
@@ -403,26 +395,25 @@ arma::vec gradient_log_pseudoposterior (
     const arma::mat& residual_matrix
 ) {
   const int num_variables = observations.n_cols;
-  const int num_persons = observations.n_rows;
-  const int num_main = count_num_main_effects (num_categories, is_ordinal_variable);
-  const int num_pairwise = num_variables * (num_variables - 1) / 2;
+  const int num_persons   = observations.n_rows;
+  const int num_main      = count_num_main_effects(num_categories, is_ordinal_variable);
+  arma::imat index_matrix(num_variables, num_variables, arma::fill::zeros);
 
-  arma::umat index_matrix(num_variables, num_variables);
-  int counter = num_main; // Start after the main effects
-  for(int var1 = 0; var1 < num_variables-1; var1++) {
-    for(int var2 = var1 + 1; var2 < num_variables; var2++) {
-      index_matrix(var1, var2) = counter++;
+  // Count active pairwise effects + Index map for pairwise parameters
+  int num_active = 0;
+  for (int i = 0; i < num_variables - 1; i++) {
+    for (int j = i + 1; j < num_variables; j++) {
+      if (inclusion_indicator(i, j) == 1){
+        index_matrix(i, j) = num_main + num_active++;
+        index_matrix(j, i) = index_matrix(i, j);
+      }
     }
   }
 
-  arma::vec gradient (num_main + num_pairwise, arma::fill::zeros);
+  // Allocate gradient vector (main + active pairwise only)
+  arma::vec gradient(num_main + num_active, arma::fill::zeros);
 
-  // Gradients are built up as O - E + gradient_prior
-  // - O is the observed value of the sufficient statistic
-  // - E is the expected value of the sufficient statistic
-  // - gradient_prior is the gradient of the prior distribution
-
-  // Calculate the observed sufficient statistics
+  // ---- STEP 1: Observed statistics ----
   int offset = 0;
   for (int variable = 0; variable < num_variables; variable++) {
     if (is_ordinal_variable(variable)) {
@@ -437,16 +428,15 @@ arma::vec gradient_log_pseudoposterior (
       offset += 2;
     }
   }
-  for (int var1 = 0; var1 < num_variables - 1; var1++) {
-    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
-      if (inclusion_indicator(var1, var2) == 0)
-        continue;
-      int location = index_matrix(var1, var2);
-      gradient(location) = 2.0 * pairwise_stats(var1, var2);
+  for (int i = 0; i < num_variables - 1; i++) {
+    for (int j = i + 1; j < num_variables; j++) {
+      if (inclusion_indicator(i, j) == 0) continue;
+      int location = index_matrix(i, j);
+      gradient(location) = 2.0 * pairwise_stats(i, j);
     }
   }
 
-  // Calculate the expected sufficient statistics
+  // ---- STEP 2: Expected statistics ----
   offset = 0;
   for (int variable = 0; variable < num_variables; variable++) {
     const int num_cats = num_categories(variable);
@@ -455,200 +445,101 @@ arma::vec gradient_log_pseudoposterior (
     bound = arma::clamp(bound, 0.0, arma::datum::inf);
 
     if (is_ordinal_variable(variable)) {
-      arma::vec main_effect_param = main_effects.row(variable).cols(0, num_cats - 1).t();
-      bound += main_effect_param.max();
+      arma::vec main_param = main_effects.row(variable).cols(0, num_cats - 1).t();
+      bound += main_param.max();
 
       arma::mat exponents(num_persons, num_cats);
       for (int cat = 0; cat < num_cats; cat++) {
-        exponents.col(cat) = main_effect_param(cat) + (cat + 1) * residual_score - bound;
+        exponents.col(cat) = main_param(cat) + (cat + 1) * residual_score - bound;
       }
 
-      arma::mat probs = ARMA_MY_EXP (exponents);
-      arma::vec denom = arma::sum(probs, 1) + ARMA_MY_EXP (-bound);
+      arma::mat probs = ARMA_MY_EXP(exponents);
+      arma::vec denom = arma::sum(probs, 1) + ARMA_MY_EXP(-bound);
       probs.each_col() /= denom;
 
-      // Expected sufficient statistics main effects
+      // main effects
       for (int cat = 0; cat < num_cats; cat++) {
-        gradient(offset + cat) -= arma::accu (probs.col(cat));
+        gradient(offset + cat) -= arma::accu(probs.col(cat));
       }
 
-      // Expected sufficient statistics pairwise effects
-      for (int var2 = 0; var2 < num_variables; var2++) {
-        if (inclusion_indicator(variable, var2) == 0 || variable == var2)
-          continue;
-
+      // pairwise effects
+      for (int j = 0; j < num_variables; j++) {
+        if (inclusion_indicator(variable, j) == 0 || variable == j) continue;
         arma::vec expected_value = arma::zeros(num_persons);
         for (int cat = 0; cat < num_cats; cat++) {
-          expected_value += (cat + 1) * probs.col(cat) % observations.col(var2);
+          expected_value += (cat + 1) * probs.col(cat) % observations.col(j);
         }
-        int location = (variable < var2) ? index_matrix(variable, var2) : index_matrix(var2, variable);
+        int location = (variable < j) ? index_matrix(variable, j) : index_matrix(j, variable);
         gradient(location) -= arma::accu(expected_value);
       }
-
       offset += num_cats;
     } else {
       const int ref = baseline_category(variable);
-      const double lin_effect = main_effects(variable, 0);
-      const double quad_effect = main_effects(variable, 1);
+      const double lin_eff = main_effects(variable, 0);
+      const double quad_eff = main_effects(variable, 1);
 
       arma::mat exponents(num_persons, num_cats + 1);
       for (int cat = 0; cat <= num_cats; cat++) {
         int score = cat;
         int centered = score - ref;
-        double lin = lin_effect * score;
-        double quad = quad_effect * centered * centered;
+        double lin  = lin_eff * score;
+        double quad = quad_eff * centered * centered;
         exponents.col(cat) = lin + quad + score * residual_score - bound;
       }
-      arma::mat probs = ARMA_MY_EXP (exponents);
+      arma::mat probs = ARMA_MY_EXP(exponents);
       arma::vec denom = arma::sum(probs, 1);
       probs.each_col() /= denom;
 
-      arma::ivec lin_score =  arma::regspace<arma::ivec>(0, num_cats);
+      arma::ivec lin_score  = arma::regspace<arma::ivec>(0, num_cats);
       arma::ivec quad_score = arma::square(lin_score - ref);
 
-      // Expected sufficient statistics main effects
+      // main effects
       gradient(offset) -= arma::accu(probs * lin_score);
-      gradient(offset + 1) -= arma::accu(probs * quad_score);;
+      gradient(offset + 1) -= arma::accu(probs * quad_score);
 
-      // Expected sufficient statistics pairwise effects
-      for (int var2 = 0; var2 < num_variables; var2++) {
-        if (inclusion_indicator(variable, var2) == 0 || variable == var2)
-          continue;
-
+      // pairwise effects
+      for (int j = 0; j < num_variables; j++) {
+        if (inclusion_indicator(variable, j) == 0 || variable == j) continue;
         arma::vec expected_value = arma::zeros(num_persons);
         for (int cat = 0; cat < num_cats; cat++) {
-          expected_value += (cat + 1) * probs.col(cat + 1) % observations.col(var2); // Here the zero category score is in probs, so we skip it
+          expected_value += (cat + 1) * probs.col(cat + 1) % observations.col(j);
         }
-        int location = (variable < var2) ? index_matrix(variable, var2) : index_matrix(var2, variable);
+        int location = (variable < j) ? index_matrix(variable, j) : index_matrix(j, variable);
         gradient(location) -= arma::accu(expected_value);
       }
       offset += 2;
     }
   }
 
-  // Calculate the gradient contribution from the prior distribution
+  // ---- STEP 3: Priors ----
   offset = 0;
   for (int variable = 0; variable < num_variables; variable++) {
     if (is_ordinal_variable(variable)) {
       const int num_cats = num_categories(variable);
       for (int cat = 0; cat < num_cats; cat++) {
-        const double p = 1.0 / (1.0 + MY_EXP (-main_effects(variable, cat)));
+        const double p = 1.0 / (1.0 + MY_EXP(-main_effects(variable, cat)));
         gradient(offset + cat) += main_alpha - (main_alpha + main_beta) * p;
       }
       offset += num_cats;
     } else {
-      for (int i = 0; i < 2; i++) {
-        const double main_effect_param = main_effects(variable, i);
-        const double p = 1.0 / (1.0 + MY_EXP (-main_effect_param));
-        gradient(offset + i) += main_alpha - (main_alpha + main_beta) * p;
+      for (int k = 0; k < 2; k++) {
+        const double param = main_effects(variable, k);
+        const double p = 1.0 / (1.0 + MY_EXP(-param));
+        gradient(offset + k) += main_alpha - (main_alpha + main_beta) * p;
       }
       offset += 2;
     }
   }
-  for (int var1 = 0; var1 < num_variables - 1; var1++) {
-    for (int var2 = var1 + 1; var2 < num_variables; var2++) {
-      if (inclusion_indicator(var1, var2) == 0)
-        continue;
-
-      // ---- Gradient contribution from Cauchy prior
-      int location = index_matrix(var1, var2);
-      const double effect = pairwise_effects (var1, var2);
-      gradient (location) -= 2.0 * effect / (effect * effect + pairwise_scale * pairwise_scale);
+  for (int i = 0; i < num_variables - 1; i++) {
+    for (int j = i + 1; j < num_variables; j++) {
+      if (inclusion_indicator(i, j) == 0) continue;
+      int location = index_matrix(i, j);
+      const double effect = pairwise_effects(i, j);
+      gradient(location) -= 2.0 * effect / (effect * effect + pairwise_scale * pairwise_scale);
     }
   }
 
   return gradient;
-}
-
-
-
-/**
- * Computes the gradient of the log-pseudoposterior restricted to active parameters (bgm model).
- *
- * This function first computes the full gradient using `gradient_log_pseudoposterior()`,
- * then compresses it to match the parameter layout of
- * `vectorize_model_parameters_bgm()`: all main effects, followed by only the
- * pairwise effects marked as active in the inclusion indicator.
- *
- * Inputs:
- *  - main_effects: Matrix of main-effect parameters (variables × categories).
- *  - pairwise_effects: Symmetric matrix of pairwise interaction strengths.
- *  - inclusion_indicator: Symmetric binary matrix of active pairwise effects.
- *  - observations: Matrix of categorical observations (persons × variables).
- *  - num_categories: Number of categories per variable.
- *  - counts_per_category: Category counts per variable (for ordinal variables).
- *  - blume_capel_stats: Sufficient statistics for Blume–Capel variables.
- *  - baseline_category: Reference categories for Blume–Capel variables.
- *  - is_ordinal_variable: Indicator (1 = ordinal, 0 = Blume–Capel).
- *  - main_alpha, main_beta: Hyperparameters for Beta priors.
- *  - pairwise_scale: Scale parameter of the Cauchy prior on interactions.
- *  - pairwise_stats: Sufficient statistics for pairwise effects.
- *  - residual_matrix: Matrix of residual scores (persons × variables).
- *
- * Returns:
- *  - A vector containing the gradient for main effects and active pairwise effects only.
- *
- * Notes:
- *  - The output matches the layout of `vectorize_model_parameters_bgm()`.
- *  - Useful for gradient-based samplers where inactive pairwise parameters
- *    are excluded from the state space.
- */
-arma::vec gradient_log_pseudoposterior_active (
-    const arma::mat& main_effects,
-    const arma::mat& pairwise_effects,
-    const arma::imat& inclusion_indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& counts_per_category,
-    const arma::imat& blume_capel_stats,
-    const arma::ivec& baseline_category,
-    const arma::uvec& is_ordinal_variable,
-    const double main_alpha,
-    const double main_beta,
-    const double pairwise_scale,
-    const arma::imat& pairwise_stats,
-    const arma::mat& residual_matrix
-) {
-
-  // Step 1: Reconstruct full parameter matrices
-  arma::vec full_gradient = gradient_log_pseudoposterior(
-    main_effects, pairwise_effects, inclusion_indicator, observations,
-    num_categories, counts_per_category, blume_capel_stats,
-    baseline_category, is_ordinal_variable, main_alpha, main_beta,
-    pairwise_scale, pairwise_stats, residual_matrix
-  );
-
-  // Step 2: Extract compressed gradient (same layout as new vectorizer)
-  const int num_variables = num_categories.n_elem;
-  const int num_main = count_num_main_effects(num_categories, is_ordinal_variable);
-
-  int num_active = 0;
-  for (int i = 0; i < num_variables - 1; i++) {
-    for (int j = i + 1; j < num_variables; j++) {
-      if (inclusion_indicator(i, j) == 1) num_active++;
-    }
-  }
-
-  arma::vec reduced_gradient(num_main + num_active);
-  int offset = 0;
-
-  // Copy main effect gradient directly
-  for (int i = 0; i < num_main; ++i) {
-    reduced_gradient[offset++] = full_gradient[i];
-  }
-
-  // Copy active interaction gradient values
-  int full_idx = num_main;
-  for (int i = 0; i < num_variables - 1; ++i) {
-    for (int j = i + 1; j < num_variables; ++j) {
-      if (inclusion_indicator(i, j) == 1) {
-        reduced_gradient[offset++] = full_gradient[full_idx];
-      }
-      full_idx++;
-    }
-  }
-
-  return reduced_gradient;
 }
 
 

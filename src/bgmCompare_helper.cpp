@@ -436,7 +436,6 @@ std::pair<arma::imat, arma::imat> build_index_maps(
  * Notes:
  *  - Must be consistent with the layout in `vectorize_model_parameters_bgmcompare()`.
  *  - Index maps (`main_index`, `pair_index`) are required to locate group-difference entries.
- *  - A debug assertion (off == active_inv_diag.n_elem) could help catch mismatches.
  */
 arma::vec inv_mass_active(
     const arma::vec& inv_diag,

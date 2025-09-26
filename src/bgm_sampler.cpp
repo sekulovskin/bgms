@@ -530,7 +530,7 @@ void update_hmc_bgm(
                                  num_categories, is_ordinal_variable);
     arma::mat rm = observations * current_pair;
 
-    return gradient_log_pseudoposterior_active (
+    return gradient_log_pseudoposterior (
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha,
@@ -651,7 +651,7 @@ SamplerResult update_nuts_bgm(
                                  is_ordinal_variable);
     arma::mat rm = observations * current_pair;
 
-    return gradient_log_pseudoposterior_active(
+    return gradient_log_pseudoposterior(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha,

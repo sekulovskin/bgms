@@ -51,26 +51,7 @@ double log_pseudoposterior (
     const arma::mat& residual_matrix
 );
 
-// Full gradient
-arma::vec gradient_log_pseudoposterior (
-    const arma::mat& main_effects,
-    const arma::mat& pairwise_effects,
-    const arma::imat& inclusion_indicator,
-    const arma::imat& observations,
-    const arma::ivec& num_categories,
-    const arma::imat& counts_per_category,
-    const arma::imat& blume_capel_stats,
-    const arma::ivec& baseline_category,
-    const arma::uvec& is_ordinal_variable,
-    const double main_alpha,
-    const double main_beta,
-    const double pairwise_scale,
-    const arma::imat& pairwise_stats,
-    const arma::mat& residual_matrix
-);
-
-// Full gradient with inactive interactions filtered out
-arma::vec gradient_log_pseudoposterior_active (
+arma::vec gradient_log_pseudoposterior(
     const arma::mat& main_effects,
     const arma::mat& pairwise_effects,
     const arma::imat& inclusion_indicator,

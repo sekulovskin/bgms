@@ -186,7 +186,6 @@ void impute_missing_bgmcompare(
       pairwise_stats[group] = pairwise_stats_group;
     }
   }
-
   return;
 }
 
@@ -519,7 +518,6 @@ double find_initial_stepsize_bgmcompare(
   arma::vec theta = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator, main_effect_indices,
     pairwise_effect_indices, num_categories, is_ordinal_variable
-
   );
   arma::mat current_main = main_effects;
   arma::mat current_pair = pairwise_effects;
@@ -532,6 +530,14 @@ double find_initial_stepsize_bgmcompare(
   );
   auto& main_index = index_maps.first;
   auto& pair_index = index_maps.second;
+
+  arma::vec grad_obs_act = gradient_observed_active(
+    main_effect_indices, pairwise_effect_indices, projection,
+    observations, group_indices, num_categories, inclusion_indicator,
+    counts_per_category, blume_capel_stats, pairwise_stats,
+    num_groups, is_ordinal_variable, baseline_category,
+    main_index, pair_index
+  );
 
   auto grad = [&](const arma::vec& theta_vec) {
     unvectorize_model_parameters_bgmcompare(
@@ -546,7 +552,8 @@ double find_initial_stepsize_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale, main_index, pair_index
+      pairwise_scale, difference_scale, main_index, pair_index,
+      grad_obs_act
     );
   };
 
@@ -663,6 +670,14 @@ void update_hmc_bgmcompare(
   auto& main_index = index_maps.first;
   auto& pair_index = index_maps.second;
 
+  arma::vec grad_obs_act = gradient_observed_active(
+    main_effect_indices, pairwise_effect_indices, projection,
+    observations, group_indices, num_categories, inclusion_indicator,
+    counts_per_category, blume_capel_stats, pairwise_stats,
+    num_groups, is_ordinal_variable, baseline_category,
+    main_index, pair_index
+  );
+
   auto grad = [&](const arma::vec& theta_vec) {
     unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
@@ -676,7 +691,8 @@ void update_hmc_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale, main_index, pair_index
+      pairwise_scale, difference_scale, main_index, pair_index,
+      grad_obs_act
     );
   };
 
@@ -811,6 +827,14 @@ SamplerResult update_nuts_bgmcompare(
   auto& main_index = index_maps.first;
   auto& pair_index = index_maps.second;
 
+  arma::vec grad_obs_act = gradient_observed_active(
+    main_effect_indices, pairwise_effect_indices, projection,
+    observations, group_indices, num_categories, inclusion_indicator,
+    counts_per_category, blume_capel_stats, pairwise_stats,
+    num_groups, is_ordinal_variable, baseline_category,
+    main_index, pair_index
+  );
+
   auto grad = [&](const arma::vec& theta_vec) {
     unvectorize_model_parameters_bgmcompare(
       theta_vec, current_main, current_pair, inclusion_indicator,
@@ -824,7 +848,8 @@ SamplerResult update_nuts_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale, main_index, pair_index
+      pairwise_scale, difference_scale, main_index, pair_index,
+      grad_obs_act
     );
   };
 
