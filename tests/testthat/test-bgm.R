@@ -1,6 +1,5 @@
 test_that("Posterior means correlate with sufficient precision statistics", {
   testthat::skip_on_cran()
-  testthat::skip_on_ci()
 
   fit = bgm(Wenchuan, edge_selection = FALSE, iter = 100, warmup = 1000, seed = 1234, chains = 1)
   x = Wenchuan
@@ -16,7 +15,6 @@ no_cores <- if (on_ci) 2L else min(4, parallel::detectCores())
 
 test_that("bgm is reproducible", {
   testthat::skip_on_cran()
-  testthat::skip_on_ci()
 
   data("Wenchuan", package = "bgms")
   x <-  Wenchuan[1:50, 1:5]
@@ -28,7 +26,6 @@ test_that("bgm is reproducible", {
 
 test_that("bgmCompare is reproducible", {
   testthat::skip_on_cran()
-  testthat::skip_on_ci()
 
   data("Wenchuan", package = "bgms")
   x <- Wenchuan[1:50, 1:5]
