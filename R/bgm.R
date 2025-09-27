@@ -260,8 +260,9 @@
 #'   single non-negative integer.
 #'
 #' @param interaction_scale,burnin,save,threshold_alpha,threshold_beta
-#' Deprecated arguments. Use \code{pairwise_scale}, \code{warmup},
-#' \code{main_alpha}, and \code{main_beta} instead.
+#'   `r lifecycle::badge("deprecated")`
+#'   Deprecated arguments as of **bgms 0.1.6.0**.
+#'   Use `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.
 #'
 #' @return
 #' A list of class \code{"bgms"} with posterior summaries, posterior mean
@@ -379,28 +380,31 @@ bgm = function(
     threshold_alpha,
     threshold_beta
 ) {
-  if(hasArg(interaction_scale)) {
-    if(!hasArg(pairwise_scale))
+  if (hasArg(interaction_scale)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgm(interaction_scale =)", "bgm(pairwise_scale =)")
+    if (!hasArg(pairwise_scale)) {
       pairwise_scale = interaction_scale
+    }
+  }
 
-    warning("The argument interaction_scale is deprecated. Please use pairwise_scale instead.")
-  }
-  if(hasArg(burnin)) {
-    if(!hasArg(warmup))
+  if (hasArg(burnin)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgm(burnin =)", "bgm(warmup =)")
+    if (!hasArg(warmup)) {
       warmup = burnin
-    warning("The argument burnin is deprecated. Please use warmup instead.")
+    }
   }
-  if(hasArg(save)) {
-    warning("The argument save is deprecated. Everything is saved in the function output.")
+
+  if (hasArg(save)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgm(save =)")
   }
-  if(hasArg(threshold_alpha) || hasArg(threshold_beta)) {
-    if(!hasArg(main_alpha))
-      main_alpha = threshold_alpha
-    if(!hasArg(main_beta))
-      main_beta = threshold_beta
-    warmup = burnin
-    warning(paste0("The arguments threshold_alpha, threshold_beta are deprecated.\n",
-                   "Please use main_alpha, main_beta instead."))
+
+  if (hasArg(threshold_alpha) || hasArg(threshold_beta)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgm(threshold_alpha =, threshold_beta =)",
+                              "bgm(main_alpha =, main_beta =)"
+    )
+    if (!hasArg(main_alpha)) main_alpha = threshold_alpha
+    if (!hasArg(main_beta)) main_beta = threshold_beta
   }
 
   # Check update method
@@ -621,7 +625,7 @@ bgm = function(
     ebgm_version <- utils::packageVersion("easybgm")
     if (ebgm_version <= "0.2.1") {
       warning("bgms is running in compatibility mode for easybgm (<= 0.2.1). ",
-              "This will be removed once easybgm is updated on CRAN.")
+              "This will be removed once easybgm >= 0.2.2 is on CRAN.")
 
       # Add legacy variables to output
       output$arguments$save <- TRUE

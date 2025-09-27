@@ -121,7 +121,17 @@
 #' @param cores Integer. Number of CPU cores. Default:
 #'   \code{parallel::detectCores()}.
 #' @param seed Optional integer. Random seed for reproducibility.
-#'
+#' @param main_difference_model,reference_category,
+#'   pairwise_difference_scale,main_difference_scale,pairwise_difference_prior,main_difference_prior,
+#'   pairwise_difference_probability,main_difference_probability,
+#'   pairwise_beta_bernoulli_alpha,pairwise_beta_bernoulli_beta,
+#'   main_beta_bernoulli_alpha,main_beta_bernoulli_beta,
+#'   interaction_scale,threshold_alpha,threshold_beta,burnin,save
+#'   `r lifecycle::badge("deprecated")`
+#'   Deprecated arguments as of **bgms 0.1.6.0**.
+#'   Use `difference_scale`, `difference_prior`, `difference_probability`,
+#'   `beta_bernoulli_alpha`, `beta_bernoulli_beta`, `baseline_category`,
+#'   `pairwise_scale`, and `warmup` instead.
 #' @return
 #' A list of class \code{"bgmCompare"} containing posterior summaries,
 #' posterior mean matrices, and raw MCMC samples:
@@ -197,8 +207,105 @@ bgmCompare = function(
     chains = 4,
     cores = parallel::detectCores(),
     display_progress =  c("per-chain", "total", "none"),
-    seed = NULL
+    seed = NULL,
+    main_difference_model,
+    reference_category,
+    main_difference_scale,
+    pairwise_difference_scale,
+    pairwise_difference_prior,
+    main_difference_prior,
+    pairwise_difference_probability,
+    main_difference_probability,
+    pairwise_beta_bernoulli_alpha,
+    pairwise_beta_bernoulli_beta,
+    main_beta_bernoulli_alpha,
+    main_beta_bernoulli_beta,
+    interaction_scale,
+    threshold_alpha,
+    threshold_beta,
+    burnin,
+    save
 ) {
+  if (hasArg(main_difference_model)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(main_difference_model =)")
+  }
+
+  if (hasArg(reference_category)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(reference_category =)", "bgmCompare(baseline_category =)")
+    if (!hasArg(baseline_category)) baseline_category = reference_category
+  }
+
+  if (hasArg(pairwise_difference_scale) || hasArg(main_difference_scale)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(pairwise_difference_scale =, main_difference_scale =)",
+                              "bgmCompare(difference_scale =)")
+    if (!hasArg(difference_scale)) {
+      difference_scale = if (!missing(pairwise_difference_scale)) pairwise_difference_scale else main_difference_scale
+    }
+  }
+
+  if (hasArg(pairwise_difference_prior) || hasArg(main_difference_prior)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgmCompare(pairwise_difference_prior =, main_difference_prior =)",
+                              "bgmCompare(difference_prior =)"
+    )
+    if (!hasArg(difference_prior)) {
+      difference_prior = if (!missing(pairwise_difference_prior)) pairwise_difference_prior else main_difference_prior
+    }
+  }
+
+  if (hasArg(pairwise_difference_probability) || hasArg(main_difference_probability)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgmCompare(pairwise_difference_probability =, main_difference_probability =)",
+                              "bgmCompare(difference_probability =)"
+    )
+    if (!hasArg(difference_probability)) {
+      difference_probability = if (!missing(pairwise_difference_probability)) pairwise_difference_probability else main_difference_probability
+    }
+  }
+
+  if (hasArg(pairwise_beta_bernoulli_alpha) || hasArg(main_beta_bernoulli_alpha)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgmCompare(pairwise_beta_bernoulli_alpha =, main_beta_bernoulli_alpha =)",
+                              "bgmCompare(beta_bernoulli_alpha =)"
+    )
+    if (!hasArg(beta_bernoulli_alpha)) {
+      beta_bernoulli_alpha = if (!missing(pairwise_beta_bernoulli_alpha)) pairwise_beta_bernoulli_alpha else main_beta_bernoulli_alpha
+    }
+  }
+
+  if (hasArg(pairwise_beta_bernoulli_beta) || hasArg(main_beta_bernoulli_beta)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgmCompare(pairwise_beta_bernoulli_beta =, main_beta_bernoulli_beta =)",
+                              "bgmCompare(beta_bernoulli_beta =)"
+    )
+    if (!hasArg(beta_bernoulli_beta)) {
+      beta_bernoulli_beta = if (!missing(pairwise_beta_bernoulli_beta)) pairwise_beta_bernoulli_beta else main_beta_bernoulli_beta
+    }
+  }
+
+  if (hasArg(interaction_scale)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(interaction_scale =)", "bgmCompare(pairwise_scale =)")
+    if (!hasArg(pairwise_scale)) pairwise_scale = interaction_scale
+  }
+
+  if (hasArg(threshold_alpha) || hasArg(threshold_beta)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgmCompare(threshold_alpha =, threshold_beta =)",
+                              "bgmCompare(main_alpha =, main_beta =)" # = double-check if these are still part of bgmCompare
+    )
+    if (!hasArg(main_alpha)) main_alpha = threshold_alpha
+    if (!hasArg(main_beta)) main_beta = threshold_beta
+  }
+
+  if (hasArg(burnin)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(burnin =)", "bgmCompare(warmup =)")
+    if (!hasArg(warmup)) warmup = burnin
+  }
+
+  if (hasArg(save)) {
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(save =)")
+  }
+
   # Check update method
   update_method_input = update_method
   update_method = match.arg(update_method)

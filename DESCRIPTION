@@ -2,7 +2,7 @@ Package: bgms
 Type: Package
 Title: Bayesian Analysis of Networks of Binary and/or Ordinal Variables
 Version: 0.1.6.0
-Date: 2025-09-23
+Date: 2025-09-26
 Authors@R: c(
     person("Maarten", "Marsman", , "m.marsman@uva.nl", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-5309-7502")),
@@ -16,7 +16,7 @@ Authors@R: c(
     comment = c(ORCID = "0000-0002-9838-7308"))
   )
 Maintainer: Maarten Marsman <m.marsman@uva.nl>
-Description: Bayesian variable selection methods for analyzing the structure of a Markov Random Field model for a network of binary and/or ordinal variables. Details of the implemented methods can be found in: Marsman, van den Bergh, and Haslbeck (2025) <doi:10.31234/osf.io/ukwrf>. 
+Description: Bayesian variable selection methods for analyzing the structure of a Markov random field model for a network of binary and/or ordinal variables. 
 Copyright: Includes datasets 'ADHD' and 'Boredom', which are licensed under CC-BY 4. See individual data documentation for license and citation.
 License: GPL (>= 2)
 URL: https://Bayesian-Graphical-Modelling-Lab.github.io/bgms/
@@ -26,7 +26,8 @@ Imports:
     RcppParallel, 
     Rdpack, 
     methods, 
-    coda
+    coda,
+    lifecycle
 RdMacros: Rdpack
 LinkingTo: 
     Rcpp, 

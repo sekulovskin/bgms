@@ -2,23 +2,52 @@
 
 ## New features
 
-* NUTS and HMC options are now provided for sampling the bgm and bgmCompare model
-* Sampling for multiple chains can now be done in parallel
-* Markov chain diagnostics are now offered for the sampled parameters
+* added NUTS and HMC options for sampling `bgm()` and `bgmCompare()` models
+* added support for running multiple chains in parallel
+* added user interrupt handling for parallel sampling
+* added Markov chain diagnostics (effective sample size and R-hat) for sampled parameters
+* added `summary()`, `print()`, and `coef()` methods for fitted objects
+* MCMC sampling in `bgm()` and `bgmCompare()` is now reproducible when a `seed` argument is specified
 
 ## Other changes
 
-* Improved progress bar for parallel sampling
-* User interrupt for parallel sampling
-* More extensive summary and print options are provided; integrates summary_SBM
-* Removed the options for modeling the main differences; main differences are now always estimated or selected similar to the old `main_difference_model = "collapse"` option.
+* improved progress bar for parallel sampling
+* `summary()` now integrates the functionality of the old `summary_SBM()`
+* removed options for modeling main differences; main differences are now always estimated or selected, equivalent to the previous `main_difference_model = "collapse"` setting
 
 ## Bug fixes
 
-* Fixed an out-of-bounds bug in the bgmCompare function with missing data handling
-* Fixed a bug in the SBM prior computation
+* fixed an out-of-bounds error in `bgmCompare()` when handling missing data
+* fixed a bug in the SBM prior computation
 
-# bgms 0.1.5.0
+## Deprecated
+
+- In `bgm()`, the following arguments are deprecated:
+  - `interaction_scale` → use `pairwise_scale`
+  - `burnin` → use `warmup`
+  - `save` → no longer needed (all outputs are returned by default)
+  - `threshold_alpha`, `threshold_beta` → use `main_alpha`, `main_beta`
+
+- In `bgmCompare()`, arguments related to difference models are deprecated:
+  - `main_difference_model` (removed without replacement)
+  - `reference_category` → use `baseline_category`
+  - `pairwise_difference_*`, `main_difference_*` → use unified `difference_*` arguments
+  - `pairwise_beta_bernoulli_*`, `main_beta_bernoulli_*` → use unified `beta_bernoulli_*` arguments
+  - `interaction_scale` → use `pairwise_scale`
+  - `threshold_alpha`, `threshold_beta` → use `main_alpha`, `main_beta`
+  - `burnin` → use `warmup`
+  - `save` → no longer needed
+
+- Deprecated extractor functions:
+  - `extract_edge_indicators()` → use `extract_indicators()`
+  - `extract_pairwise_thresholds()` → use `extract_category_thresholds()`
+
+- Deprecated object fields:
+  - `$gamma` (pre-0.1.4) and `$indicator` (0.1.4–0.1.5) → replaced by `$raw_samples$indicator`
+  - `$main_effects` (pre-0.1.4) and `$posterior_mean_main` (0.1.4–0.1.5) → replaced by `$raw_samples$main` (raw samples) and `$posterior_summary_main` (summaries)
+
+
+# bgms 0.1.5.0 (GitHub only)
 
 ## New features
 
@@ -40,12 +69,16 @@
 * Fixed a bug in the bgmCompare function with handling threshold estimation when missing categories and main_model = "Free". The sufficient statistics and number of categories were not computed correctly.
 * Partially fixed a bug in which the bgms package is slower on Windows than on Linux or MacOS. This is because the computation of exp and log using the gcc compiler for Windows is really slow. With a custom c++ implementation, the speed is now closer to the speed achieved on Linux and MacOS.
 
+
 # bgms 0.1.4.2
 
-Fixed a bug with adjusting the variance of the proposal distributions.
-Fixed a bug with recoding data under the "collapse" condition.
-When selection = true, we run 2 * burnin iterations instead of 1 * burnin in the burnin phase. This helps ensure that the Markov chain used for estimating the pseudoposterior starts with good parameter values and that proposals are properly calibrated. In rare cases, the Markov chain could get stuck before. The default setting for the burnin is also changed from 1000 to 500.
-Changed the maximum standard deviation of the adaptive proposal from 20 back to 2.
+## Bug fixes
+* fixed a bug with adjusting the variance of the proposal distributions
+* fixed a bug with recoding data under the "collapse" condition
+
+## Other changes
+* when `selection = TRUE`, the burnin phase now runs `2 * burnin` iterations instead of `1 * burnin`. This ensures the chain starts with well-calibrated parameter values
+* changed the maximum standard deviation of the adaptive proposal from 20 back to 2
 
 # bgms 0.1.4.1
 

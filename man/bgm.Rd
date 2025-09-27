@@ -133,8 +133,9 @@ sampling. Default: \code{TRUE}.}
 \item{seed}{Optional integer. Random seed for reproducibility. Must be a
 single non-negative integer.}
 
-\item{interaction_scale, burnin, save, threshold_alpha, threshold_beta}{Deprecated arguments. Use \code{pairwise_scale}, \code{warmup},
-\code{main_alpha}, and \code{main_beta} instead.}
+\item{interaction_scale, burnin, save, threshold_alpha, threshold_beta}{`r lifecycle::badge("deprecated")`
+Deprecated arguments as of **bgms 0.1.6.0**.
+Use `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.}
 }
 \value{
 A list of class \code{"bgms"} with posterior summaries, posterior mean

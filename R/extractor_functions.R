@@ -50,6 +50,10 @@ extract_indicators = function(bgms_object) {
 }
 
 #' @rdname extractor_functions
+#' @details
+#' Internally, indicator samples were stored in `$gamma` (pre-0.1.4) and
+#' `$indicator` (0.1.4–0.1.5). As of **bgms 0.1.6.0**, they are stored in
+#' `$raw_samples$indicators`. Access via older names is supported but deprecated.
 #' @export
 extract_indicators.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
@@ -62,8 +66,12 @@ extract_indicators.bgms = function(bgms_object) {
   indicators_list = bgms_object$raw_samples$indicator
   if (is.null(indicators_list)) {
     if (!is.null(bgms_object$indicator)) {
+      lifecycle::deprecate_warn("0.1.6.0", "bgms_object$indicator",
+                                "bgms_object$raw_samples$indicator")
       indicators_list = bgms_object$indicator
     } else if (!is.null(bgms_object$gamma)) {
+      lifecycle::deprecate_warn("0.1.4.2", "bgms_object$gamma",
+                                "bgms_object$raw_samples$indicator")
       indicators_list = bgms_object$gamma
     } else {
       stop("No indicator samples found in this object.")
@@ -111,6 +119,12 @@ extract_posterior_inclusion_probabilities = function(bgms_object) {
 }
 
 #' @rdname extractor_functions
+#' @details
+#' Posterior inclusion probabilities are computed from edge indicators.
+#'
+#' Internally, indicator samples were stored in `$gamma` (pre-0.1.4) and
+#' `$indicator` (0.1.4–0.1.5). As of **bgms 0.1.6.0**, they are stored in
+#' `$raw_samples$indicator`. Access via older names is supported but deprecated.
 #' @export
 extract_posterior_inclusion_probabilities.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
@@ -128,12 +142,20 @@ extract_posterior_inclusion_probabilities.bgms = function(bgms_object) {
     indicator_samples = extract_indicators(bgms_object)
     edge_means = colMeans(indicator_samples)
   } else if (!is.null(bgms_object$indicator)) {
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgms_object$indicator",
+                              "bgms_object$raw_samples$indicator"
+    )
     if (!is.null(arguments$save) && isTRUE(arguments$save)) {
       edge_means = colMeans(bgms_object$indicator)
     } else {
       edge_means = bgms_object$indicator
     }
   } else if (!is.null(bgms_object$gamma)) {
+    lifecycle::deprecate_warn("0.1.4.2",
+                              "bgms_object$gamma",
+                              "bgms_object$raw_samples$indicator"
+    )
     if (!is.null(arguments$save) && isTRUE(arguments$save)) {
       edge_means = colMeans(bgms_object$gamma)
     } else {
@@ -333,6 +355,10 @@ extract_category_thresholds = function(bgms_object) {
 }
 
 #' @rdname extractor_functions
+#' @details
+#' Category thresholds were previously stored in `$main_effects` (pre-0.1.4) and
+#' `$posterior_mean_main` (0.1.4–0.1.5). As of **bgms 0.1.6.0**, they are stored
+#' in `$posterior_summary_main`. Access via older names is supported but deprecated.
 #' @export
 extract_category_thresholds.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
@@ -362,8 +388,18 @@ extract_category_thresholds.bgms = function(bgms_object) {
     }
     return(mat)
   } else if (!is.null(bgms_object$posterior_mean_main)) {
+    # Deprecated intermediate format
+    lifecycle::deprecate_warn("0.1.6.0",
+                              "bgms_object$posterior_mean_main",
+                              "bgms_object$posterior_summary_main"
+    )
     mat = bgms_object$posterior_mean_main
   } else if (!is.null(bgms_object$main_effects)) {
+    # Deprecated old format
+    lifecycle::deprecate_warn("0.1.4.2",
+                              "bgms_object$main_effects",
+                              "bgms_object$posterior_summary_main"
+    )
     mat = bgms_object$main_effects
   } else {
     stop("No threshold or main effects found in the object.")
@@ -499,21 +535,16 @@ extract_group_params.bgmCompare = function(bgms_object) {
   ))
 }
 
-
-#TODO add to lifecycle
-
 #' @rdname extractor_functions
 #' @export
 extract_edge_indicators = function(bgms_object) {
-  warning(paste0("The ``extract_edge_indicators'' function is deprecated and will be removed in a \n",
-                 "future release of bgms. Please use the ``extract_indicators'' function instead."))
-  return(extract_indicators(bgms_object))
+  lifecycle::deprecate_warn("0.1.4.2", "extract_edge_indicators()", "extract_indicators()")
+  extract_indicators(bgms_object)
 }
 
 #' @rdname extractor_functions
 #' @export
 extract_pairwise_thresholds = function(bgms_object) {
-  warning(paste0("The ``extract_pairwise_thresholds'' function is deprecated and will be removed in a \n",
-                 "future release of bgms. Please use the ``extract_category_thresholds'' function instead."))
-  return(extract_category_thresholds(bgms_object))
+  lifecycle::deprecate_warn("0.1.4.2", "extract_pairwise_thresholds()", "extract_category_thresholds()")
+  extract_category_thresholds(bgms_object)
 }

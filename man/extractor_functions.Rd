@@ -76,6 +76,20 @@ Extractor Functions for bgms Objects
 \details{
 These functions extract various components from objects returned by the `bgm()` function,
 such as edge indicators, posterior inclusion probabilities, and parameter summaries.
+
+Internally, indicator samples were stored in `$gamma` (pre-0.1.4) and
+`$indicator` (0.1.4–0.1.5). As of **bgms 0.1.6.0**, they are stored in
+`$raw_samples$indicators`. Access via older names is supported but deprecated.
+
+Posterior inclusion probabilities are computed from edge indicators.
+
+Internally, indicator samples were stored in `$gamma` (pre-0.1.4) and
+`$indicator` (0.1.4–0.1.5). As of **bgms 0.1.6.0**, they are stored in
+`$raw_samples$indicator`. Access via older names is supported but deprecated.
+
+Category thresholds were previously stored in `$main_effects` (pre-0.1.4) and
+`$posterior_mean_main` (0.1.4–0.1.5). As of **bgms 0.1.6.0**, they are stored
+in `$posterior_summary_main`. Access via older names is supported but deprecated.
 }
 \section{Functions}{
 
