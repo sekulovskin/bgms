@@ -136,7 +136,7 @@ prepare_output_bgm = function(
         allocations = lapply(out, `[[`, "allocations"),
         node_names = data_columnnames
       )
-      results$posterior_coclustering_matrix = sbm_convergence$co_occur_matrix
+      results$posterior_mean_coclustering_matrix = sbm_convergence$co_occur_matrix
       # calculate the estimated clustering and block probabilities
       sbm_summary = posterior_summary_SBM(allocations = lapply(out, `[[`, "allocations"),
                                           arguments = arguments)  # check if only arguments would work

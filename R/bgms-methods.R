@@ -70,8 +70,9 @@ summary.bgms <- function(object, ...) {
     }
 
     if (!is.null(object$posterior_summary_pairwise_allocations)) {
-      out$pairwise_allocations <- object$posterior_summary_pairwise_allocations
-      out$allocations_mean <- object$posterior_mean_allocations
+      out$allocations <- object$posterior_summary_pairwise_allocations
+      out$mean_allocations <- object$posterior_mean_allocations
+      out$mode_allocations <- object$posterior_mode_allocations
       out$num_blocks <- object$posterior_num_blocks
     }
 
@@ -118,23 +119,24 @@ print.summary.bgms <- function(x, digits = 3, ...) {
     ind <- head(x$indicator, 6)
     ind[] <- lapply(ind, function(col) ifelse(is.na(col), "", round(col, digits)))
     print(ind)
-    if (nrow(x$indicator) > 6)
-      cat("... (use `summary(fit)$indicator` to see full output)\n")
+    if (nrow(x$indicator) > 6) cat("... (use `summary(fit)$indicator` to see full output)\n")
     cat("Note: NA values are suppressed in the print table. They occur when an indicator\n")
     cat("was constant (all 0 or all 1) across all iterations, so sd/mcse/n_eff/Rhat\n")
     cat("are undefined; `summary(fit)$indicator` still contains the NA values.\n\n")
   }
 
-  if (!is.null(x$pairwise_allocations)) {
+  if (!is.null(x$allocations)) {
     cat("Pairwise node co-clustering proportion:\n")
-    print(round(head(x$pairwise_allocations, 6), digits = digits))
-    if (nrow(x$pairwise_allocations) > 6) cat("... (use `summary(fit)$allocations` to see full output)\n")
+    print(round(head(x$allocations, 6), digits = digits))
+    if (nrow(x$allocations) > 6) cat("... (use `summary(fit)$allocations` to see full output)\n")
     cat("\n")
   }
 
-  if (!is.null(x$allocations_mean)) {
-    cat("Mean posterior node allocation vector :\n")
-    print(round(head(x$allocations_mean, 6), digits = digits))
+  if (!is.null(x$mean_allocations)) {
+    cat("Mean posterior node allocation vector:\n")
+    print(round(head(x$mean_allocations, 6), digits = digits))
+    cat("Mode posterior node allocation vector:\n")
+    print(round(head(x$mode_allocations, 6), digits = digits))
     cat("\n")
   }
 
@@ -183,7 +185,6 @@ coef.bgms <- function(object, ...) {
 
   return(out)
 }
-
 
 
 .warning_issued <- FALSE

@@ -249,8 +249,8 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   Pairs  = t(combn(seq_len(no_variables), 2))
   nparam = nrow(Pairs)
 
-  result = matrix(NA, nparam, 5)
-  colnames(result) = c("mean", "sd", "mcse", "n_eff", "Rhat")
+  result = matrix(NA, nparam, 9)
+  colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
 
   # helper to construct a "time-series"
   get_draws_pair = function(i, j) {
@@ -265,16 +265,32 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   for (p in seq_len(nparam)) {
     i = Pairs[p, 1]; j = Pairs[p, 2]
     draws = get_draws_pair(i, j)
-    vec   = as.vector(draws)
-    phat  = mean(vec)
-    sdev  = sd(vec)
 
-    est   = compute_rhat_ess(draws)
-    n_eff = as.numeric(est$ess)
-    Rhat  = as.numeric(est$rhat)
+    vec = as.vector(draws)
+    T = length(vec)
+    g_next = vec[-1]
+    g_curr = vec[-T]
 
-    mcse  = if (is.finite(n_eff) && n_eff > 0) sdev / sqrt(n_eff) else NA
-    result[p, ] = c(phat, sdev, mcse, n_eff, Rhat)
+    p_hat = mean(vec)
+    sd = sqrt(p_hat * (1 - p_hat))
+    n00 = sum(g_curr == 0 & g_next == 0)
+    n01 = sum(g_curr == 0 & g_next == 1)
+    n10 = sum(g_curr == 1 & g_next == 0)
+    n11 = sum(g_curr == 1 & g_next == 1)
+
+    if (n01 + n10 == 0) {
+      n_eff = mcse = R = NA_real_
+    } else {
+      a = n01 / (n00 + n01)
+      b = n10 / (n10 + n11)
+      tau_int = (2 - (a + b)) / (a + b)
+      n_eff = T / tau_int
+      mcse = sd / sqrt(n_eff)
+      est = compute_rhat_ess(draws)
+      R = est$rhat
+    }
+
+    result[p, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
   }
   if (is.null(node_names)) {
     rn = paste0(Pairs[,1], "-", Pairs[,2])
