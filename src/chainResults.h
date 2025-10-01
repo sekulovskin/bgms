@@ -25,7 +25,7 @@ struct ChainResult {
   arma::mat pairwise_effect_samples;
   arma::ivec treedepth_samples;
   arma::ivec divergent_samples;
-  arma::vec  energy_samples;
-  arma::imat  indicator_samples;
-  arma::ivec allocation_samples;
+  arma::vec energy_samples;
+  arma::imat indicator_samples;
+  arma::imat allocation_samples;
 };

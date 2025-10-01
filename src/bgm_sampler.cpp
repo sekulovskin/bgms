@@ -1408,7 +1408,7 @@ void run_gibbs_sampler_bgm(
 
   chain_result.userInterrupt = userInterrupt;
 
-  chain_result.main_effect_samples     = main_effect_samples;
+  chain_result.main_effect_samples = main_effect_samples;
   chain_result.pairwise_effect_samples = pairwise_effect_samples;
 
   if (update_method == nuts) {
