@@ -140,8 +140,7 @@ Use `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.}
 \value{
 A list of class \code{"bgms"} with posterior summaries, posterior mean
 matrices, and access to raw MCMC draws. The object can be passed to
-\code{print()}, \code{summary()}, \code{coef()}, and
-\code{as_draws()} methods for inspection and analysis.
+\code{print()}, \code{summary()}, and \code{coef()}.
 
 Main components include:
 \itemize{
@@ -197,10 +196,8 @@ Main components include:
     (e.g., number of variables, warmup, sampler settings, package version).
 }
 
-The \code{summary()} method prints formatted posterior summaries,
-\code{coef()} extracts posterior mean matrices,
-and \code{as_draws()} converts the raw samples into a
-\code{posterior::draws_df} object for use with the \pkg{posterior} package.
+The \code{summary()} method prints formatted posterior summaries, and
+\code{coef()} extracts posterior mean matrices.
 
 NUTS diagnostics (tree depth, divergences, energy, E-BFMI) are included
 in \code{fit$nuts_diag} if \code{update_method = "nuts"}.

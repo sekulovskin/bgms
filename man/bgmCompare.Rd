@@ -151,9 +151,8 @@ posterior mean matrices, and raw MCMC samples:
   \item \code{arguments}: list of function call arguments and metadata.
 }
 
-The \code{summary()} method prints formatted summaries,
-\code{coef()} extracts posterior means, and \code{as_draws()} converts
-raw samples to a \pkg{posterior} \code{draws_df}.
+The \code{summary()} method prints formatted summaries, and
+\code{coef()} extracts posterior means.
 
 NUTS diagnostics (tree depth, divergences, energy, E-BFMI) are included
 in \code{fit$nuts_diag} if \code{update_method = "nuts"}.
