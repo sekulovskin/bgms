@@ -214,6 +214,9 @@ summarize_fit = function(fit, edge_selection = FALSE) {
 
     all_selected = ind_summary$mean == 1
 
+    # Replace NA with FALSE, so only definite TRUEs are considered
+    all_selected[is.na(all_selected)] <- FALSE
+
     # Use summarize_pair only where not always selected
     full_summary = summarize_pair(fit,
                                    indicator_component = "indicator_samples",

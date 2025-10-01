@@ -122,8 +122,8 @@ struct WarmupSchedule {
     , learn_proposal_sd(learn_sd)
     , enable_selection(enable_sel)
   {
-    /* ---------- Stage-1 (15 % of core warm-up) ---------- */
-    stage1_end      = int(0.15 * warmup_core);
+    /* ---------- Stage-1 (7.5 % of core warm-up) ---------- */
+    stage1_end      = int(0.075 * warmup_core);
 
     /* ---------- Stage-3 a (last 10 % of core warm-up) ---- */
     stage3a_start   = warmup_core - int(0.10 * warmup_core);
