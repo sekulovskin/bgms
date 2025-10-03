@@ -10,6 +10,7 @@
 
 * Fixed a problem with warmup scheduling for adaptive-metropolis in bgmCompare()
 * Fixed stability problems with parallel sampling for bgm()
+* Fixed spurious output errors printing to console after user interrupt. 
 
 # bgms 0.1.6.0
 
