@@ -1652,7 +1652,7 @@ SamplerOutput run_gibbs_sampler_bgmCompare(
   }
 
   // --- Warmup scheduling + adaptation controller
-  WarmupSchedule warmup_schedule(warmup, difference_selection, true);
+  WarmupSchedule warmup_schedule(warmup, difference_selection, (update_method != adaptive_metropolis));
 
   HMCAdaptationController hmc_adapt(
       (num_main + num_pair) * num_groups, initial_step_size, target_accept,
