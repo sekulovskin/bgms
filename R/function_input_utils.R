@@ -31,6 +31,8 @@ check_model = function(x,
                        inclusion_probability = 0.5,
                        beta_bernoulli_alpha = 1,
                        beta_bernoulli_beta = 1,
+                       beta_bernoulli_alpha_between = 1,
+                       beta_bernoulli_beta_between = 1,
                        dirichlet_alpha = dirichlet_alpha,
                        lambda = lambda) {
 
@@ -204,18 +206,42 @@ check_model = function(x,
          is.null(beta_bernoulli_alpha) || is.null(beta_bernoulli_beta))
         stop("Values for both scale parameters of the beta distribution need to be specified.")
     }
+
     if(edge_prior == "Stochastic-Block") {
       theta = matrix(0.5, nrow = ncol(x), ncol = ncol(x))
-      if(beta_bernoulli_alpha <= 0 || beta_bernoulli_beta <= 0 || dirichlet_alpha <= 0 || lambda <= 0)
-        stop("The scale parameters of the beta and Dirichlet distribution need to be positive.")
-      if(!is.finite(beta_bernoulli_alpha) || !is.finite(beta_bernoulli_beta) || !is.finite(dirichlet_alpha) || !is.finite(lambda))
-        stop("The scale parameters of the beta distribution, the concentration parameter of the Dirichlet distribution, and the rate parameter of the Poisson distribution need to be finite.")
-      if(is.na(beta_bernoulli_alpha) || is.na(beta_bernoulli_beta) ||
-         is.null(beta_bernoulli_alpha) || is.null(beta_bernoulli_beta) ||
-         is.null(dirichlet_alpha) || is.null(dirichlet_alpha) || is.null(lambda) || is.null(lambda))
-        stop("Values for both scale parameters of the beta distribution, the concentration parameter of the Dirichlet distribution, and the rate parameter of the Poisson distribution need to be specified.")
+
+      # Check that all beta parameters are provided
+      if (is.null(beta_bernoulli_alpha) || is.null(beta_bernoulli_beta) ||
+          is.null(beta_bernoulli_alpha_between) || is.null(beta_bernoulli_beta_between)) {
+        stop("The Stochastic-Block prior requires all four beta parameters: ",
+             "beta_bernoulli_alpha, beta_bernoulli_beta, ",
+             "beta_bernoulli_alpha_between, and beta_bernoulli_beta_between.")
+      }
+
+      # Check that all beta parameters are positive
+      if (beta_bernoulli_alpha <= 0 || beta_bernoulli_beta <= 0 ||
+          beta_bernoulli_alpha_between <= 0 || beta_bernoulli_beta_between <= 0 ||
+          dirichlet_alpha <= 0 || lambda <= 0) {
+        stop("The parameters of the beta and Dirichlet distributions need to be positive.")
+      }
+
+      # Check that all beta parameters are finite
+      if (!is.finite(beta_bernoulli_alpha) || !is.finite(beta_bernoulli_beta) ||
+          !is.finite(beta_bernoulli_alpha_between) || !is.finite(beta_bernoulli_beta_between) ||
+          !is.finite(dirichlet_alpha) || !is.finite(lambda)) {
+        stop("The shape parameters of the beta distribution, the concentration parameter of the Dirichlet distribution, ",
+             "and the rate parameter of the Poisson distribution need to be finite.")
+      }
+
+      # Check for NAs
+      if (is.na(beta_bernoulli_alpha) || is.na(beta_bernoulli_beta) ||
+          is.na(beta_bernoulli_alpha_between) || is.na(beta_bernoulli_beta_between) ||
+          is.na(dirichlet_alpha) || is.na(lambda)) {
+        stop("Values for all shape parameters of the beta distribution, the concentration parameter of the Dirichlet distribution, ",
+             "and the rate parameter of the Poisson distribution cannot be NA.")
+      }
     }
-  } else {
+ }else {
     theta = matrix(0.5, nrow = 1, ncol = 1)
     edge_prior = "Not Applicable"
   }
