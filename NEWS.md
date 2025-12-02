@@ -6,7 +6,7 @@
 
 ## Other changes
 
-* reparameterized the Blume-capel model to use (score-baseline) instead of score for mrfSampler() and bgm().
+* reparameterized the Blume-capel model to use (score-baseline) instead of score.
 
 ## Bug fixes
 
