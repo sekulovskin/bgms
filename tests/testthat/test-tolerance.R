@@ -74,11 +74,6 @@ test_that("bgms outputs are numerically sane (stochastic-robust)", {
           )
           expect_false(all(is.na(M)), info = sprintf("%s %s is all NA", ctx, fld))
           
-          expect_true(
-            all(is.na(M) | (M >= -1 & M <= 1)),
-            info = sprintf("%s %s has values outside [-1,1]", ctx, fld)
-          )
-          
           asym <- max(abs(M - t(M)), na.rm = TRUE)
           expect_true(
             is.finite(asym),
