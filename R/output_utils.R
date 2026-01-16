@@ -94,12 +94,11 @@ prepare_output_bgm = function(
   }
 
   # ======= Posterior mean matrices =======
-  if(any(is_ordinal_variable)) {
-    max_num_categories = max(2, num_categories[is_ordinal_variable])
-    pmm = matrix(NA, nrow = num_variables, ncol = max_num_categories)
-  } else {
-    pmm = matrix(NA, nrow = num_variables, ncol = 2)
-  }
+  num_params <- ifelse(is_ordinal_variable, num_categories, 2)
+  max_num_categories <- max(num_params)
+
+  pmm <- matrix(NA, nrow = num_variables, ncol = max_num_categories)
+
   start = stop = 0
   for(v in 1:num_variables) {
     if(is_ordinal_variable[v]) {
@@ -350,12 +349,11 @@ prepare_output_bgmCompare = function(
 
   # --- posterior means (legacy-style matrices)
   # baselines
-  if(any(is_ordinal_variable)) {
-    max_num_categories = max(2, num_categories[is_ordinal_variable])
-    pmm = matrix(NA, nrow = num_variables, ncol = max_num_categories)
-  } else {
-    pmm = matrix(NA, nrow = num_variables, ncol = 2)
-  }
+  num_params <- ifelse(is_ordinal_variable, num_categories, 2)
+  max_num_categories <- max(num_params, na.rm = TRUE)
+
+  pmm <- matrix(NA, nrow = num_variables, ncol = max_num_categories)
+
   start = stop = 0
   for(v in 1:num_variables) {
     if(is_ordinal_variable[v]) {
