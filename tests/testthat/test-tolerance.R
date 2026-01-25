@@ -15,7 +15,7 @@ test_that("bgms outputs are numerically sane (stochastic-robust)", {
   #   - Coarse aggregates within wide bounds
   # ---------------------------------------------------------------------------
   
-  withr::local_seed(123)
+  set.seed(123)
   
   data("Wenchuan", package = "bgms")
   dat <- na.omit(Wenchuan)[1:40, 1:5]
