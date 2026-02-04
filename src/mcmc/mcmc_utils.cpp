@@ -58,10 +58,12 @@ double heuristic_initial_step_size(
   arma::vec inv_mass_diag = arma::ones<arma::vec>(theta.n_elem);
 
   double eps = init_step;
+  double logp0 = log_post(theta);  // Only compute once - position doesn't change
+  
+  // Sample initial momentum and evaluate
   arma::vec r = arma_rnorm_vec(rng, theta.n_elem);
-
-  double logp0 = log_post(theta);
   double kin0 = kinetic_energy(r, inv_mass_diag);
+  double H0 = logp0 - kin0;
 
   // One leapfrog step
   arma::vec theta_new, r_new;
@@ -69,8 +71,6 @@ double heuristic_initial_step_size(
 
   double logp1 = log_post(theta_new);
   double kin1 = kinetic_energy(r_new, inv_mass_diag);
-
-  double H0 = logp0 - kin0;
   double H1 = logp1 - kin1;
 
   int direction = 2 * (H1 - H0 > MY_LOG(0.5)) - 1;  // +1 or -1
@@ -79,7 +79,12 @@ double heuristic_initial_step_size(
   while (direction * (H1 - H0) > -direction * MY_LOG(2.0) && attempts < max_attempts) {
     eps = (direction == 1) ? 2.0 * eps : 0.5 * eps;
 
-    // One leapfrog step
+    // Resample momentum (STAN resamples on each iteration)
+    r = arma_rnorm_vec(rng, theta.n_elem);
+    kin0 = kinetic_energy(r, inv_mass_diag);
+    H0 = logp0 - kin0;
+
+    // One leapfrog step from original position with new momentum
     std::tie(theta_new, r_new) = leapfrog(theta, r, eps, grad, 1, inv_mass_diag);
 
     // Evaluate Hamiltonian
@@ -125,12 +130,12 @@ double heuristic_initial_step_size(
     int max_attempts
 ) {
   double eps = init_step;
+  double logp0 = log_post(theta);  // Only compute once - position doesn't change
   
-  // Sample momentum from N(0, M) where M = diag(1/inv_mass_diag)
+  // Sample initial momentum from N(0, M) where M = diag(1/inv_mass_diag)
   arma::vec r = arma::sqrt(1.0 / inv_mass_diag) % arma_rnorm_vec(rng, theta.n_elem);
-
-  double logp0 = log_post(theta);
   double kin0 = kinetic_energy(r, inv_mass_diag);
+  double H0 = logp0 - kin0;
 
   // One leapfrog step
   arma::vec theta_new, r_new;
@@ -138,8 +143,6 @@ double heuristic_initial_step_size(
 
   double logp1 = log_post(theta_new);
   double kin1 = kinetic_energy(r_new, inv_mass_diag);
-
-  double H0 = logp0 - kin0;
   double H1 = logp1 - kin1;
 
   int direction = 2 * (H1 - H0 > MY_LOG(0.5)) - 1;  // +1 or -1
@@ -148,7 +151,12 @@ double heuristic_initial_step_size(
   while (direction * (H1 - H0) > -direction * MY_LOG(2.0) && attempts < max_attempts) {
     eps = (direction == 1) ? 2.0 * eps : 0.5 * eps;
 
-    // One leapfrog step
+    // Resample momentum (STAN resamples on each iteration)
+    r = arma::sqrt(1.0 / inv_mass_diag) % arma_rnorm_vec(rng, theta.n_elem);
+    kin0 = kinetic_energy(r, inv_mass_diag);
+    H0 = logp0 - kin0;
+
+    // One leapfrog step from original position with new momentum
     std::tie(theta_new, r_new) = leapfrog(theta, r, eps, grad, 1, inv_mass_diag);
 
     // Evaluate Hamiltonian

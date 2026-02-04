@@ -92,7 +92,7 @@ BuildTreeResult build_tree(
     double alpha = std::min(1.0, MY_EXP(logp - kin - logp0 + kin0));
 
     return {
-      theta_new, r_new, theta_new, r_new, theta_new, n_new, s_new, alpha, 1, divergent
+      theta_new, r_new, theta_new, r_new, theta_new, r_new, n_new, s_new, alpha, 1, divergent
     };
   } else {
     BuildTreeResult result = build_tree(
@@ -106,6 +106,7 @@ BuildTreeResult build_tree(
     arma::vec theta_plus = result.theta_plus;
     arma::vec r_plus = result.r_plus;
     arma::vec theta_prime = result.theta_prime;
+    arma::vec r_prime = result.r_prime;
     int n_prime = result.n_prime;
     int s_prime = result.s_prime;
     double alpha_prime = result.alpha;
@@ -129,6 +130,7 @@ BuildTreeResult build_tree(
       }
 
       arma::vec theta_double_prime = result.theta_prime;
+      arma::vec r_double_prime = result.r_prime;
       int n_double_prime = result.n_prime;
       int s_double_prime = result.s_prime;
       double alpha_double_prime = result.alpha;
@@ -140,6 +142,7 @@ BuildTreeResult build_tree(
 
       if (runif(rng) < prob) {
         theta_prime = theta_double_prime;
+        r_prime = r_double_prime;
       }
       alpha_prime += alpha_double_prime;
       n_alpha_prime += n_alpha_double_prime;
@@ -149,7 +152,7 @@ BuildTreeResult build_tree(
     }
 
     return {
-      theta_min, r_min, theta_plus, r_plus, theta_prime, n_prime, s_prime, alpha_prime, n_alpha_prime, divergent
+      theta_min, r_min, theta_plus, r_plus, theta_prime, r_prime, n_prime, s_prime, alpha_prime, n_alpha_prime, divergent
     };
   }
 }
@@ -201,6 +204,7 @@ SamplerResult nuts_sampler(
   arma::vec theta_min = init_theta, r_min = r0;
   arma::vec theta_plus = init_theta, r_plus = r0;
   arma::vec theta = init_theta;
+  arma::vec r = r0;  // Track accepted momentum for energy diagnostics
   int j = 0;
   int n = 1, s = 1;
 
@@ -235,6 +239,7 @@ SamplerResult nuts_sampler(
       double prob = static_cast<double>(result.n_prime) / static_cast<double>(n);
       if (runif(rng) < prob) {
         theta = result.theta_prime;
+        r = result.r_prime;
       }
     }
     bool no_uturn = !is_uturn(theta_min, theta_plus, r_min, r_plus, inv_mass_diag);
@@ -245,10 +250,9 @@ SamplerResult nuts_sampler(
 
   double accept_prob = alpha / static_cast<double>(n_alpha);
 
-  //Logging NUTS diagnostics
+  // Compute energy at accepted state using actual trajectory momentum
   auto logp_final = memo.cached_log_post(theta);
-  arma::vec r_final = arma::sqrt(1.0 / inv_mass_diag) % arma_rnorm_vec(rng, theta.n_elem);
-  double kin_final = kinetic_energy(r_final, inv_mass_diag);
+  double kin_final = kinetic_energy(r, inv_mass_diag);
   double energy = -logp_final + kin_final;
 
   auto diag = std::make_shared<NUTSDiagnostics>();

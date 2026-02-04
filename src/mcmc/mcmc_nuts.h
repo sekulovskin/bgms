@@ -22,6 +22,7 @@ struct SafeRNG;
  *  - theta_plus: Rightmost position in the trajectory.
  *  - r_plus: Corresponding momentum at theta_plus.
  *  - theta_prime: The current proposed sample (to possibly accept).
+ *  - r_prime: Momentum corresponding to theta_prime (for energy diagnostics).
  *  - n_prime: Number of valid proposals from this subtree.
  *  - s_prime: Stop flag (1 = continue, 0 = stop expansion).
  *  - alpha: Sum of acceptance probabilities in the subtree.
@@ -34,6 +35,7 @@ struct BuildTreeResult {
   arma::vec theta_plus;
   arma::vec r_plus;
   arma::vec theta_prime;
+  arma::vec r_prime;
   int n_prime;
   int s_prime;
   double alpha;
