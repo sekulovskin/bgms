@@ -197,7 +197,7 @@ bgmCompare = function(
   target_accept,
   hmc_num_leapfrogs = 100,
   nuts_max_depth = 10,
-  learn_mass_matrix = FALSE,
+  learn_mass_matrix = TRUE,
   chains = 4,
   cores = parallel::detectCores(),
   display_progress = c("per-chain", "total", "none"),

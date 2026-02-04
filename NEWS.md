@@ -1,3 +1,17 @@
+# bgms 0.1.6.3
+
+## New features
+
+* ...
+
+## Other changes
+
+* ...
+
+## Bug fixes
+
+* fixed mass matrix adaptation for NUTS/HMC: inverse mass matrix now correctly equals variance (following STAN convention), substantially improving sampling efficiency.
+
 # bgms 0.1.6.2
 
 ## New features

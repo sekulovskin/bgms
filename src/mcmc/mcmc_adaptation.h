@@ -85,10 +85,6 @@ public:
     return var;
   }
 
-  arma::vec inverse_mass() const {
-    return 1.0 / variance();
-  }
-
   void reset() {
     count = 0;
     mean.zeros();
@@ -221,7 +217,9 @@ public:
       mass_accumulator.update(theta);
       int w = schedule.current_window(iteration);
       if (iteration + 1 == schedule.window_ends[w]) {
-        inv_mass_ = 1.0 / mass_accumulator.variance();
+        // STAN convention: inv_mass = variance (not 1/variance!)
+        // Higher variance → higher inverse mass → parameter moves more freely
+        inv_mass_ = mass_accumulator.variance();
         mass_accumulator.reset();
         // Signal that mass matrix was updated - caller should run heuristic
         // and call reinit_stepsize() with the new step size
