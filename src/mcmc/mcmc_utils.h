@@ -222,3 +222,18 @@ double heuristic_initial_step_size(
     double init_step = 1.0,
     int max_attempts = 20
 );
+
+/**
+ * Overload that accepts a custom inverse mass matrix.
+ * Used when re-initializing step size after mass matrix adaptation.
+ */
+double heuristic_initial_step_size(
+    const arma::vec& theta,
+    const std::function<double(const arma::vec&)>& log_post,
+    const std::function<arma::vec(const arma::vec&)>& grad,
+    const arma::vec& inv_mass_diag,
+    SafeRNG& rng,
+    double target_acceptance = 0.625,
+    double init_step = 1.0,
+    int max_attempts = 20
+);

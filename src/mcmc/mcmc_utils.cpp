@@ -92,3 +92,72 @@ double heuristic_initial_step_size(
 
   return eps;
 }
+
+
+
+/**
+ * Function: heuristic_initial_step_size (with mass matrix)
+ *
+ * Overload that accepts a custom inverse mass matrix.
+ * Used when re-initializing step size after mass matrix adaptation.
+ *
+ * Inputs:
+ *  - theta: Current parameter vector.
+ *  - log_post: Function to compute log posterior.
+ *  - grad: Function to compute gradient of log posterior.
+ *  - inv_mass_diag: Diagonal inverse mass matrix.
+ *  - rng: Random number generator.
+ *  - target_acceptance: Target acceptance rate (default 0.625).
+ *  - init_step: Initial step size to try (default 1.0).
+ *  - max_attempts: Max number of doubling/halving attempts (default 20).
+ *
+ * Returns:
+ *  - A step size epsilon appropriate for the given mass matrix.
+ */
+double heuristic_initial_step_size(
+    const arma::vec& theta,
+    const std::function<double(const arma::vec&)>& log_post,
+    const std::function<arma::vec(const arma::vec&)>& grad,
+    const arma::vec& inv_mass_diag,
+    SafeRNG& rng,
+    double target_acceptance,
+    double init_step,
+    int max_attempts
+) {
+  double eps = init_step;
+  
+  // Sample momentum from N(0, M) where M = diag(1/inv_mass_diag)
+  arma::vec r = arma::sqrt(1.0 / inv_mass_diag) % arma_rnorm_vec(rng, theta.n_elem);
+
+  double logp0 = log_post(theta);
+  double kin0 = kinetic_energy(r, inv_mass_diag);
+
+  // One leapfrog step
+  arma::vec theta_new, r_new;
+  std::tie(theta_new, r_new) = leapfrog(theta, r, eps, grad, 1, inv_mass_diag);
+
+  double logp1 = log_post(theta_new);
+  double kin1 = kinetic_energy(r_new, inv_mass_diag);
+
+  double H0 = logp0 - kin0;
+  double H1 = logp1 - kin1;
+
+  int direction = 2 * (H1 - H0 > MY_LOG(0.5)) - 1;  // +1 or -1
+
+  int attempts = 0;
+  while (direction * (H1 - H0) > -direction * MY_LOG(2.0) && attempts < max_attempts) {
+    eps = (direction == 1) ? 2.0 * eps : 0.5 * eps;
+
+    // One leapfrog step
+    std::tie(theta_new, r_new) = leapfrog(theta, r, eps, grad, 1, inv_mass_diag);
+
+    // Evaluate Hamiltonian
+    logp1 = log_post(theta_new);
+    kin1 = kinetic_energy(r_new, inv_mass_diag);
+    H1 = logp1 - kin1;
+
+    attempts++;
+  }
+
+  return eps;
+}

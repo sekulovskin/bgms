@@ -583,6 +583,23 @@ void update_hmc_bgm(
   residual_matrix = observations * pairwise_effects;
 
   adapt.update(current_state, result.accept_prob, iteration);
+
+  // If mass matrix was just updated, re-run the heuristic to find a good
+  // step size for the new mass matrix (following STAN's approach).
+  // STAN uses the current step size as the starting point for the heuristic.
+  if (adapt.mass_matrix_just_updated()) {
+    arma::vec new_inv_mass = inv_mass_active(
+      adapt.inv_mass_diag(), inclusion_indicator, num_categories,
+      is_ordinal_variable, selection
+    );
+    double current_eps = adapt.current_step_size();
+    double new_eps = heuristic_initial_step_size(
+      current_state, log_post, grad, new_inv_mass, rng,
+      0.625,        // target_acceptance
+      current_eps   // init_step: use current step size as starting point
+    );
+    adapt.reinit_stepsize(new_eps);
+  }
 }
 
 
@@ -711,6 +728,23 @@ SamplerResult update_nuts_bgm(
   residual_matrix = observations * pairwise_effects;
 
   adapt.update(current_state, result.accept_prob, iteration);
+
+  // If mass matrix was just updated, re-run the heuristic to find a good
+  // step size for the new mass matrix (following STAN's approach).
+  // STAN uses the current step size as the starting point for the heuristic.
+  if (adapt.mass_matrix_just_updated()) {
+    arma::vec new_inv_mass = inv_mass_active(
+      adapt.inv_mass_diag(), inclusion_indicator, num_categories,
+      is_ordinal_variable, selection
+    );
+    double current_eps = adapt.current_step_size();
+    double new_eps = heuristic_initial_step_size(
+      current_state, log_post, grad, new_inv_mass, rng,
+      0.625,        // target_acceptance
+      current_eps   // init_step: use current step size as starting point
+    );
+    adapt.reinit_stepsize(new_eps);
+  }
 
   return result;
 }

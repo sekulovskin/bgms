@@ -195,7 +195,8 @@ public:
       inv_mass_(arma::ones<arma::vec>(dim)),
       step_size_(initial_step_size),
       target_accept_(target_accept),
-      finalized_mass_(false) {}
+      finalized_mass_(false),
+      mass_matrix_updated_(false) {}
 
   void update(const arma::vec& theta,
               double accept_prob,
@@ -222,7 +223,9 @@ public:
       if (iteration + 1 == schedule.window_ends[w]) {
         inv_mass_ = 1.0 / mass_accumulator.variance();
         mass_accumulator.reset();
-        step_adapter.restart(step_size_);
+        // Signal that mass matrix was updated - caller should run heuristic
+        // and call reinit_stepsize() with the new step size
+        mass_matrix_updated_ = true;
       }
     }
 
@@ -239,6 +242,30 @@ public:
   const arma::vec& inv_mass_diag() const { return inv_mass_; }
   bool has_fixed_mass_matrix() const { return finalized_mass_; }
 
+  /**
+   * Check if the mass matrix was just updated and needs step size re-initialization.
+   * After calling this, call reinit_stepsize() with the result of the heuristic.
+   */
+  bool mass_matrix_just_updated() const { return mass_matrix_updated_; }
+
+  /**
+   * Reinitialize step size adaptation after mass matrix update.
+   * This should be called after running heuristic_initial_step_size() with
+   * the new mass matrix to find an appropriate starting step size.
+   *
+   * Following STAN's approach:
+   * - Set the new step size
+   * - Set mu = log(10 * new_step_size) as the adaptation target
+   * - Restart the dual averaging counters
+   */
+  void reinit_stepsize(double new_step_size) {
+    step_size_ = new_step_size;
+    step_adapter.restart(new_step_size);
+    // Set mu to log(10 * epsilon) as per STAN's approach
+    step_adapter.mu = MY_LOG(10.0 * new_step_size);
+    mass_matrix_updated_ = false;
+  }
+
 private:
   WarmupSchedule& schedule;
   bool learn_mass_matrix_;
@@ -248,6 +275,7 @@ private:
   double step_size_;
   double target_accept_;
   bool finalized_mass_;
+  bool mass_matrix_updated_;
 };
 
 
