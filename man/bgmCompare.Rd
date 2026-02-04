@@ -26,7 +26,7 @@ bgmCompare(
   target_accept,
   hmc_num_leapfrogs = 100,
   nuts_max_depth = 10,
-  learn_mass_matrix = FALSE,
+  learn_mass_matrix = TRUE,
   chains = 4,
   cores = parallel::detectCores(),
   display_progress = c("per-chain", "total", "none"),
@@ -111,8 +111,8 @@ Defaults: 0.44 (Metropolis), 0.65 (HMC), 0.80 (NUTS).}
 
 \item{nuts_max_depth}{Integer. Maximum tree depth for NUTS. Default: \code{10}.}
 
-\item{learn_mass_matrix}{Logical. If \code{TRUE}, adapt the mass matrix
-during warmup (HMC/NUTS only). Default: \code{FALSE}.}
+\item{learn_mass_matrix}{Logical. If \code{TRUE}, adapts a diagonal mass
+matrix during warmup (HMC/NUTS only). Default: \code{TRUE}.}
 
 \item{chains}{Integer. Number of parallel chains. Default: \code{4}.}
 
