@@ -256,7 +256,7 @@
 #'
 #' @param learn_mass_matrix Logical. If \code{TRUE}, adapt a diagonal mass
 #'   matrix during warmup (HMC/NUTS only). If \code{FALSE}, use the identity
-#'   matrix. Default: \code{FALSE}.
+#'   matrix. Default: \code{TRUE}.
 #'
 #' @param chains Integer. Number of parallel chains to run. Default: \code{4}.
 #'

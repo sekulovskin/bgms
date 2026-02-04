@@ -115,8 +115,8 @@
 #'   Defaults: 0.44 (Metropolis), 0.65 (HMC), 0.80 (NUTS).
 #' @param hmc_num_leapfrogs Integer. Leapfrog steps for HMC. Default: \code{100}.
 #' @param nuts_max_depth Integer. Maximum tree depth for NUTS. Default: \code{10}.
-#' @param learn_mass_matrix Logical. If \code{TRUE}, adapt the mass matrix
-#'   during warmup (HMC/NUTS only). Default: \code{FALSE}.
+#' @param learn_mass_matrix Logical. If \code{TRUE}, adapts a diagonal mass
+#' matrix during warmup (HMC/NUTS only). Default: \code{TRUE}.
 #' @param chains Integer. Number of parallel chains. Default: \code{4}.
 #' @param cores Integer. Number of CPU cores. Default:
 #'   \code{parallel::detectCores()}.
