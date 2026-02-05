@@ -1,11 +1,27 @@
 # bgms 0.1.6.3
 
+## New features
+
+* added `simulate_mrf()` function for standalone MRF data simulation with user-specified parameters
+* added `simulate.bgms()` S3 method to generate new observations from a fitted model using estimated parameters. Supports parallel processing via `cores` argument when using `method = "posterior-sample"` with optional progress bar
+* added `predict.bgms()` S3 method to compute conditional probability distributions P(X_j | X_{-j}) for one or more variables given observed data
+* both methods support using posterior mean parameters (`method = "posterior-mean"`) or averaging over posterior draws (`method = "posterior-sample"`) for full uncertainty propagation
+* `baseline_category` is now stored in the fitted object's arguments for use with Blume-Capel variables in simulation and prediction
+
+## Other changes
+
+* refactored prediction code to use numerically stable vectorized probability computation from `variable_helpers.h`, improving both performance and stability with extreme parameter values
+
 ## Bug fixes
 
 * fixed mass matrix adaptation for NUTS/HMC: inverse mass matrix now correctly uses variance (following STAN convention) instead of precision, substantially improving sampling efficiency.
 * fixed step size heuristic to re-run after each mass matrix update during warmup, ensuring step size is appropriate for the current mass matrix.
 * fixed step size heuristic to resample momentum on each iteration (matching STAN's init_stepsize behavior), improving step size selection.
 * fixed energy diagnostic computation in NUTS to use actual accepted trajectory momentum instead of a random sample, making E-BFMI diagnostic meaningful.
+
+## Deprecated
+
+* `mrfSampler()` is deprecated in favor of `simulate_mrf()` for consistency with S3 method naming conventions
 
 # bgms 0.1.6.2
 

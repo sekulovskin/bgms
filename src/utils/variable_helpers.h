@@ -18,10 +18,11 @@
 // If non-finite values arise (overflow, underflow, NaN), a safe fallback
 // recomputes the naive version using direct exponentials.
 // ----------------------------------------------------------------------------
-inline arma::vec compute_denom_ordinal(const arma::vec& residual,
-                                       const arma::vec& main_eff,
-                                       const arma::vec& bound)
-{
+inline arma::vec compute_denom_ordinal(
+    const arma::vec& residual,
+    const arma::vec& main_eff,
+    const arma::vec& bound
+) {
   constexpr double EXP_BOUND = 709.0;
   const int K = static_cast<int>(main_eff.n_elem);
 
@@ -160,8 +161,6 @@ inline arma::vec compute_denom_blume_capel(
       d += ARMA_MY_EXP(ex);
     }
 
-
-
     denom.rows(i0, i1) = d;
   };
 
@@ -205,11 +204,12 @@ inline arma::vec compute_denom_blume_capel(
  * Returns:
  *   probs: num_persons × (num_cats + 1) matrix of probabilities (row-normalized)
  */
-inline arma::mat compute_probs_ordinal(const arma::vec& main_param,
-                                       const arma::vec& residual_score,
-                                       const arma::vec& bound,
-                                       int num_cats)
-{
+inline arma::mat compute_probs_ordinal(
+    const arma::vec& main_param,
+    const arma::vec& residual_score,
+    const arma::vec& bound,
+    int num_cats
+) {
   constexpr double EXP_BOUND = 709.0;
   const arma::uword N = bound.n_elem;
 
@@ -297,13 +297,14 @@ inline arma::mat compute_probs_ordinal(const arma::vec& main_param,
 //
 // Under these conditions, denom is finite and > 0, so no one-hot fallback.
 // -----------------------------------------------------------------------------
-inline arma::mat compute_probs_blume_capel(const arma::vec& residual,
-                                           const double lin_eff,
-                                           const double quad_eff,
-                                           const int ref,
-                                           const int num_cats,
-                                           arma::vec& b)   // updated in place
-{
+inline arma::mat compute_probs_blume_capel(
+    const arma::vec& residual,
+    const double lin_eff,
+    const double quad_eff,
+    const int ref,
+    const int num_cats,
+    arma::vec& b // updated in place
+) {
   constexpr double EXP_BOUND = 709.0;
 
   const arma::uword N = residual.n_elem;

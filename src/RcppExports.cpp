@@ -101,9 +101,26 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// compute_conditional_probs
+Rcpp::List compute_conditional_probs(arma::imat observations, arma::ivec predict_vars, arma::mat interactions, arma::mat thresholds, arma::ivec no_categories, Rcpp::StringVector variable_type, arma::ivec baseline_category);
+RcppExport SEXP _bgms_compute_conditional_probs(SEXP observationsSEXP, SEXP predict_varsSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP no_categoriesSEXP, SEXP variable_typeSEXP, SEXP baseline_categorySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::imat >::type observations(observationsSEXP);
+    Rcpp::traits::input_parameter< arma::ivec >::type predict_vars(predict_varsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type interactions(interactionsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type thresholds(thresholdsSEXP);
+    Rcpp::traits::input_parameter< arma::ivec >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< Rcpp::StringVector >::type variable_type(variable_typeSEXP);
+    Rcpp::traits::input_parameter< arma::ivec >::type baseline_category(baseline_categorySEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_conditional_probs(observations, predict_vars, interactions, thresholds, no_categories, variable_type, baseline_category));
+    return rcpp_result_gen;
+END_RCPP
+}
 // sample_omrf_gibbs
-IntegerMatrix sample_omrf_gibbs(int no_states, int no_variables, IntegerVector no_categories, NumericMatrix interactions, NumericMatrix thresholds, int iter);
-RcppExport SEXP _bgms_sample_omrf_gibbs(SEXP no_statesSEXP, SEXP no_variablesSEXP, SEXP no_categoriesSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP iterSEXP) {
+IntegerMatrix sample_omrf_gibbs(int no_states, int no_variables, IntegerVector no_categories, NumericMatrix interactions, NumericMatrix thresholds, int iter, int seed);
+RcppExport SEXP _bgms_sample_omrf_gibbs(SEXP no_statesSEXP, SEXP no_variablesSEXP, SEXP no_categoriesSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP iterSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -113,13 +130,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< NumericMatrix >::type interactions(interactionsSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type thresholds(thresholdsSEXP);
     Rcpp::traits::input_parameter< int >::type iter(iterSEXP);
-    rcpp_result_gen = Rcpp::wrap(sample_omrf_gibbs(no_states, no_variables, no_categories, interactions, thresholds, iter));
+    Rcpp::traits::input_parameter< int >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(sample_omrf_gibbs(no_states, no_variables, no_categories, interactions, thresholds, iter, seed));
     return rcpp_result_gen;
 END_RCPP
 }
 // sample_bcomrf_gibbs
-IntegerMatrix sample_bcomrf_gibbs(int no_states, int no_variables, IntegerVector no_categories, NumericMatrix interactions, NumericMatrix thresholds, StringVector variable_type, IntegerVector baseline_category, int iter);
-RcppExport SEXP _bgms_sample_bcomrf_gibbs(SEXP no_statesSEXP, SEXP no_variablesSEXP, SEXP no_categoriesSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP variable_typeSEXP, SEXP baseline_categorySEXP, SEXP iterSEXP) {
+IntegerMatrix sample_bcomrf_gibbs(int no_states, int no_variables, IntegerVector no_categories, NumericMatrix interactions, NumericMatrix thresholds, StringVector variable_type_r, IntegerVector baseline_category, int iter, int seed);
+RcppExport SEXP _bgms_sample_bcomrf_gibbs(SEXP no_statesSEXP, SEXP no_variablesSEXP, SEXP no_categoriesSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP variable_type_rSEXP, SEXP baseline_categorySEXP, SEXP iterSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -128,10 +146,33 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< IntegerVector >::type no_categories(no_categoriesSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type interactions(interactionsSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type thresholds(thresholdsSEXP);
-    Rcpp::traits::input_parameter< StringVector >::type variable_type(variable_typeSEXP);
+    Rcpp::traits::input_parameter< StringVector >::type variable_type_r(variable_type_rSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type baseline_category(baseline_categorySEXP);
     Rcpp::traits::input_parameter< int >::type iter(iterSEXP);
-    rcpp_result_gen = Rcpp::wrap(sample_bcomrf_gibbs(no_states, no_variables, no_categories, interactions, thresholds, variable_type, baseline_category, iter));
+    Rcpp::traits::input_parameter< int >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(sample_bcomrf_gibbs(no_states, no_variables, no_categories, interactions, thresholds, variable_type_r, baseline_category, iter, seed));
+    return rcpp_result_gen;
+END_RCPP
+}
+// run_simulation_parallel
+Rcpp::List run_simulation_parallel(const arma::mat& pairwise_samples, const arma::mat& main_samples, const arma::ivec& draw_indices, int no_states, int no_variables, const arma::ivec& no_categories, const Rcpp::StringVector& variable_type_r, const arma::ivec& baseline_category, int iter, int nThreads, int seed, int progress_type);
+RcppExport SEXP _bgms_run_simulation_parallel(SEXP pairwise_samplesSEXP, SEXP main_samplesSEXP, SEXP draw_indicesSEXP, SEXP no_statesSEXP, SEXP no_variablesSEXP, SEXP no_categoriesSEXP, SEXP variable_type_rSEXP, SEXP baseline_categorySEXP, SEXP iterSEXP, SEXP nThreadsSEXP, SEXP seedSEXP, SEXP progress_typeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type pairwise_samples(pairwise_samplesSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type main_samples(main_samplesSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type draw_indices(draw_indicesSEXP);
+    Rcpp::traits::input_parameter< int >::type no_states(no_statesSEXP);
+    Rcpp::traits::input_parameter< int >::type no_variables(no_variablesSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::StringVector& >::type variable_type_r(variable_type_rSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type baseline_category(baseline_categorySEXP);
+    Rcpp::traits::input_parameter< int >::type iter(iterSEXP);
+    Rcpp::traits::input_parameter< int >::type nThreads(nThreadsSEXP);
+    Rcpp::traits::input_parameter< int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type progress_type(progress_typeSEXP);
+    rcpp_result_gen = Rcpp::wrap(run_simulation_parallel(pairwise_samples, main_samples, draw_indices, no_states, no_variables, no_categories, variable_type_r, baseline_category, iter, nThreads, seed, progress_type));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -153,8 +194,10 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_bgms_run_bgmCompare_parallel", (DL_FUNC) &_bgms_run_bgmCompare_parallel, 36},
     {"_bgms_run_bgm_parallel", (DL_FUNC) &_bgms_run_bgm_parallel, 34},
-    {"_bgms_sample_omrf_gibbs", (DL_FUNC) &_bgms_sample_omrf_gibbs, 6},
-    {"_bgms_sample_bcomrf_gibbs", (DL_FUNC) &_bgms_sample_bcomrf_gibbs, 8},
+    {"_bgms_compute_conditional_probs", (DL_FUNC) &_bgms_compute_conditional_probs, 7},
+    {"_bgms_sample_omrf_gibbs", (DL_FUNC) &_bgms_sample_omrf_gibbs, 7},
+    {"_bgms_sample_bcomrf_gibbs", (DL_FUNC) &_bgms_sample_bcomrf_gibbs, 9},
+    {"_bgms_run_simulation_parallel", (DL_FUNC) &_bgms_run_simulation_parallel, 12},
     {"_bgms_compute_Vn_mfm_sbm", (DL_FUNC) &_bgms_compute_Vn_mfm_sbm, 4},
     {NULL, NULL, 0}
 };

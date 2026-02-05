@@ -4,7 +4,7 @@ prepare_output_bgm = function(
   na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
   beta_bernoulli_alpha, beta_bernoulli_beta, beta_bernoulli_alpha_between,
   beta_bernoulli_beta_between, dirichlet_alpha, lambda,
-  variable_type, update_method, target_accept, hmc_num_leapfrogs,
+  variable_type, baseline_category, update_method, target_accept, hmc_num_leapfrogs,
   nuts_max_depth, learn_mass_matrix, num_chains
 ) {
   arguments = list(
@@ -36,6 +36,7 @@ prepare_output_bgm = function(
     num_chains = num_chains,
     num_categories = num_categories,
     data_columnnames = data_columnnames,
+    baseline_category = baseline_category,
     no_variables = ncol(x) # backwards compatibility easybgm
   )
 

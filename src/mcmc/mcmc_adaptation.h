@@ -199,8 +199,10 @@ public:
               int iteration) {
     /* ---------------------------------------------------------
      * 1. STEP-SIZE ADAPTATION
-     *    – should run in Stage-1, Stage-2, Stage-3a
-     *    – must stop in Stage-3b and afterwards
+     *    – runs in Stage-1, Stage-2, Stage-3a, and Stage-3c
+     *    – Stage-3c continues adaptation because selection changes
+     *      the model structure (including/excluding parameters)
+     *    – pauses in Stage-3b (proposal SD learning phase)
      * --------------------------------------------------------- */
     if (schedule.in_stage1(iteration)  || schedule.in_stage2(iteration)  ||
     schedule.in_stage3a(iteration) || schedule.in_stage3c(iteration) )
