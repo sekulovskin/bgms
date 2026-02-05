@@ -1,12 +1,11 @@
 // [[Rcpp::depends(BH)]]
 #pragma once
 
-// the order of these two is mandatory, RcppArmadillo must com before dqrng
+// the order of these two is mandatory, RcppArmadillo must come before dqrng
 #include <RcppArmadillo.h>
-#include <dqrng.h>
-#include <dqrng_generator.h>
-#include <dqrng_distribution.h>
+// Only include what we need from dqrng to avoid GCC 14 issues with convert_seed.h
 #include <xoshiro.h>
+#include <dqrng_distribution.h>
 #include <random>
 #include <boost/random/beta_distribution.hpp>
 
