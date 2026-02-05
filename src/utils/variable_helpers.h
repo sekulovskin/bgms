@@ -124,40 +124,46 @@ inline arma::vec compute_denom_blume_capel(
   arma::vec exp_theta = ARMA_MY_EXP(theta);
 
   // ---- 2. Numerical bounds [b] ----
+  // Use centered scores (c - ref) for the interaction term to match the Blume-Capel parameterization
   b.set_size(N);
-  b.fill(theta[0]);
+  b = theta[0] + double(centered[0]) * residual;  // c=0: centered[0] = -ref
   for (int c = 1; c <= num_cats; c++)
-    b = arma::max(b, theta[c] + double(c) * residual);
+    b = arma::max(b, theta[c] + double(centered[c]) * residual);
 
-  // ---- 3. Bounds for the FAST power chain: c*r - b ----
-  // For fixed i, c*r[i] - b[i] ranges between -b[i] and num_cats*r[i] - b[i].
-  // We need max_c (c*r[i] - b[i]) <= EXP_BOUND to avoid overflow in pow.
-  arma::vec pow_bound = double(num_cats) * residual - b;
+  // ---- 3. Bounds for the FAST power chain: (c-ref)*r - b ----
+  // For fixed i, (c-ref)*r[i] - b[i] ranges between (0-ref)*r[i] - b[i] and (num_cats-ref)*r[i] - b[i].
+  // We need max_c ((c-ref)*r[i] - b[i]) <= EXP_BOUND to avoid overflow in pow.
+  // The max over c is at c=0 or c=num_cats depending on sign of r
+  arma::vec pow_bound_low = double(-ref) * residual - b;  // c=0
+  arma::vec pow_bound_high = double(num_cats - ref) * residual - b;  // c=num_cats
+  arma::vec pow_bound = arma::max(arma::abs(pow_bound_low), arma::abs(pow_bound_high));
 
   // ---- 4. FAST BLOCK: Preexp + bounded power chain ----
+  // Use centered scores: start at exp((0-ref)*r - b) and multiply by exp(r) each step
   auto do_fast_block = [&](arma::uword i0, arma::uword i1) {
     arma::vec r = residual.rows(i0, i1);
     arma::vec bb = b.rows(i0, i1);
 
     arma::vec eR = ARMA_MY_EXP(r);         // exp(r)
-    arma::vec pow = ARMA_MY_EXP(-bb);       // start at cat=0 term: exp(0*r - b)
+    // Start at c=0: centered score = -ref, so exp(-ref*r - b)
+    arma::vec pow = ARMA_MY_EXP(double(-ref) * r - bb);
     arma::vec d = exp_theta[0] * pow;
 
     for (int c = 1; c <= num_cats; c++) {
-      pow %= eR;                            // exp(c*r - b)
+      pow %= eR;                            // exp((c-ref)*r - b)
       d += exp_theta[c] * pow;
     }
     denom.rows(i0, i1) = d;
   };
 
-  // ---- 5. SAFE BLOCK: direct exp(theta[c] + c*r - b) ----
+  // ---- 5. SAFE BLOCK: direct exp(theta[c] + (c-ref)*r - b) ----
   auto do_safe_block = [&](arma::uword i0, arma::uword i1) {
     arma::vec r = residual.rows(i0, i1);
     arma::vec bb = b.rows(i0, i1);
 
     arma::vec d(bb.n_elem, arma::fill::zeros);
     for (int c = 0; c <= num_cats; c++) {
-      arma::vec ex = theta[c] + double(c) * r - bb;
+      arma::vec ex = theta[c] + double(centered[c]) * r - bb;
       d += ARMA_MY_EXP(ex);
     }
 
@@ -293,7 +299,7 @@ inline arma::mat compute_probs_ordinal(
 //   used when |b_i| ≤ EXP_BOUND and pow_bound_i = num_cats * r_i - b_i ≤ EXP_BOUND
 //
 // SAFE (direct):
-//   used otherwise: direct exp(θ(c) + c * r_i - b_i)
+//   used otherwise: direct exp(θ(c) + (c-ref) * r_i - b_i)
 //
 // Under these conditions, denom is finite and > 0, so no one-hot fallback.
 // -----------------------------------------------------------------------------
@@ -316,17 +322,20 @@ inline arma::mat compute_probs_blume_capel(
   arma::vec theta = lin_eff * centered + quad_eff * arma::square(centered);
   arma::vec exp_theta = ARMA_MY_EXP(theta);
 
-  // 2. Compute bounds b[i] = max_c (θ(c) + c * r_i)
+  // 2. Compute bounds b[i] = max_c (θ(c) + (c-ref) * r_i)
+  // Use centered scores to match the Blume-Capel parameterization
   b.set_size(N);
-  b.fill(theta[0]);
+  b = theta[0] + double(centered[0]) * residual;  // c=0: centered[0] = -ref
   for (int c = 1; c <= num_cats; ++c) {
-    b = arma::max(b, theta[c] + double(c) * residual);
+    b = arma::max(b, theta[c] + double(centered[c]) * residual);
   }
 
-  // 3. Bound for the power chain: max_c (c * r_i - b_i) = num_cats * r_i - b_i
-  arma::vec pow_bound = double(num_cats) * residual - b;
+  // 3. Bound for the power chain: max_c ((c-ref) * r_i - b_i)
+  arma::vec pow_bound_low = double(-ref) * residual - b;  // c=0
+  arma::vec pow_bound_high = double(num_cats - ref) * residual - b;  // c=num_cats
+  arma::vec pow_bound = arma::max(arma::abs(pow_bound_low), arma::abs(pow_bound_high));
 
-  // FAST block: preexp + bounded power chain
+  // FAST block: preexp + bounded power chain with centered scores
   auto do_fast_block = [&](arma::uword i0, arma::uword i1) {
     auto P = probs.rows(i0, i1);
     arma::vec r = residual.rows(i0, i1);
@@ -334,7 +343,8 @@ inline arma::mat compute_probs_blume_capel(
     const arma::uword B = bb.n_elem;
 
     arma::vec eR = ARMA_MY_EXP(r);        // exp(r_i)
-    arma::vec pow = ARMA_MY_EXP(-bb);      // exp(0 * r_i - b_i)
+    // Start at c=0: centered score = -ref, so exp(-ref*r - b)
+    arma::vec pow = ARMA_MY_EXP(double(-ref) * r - bb);
     arma::vec denom(B, arma::fill::zeros);
 
     // c = 0
@@ -344,7 +354,7 @@ inline arma::mat compute_probs_blume_capel(
 
     // c = 1..num_cats
     for (int c = 1; c <= num_cats; ++c) {
-      pow %= eR;                           // exp(c * r_i - b_i)
+      pow %= eR;                           // exp((c-ref) * r_i - b_i)
       arma::vec col = exp_theta[c] * pow;
       P.col(c) = col;
       denom += col;
@@ -353,7 +363,7 @@ inline arma::mat compute_probs_blume_capel(
     P.each_col() /= denom;
   };
 
-  // SAFE block: direct exp(θ(c) + c * r_i - b_i)
+  // SAFE block: direct exp(θ(c) + (c-ref) * r_i - b_i)
   auto do_safe_block = [&](arma::uword i0, arma::uword i1) {
     auto P = probs.rows(i0, i1);
     arma::vec r = residual.rows(i0, i1);
@@ -362,7 +372,7 @@ inline arma::mat compute_probs_blume_capel(
     arma::vec denom(B, arma::fill::zeros);
 
     for (int c = 0; c <= num_cats; ++c) {
-      arma::vec ex = theta[c] + double(c) * r - bb;
+      arma::vec ex = theta[c] + double(centered[c]) * r - bb;
       arma::vec col = ARMA_MY_EXP(ex);
       P.col(c) = col;
       denom += col;

@@ -18,6 +18,7 @@
 * fixed step size heuristic to re-run after each mass matrix update during warmup, ensuring step size is appropriate for the current mass matrix.
 * fixed step size heuristic to resample momentum on each iteration (matching STAN's init_stepsize behavior), improving step size selection.
 * fixed energy diagnostic computation in NUTS to use actual accepted trajectory momentum instead of a random sample, making E-BFMI diagnostic meaningful.
+* fixed Blume-Capel interaction term computation to use centered scores `(c - ref)` instead of raw category `c` in the pseudolikelihood denominator. This bug caused severe NUTS performance degradation (100% max tree depth hits) when using non-zero baseline categories.
 
 ## Deprecated
 
