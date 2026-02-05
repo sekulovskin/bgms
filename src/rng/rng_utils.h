@@ -3,10 +3,13 @@
 
 // the order of these two is mandatory, RcppArmadillo must come before dqrng
 #include <RcppArmadillo.h>
-// Only include what we need from dqrng to avoid GCC 14 issues with convert_seed.h
+// Only include xoshiro.h from dqrng - avoid dqrng_distribution.h which pulls
+// in dqrng_generator.h -> convert_seed.h that has GCC 14 compatibility issues
 #include <xoshiro.h>
-#include <dqrng_distribution.h>
 #include <random>
+#include <boost/random/uniform_real_distribution.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/exponential_distribution.hpp>
 #include <boost/random/beta_distribution.hpp>
 
 // [[Rcpp::depends(dqrng, BH)]]
@@ -33,12 +36,12 @@ struct SafeRNG {
 
 // Uniform(0,1)
 inline double runif(SafeRNG& rng) {
-  return dqrng::uniform_distribution(0.0, 1.0)(rng.eng);
+  return boost::random::uniform_real_distribution<double>(0.0, 1.0)(rng.eng);
 }
 
 // Normal(mu, sigma)
 inline double rnorm(SafeRNG& rng, double mu = 0.0, double sigma = 1.0) {
-  return dqrng::normal_distribution(mu, sigma)(rng.eng);
+  return boost::random::normal_distribution<double>(mu, sigma)(rng.eng);
 }
 
 // Bernoulli(p)
@@ -53,7 +56,7 @@ inline double rbeta(SafeRNG& rng, double a, double b) {
 
 // Exponential(lambda)
 inline double rexp(SafeRNG& rng, double lambda) {
-  return dqrng::exponential_distribution(lambda)(rng.eng);
+  return boost::random::exponential_distribution<double>(lambda)(rng.eng);
 }
 
 // ============================================================
