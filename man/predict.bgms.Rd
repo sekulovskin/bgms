@@ -54,7 +54,7 @@ the original data used to fit the model.}
 \value{
 For \code{type = "probabilities"}: A named list with one element per
 predicted variable. Each element is a matrix with \code{n} rows and
-\code{num_categories + 1} columns containing P(X_j = c | X_{-j}) for each
+\code{num_categories + 1} columns containing \eqn{P(X_j = c | X_{-j})}{P(X_j = c | X_-j)} for each
 observation and category.
 
 For \code{type = "response"}: A matrix with \code{n} rows and

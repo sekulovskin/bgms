@@ -497,6 +497,7 @@ mrfSampler = function(no_states,
 #'                           ndraws = 100, cores = 4)
 #' }
 #'
+#' @importFrom stats simulate
 #' @export
 simulate.bgms <- function(object,
                           nsim = 500,
@@ -653,7 +654,7 @@ simulate.bgms <- function(object,
 #' @return
 #' For \code{type = "probabilities"}: A named list with one element per
 #' predicted variable. Each element is a matrix with \code{n} rows and
-#' \code{num_categories + 1} columns containing P(X_j = c | X_{-j}) for each
+#' \code{num_categories + 1} columns containing \eqn{P(X_j = c | X_{-j})}{P(X_j = c | X_-j)} for each
 #' observation and category.
 #'
 #' For \code{type = "response"}: A matrix with \code{n} rows and
@@ -686,6 +687,7 @@ simulate.bgms <- function(object,
 #' pred_class <- predict(fit, newdata = Wenchuan[1:10, 1:5], type = "response")
 #' }
 #'
+#' @importFrom stats predict
 #' @export
 predict.bgms <- function(object,
                          newdata,
