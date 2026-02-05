@@ -8,10 +8,6 @@
 * both methods support using posterior mean parameters (`method = "posterior-mean"`) or averaging over posterior draws (`method = "posterior-sample"`) for full uncertainty propagation
 * `baseline_category` is now stored in the fitted object's arguments for use with Blume-Capel variables in simulation and prediction
 
-## Other changes
-
-* refactored prediction code to use numerically stable vectorized probability computation from `variable_helpers.h`, improving both performance and stability with extreme parameter values
-
 ## Bug fixes
 
 * fixed mass matrix adaptation for NUTS/HMC: inverse mass matrix now correctly uses variance (following STAN convention) instead of precision, substantially improving sampling efficiency.
