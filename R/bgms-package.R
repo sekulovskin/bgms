@@ -3,7 +3,7 @@
 #' @description
 #' The \code{R} package \strong{bgms} provides tools for Bayesian analysis of
 #' the ordinal Markov random field (MRF), a graphical model describing networks
-#' of binary and/or ordinal variables \insertCite{MarsmanVandenBerghHaslbeck_2024}{bgms}.
+#' of binary and/or ordinal variables \insertCite{MarsmanVandenBerghHaslbeck_2025}{bgms}.
 #' The likelihood is approximated via a pseudolikelihood, and Markov chain Monte
 #' Carlo (MCMC) methods are used to sample from the corresponding pseudoposterior
 #' distribution of model parameters.

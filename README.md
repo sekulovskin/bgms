@@ -89,9 +89,9 @@ association between the unconnected pair.
 
 When analyzing an MRF, we often want to compare competing hypotheses:
 
-- **Edge presence vs. edge absence** (conditional dependence
-  vs. independence) in one-sample designs.
-- **Parameter difference vs. parameter equivalence** in
+- **Edge presence vs. edge absence** (conditional dependence
+  vs. independence) in one-sample designs.
+- **Parameter difference vs. parameter equivalence** in
   independent-sample designs.
 
 Frequentist approaches are limited in such comparisons: they can reject
@@ -103,8 +103,8 @@ Bayesian inference avoids this problem. Using **inclusion Bayes
 factors** (Huth et al., 2023; Sekulovski et al., 2024), we can quantify
 evidence in both directions:
 
-- **Evidence of edge presence** vs. **evidence of edge absence**, or
-- **Evidence of parameter difference** vs. **evidence of parameter
+- **Evidence of edge presence** vs. **evidence of edge absence**, or
+- **Evidence of parameter difference** vs. **evidence of parameter
   equivalence**.
 
 This makes it possible not only to detect structure and group
@@ -122,6 +122,10 @@ if (!requireNamespace("remotes")) {
 remotes::install_github("Bayesian-Graphical-Modelling-Lab/bgms")
 ```
 
+## Contributors
+
+**bgms** is developed by the Bayesian Graphical Modelling Lab in collaboration with contributors from across the R community. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for acknowledgments and detailed information on contributions.
+
 ## References
 
 <div id="refs" class="references csl-bib-body hanging-indent"
@@ -132,7 +136,7 @@ entry-spacing="0" line-spacing="2">
 Contreras, A., Nieto, I., Valiente, C., Espinosa, R., & Vazquez, C.
 (2019). The study of psychopathology from the network analysis
 perspective: A systematic review. *Psychotherapy and Psychosomatics*,
-*88*, 71–83. <https://doi.org/10.1159/000497425>
+*88*(2), 71–83. <https://doi.org/10.1159/000497425>
 
 </div>
 
@@ -171,16 +175,17 @@ innovations inspired by empirical problems. *Psychometrika*, *87*, 1–11.
 <div id="ref-MarsmanVandenBerghHaslbeck_2024" class="csl-entry">
 
 Marsman, M., van den Bergh, D., & Haslbeck, J. M. B. (2025). Bayesian
-analysis of the ordinal Markov random field. *Psychometrika*, *90*,
-146--182.
+analysis of the ordinal Markov random field. *Psychometrika*, *90*(1),
+146--182. <https://doi.org/10.1017/psy.2024.4>
 
 </div>
 
 <div id="ref-MarsmanWaldorpSekulovskiHaslbeck_2024" class="csl-entry">
 
 Marsman, M., Waldorp, L. J., Sekulovski, N., & Haslbeck, J. M. B.
-(2024). Bayes factor tests for group differences in ordinal and binary
-graphical models. *Retrieved from Https://Osf.io/Preprints/Osf/F4pk9*.
+(2025). Bayes factor tests for group differences in ordinal and binary
+graphical models. *Psychometrika*, *90*(5), 1809--1842.
+<https://doi.org/10.1017/psy.2025.10060>
 
 </div>
 
@@ -197,9 +202,7 @@ Medicine*, *50*, 353–366. <https://doi.org/10.1017/S0033291719003404>
 
 Sekulovski, N., Arena, G., Haslbeck, J. M. B., Huth, K. B. S., Friel,
 N., & Marsman, M. (2025). A stochastic block prior for clustering in
-graphical models. *Retrieved from
-<a href="https://osf.io/preprints/psyarxiv/29p3m_v1"
-class="uri">Https://Osf.io/Preprints/Psyarxiv/29p3m_v1</a>*.
+graphical models. https://osf.io/preprints/psyarxiv/29p3m_v1
 
 </div>
 

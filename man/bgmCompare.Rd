@@ -167,7 +167,7 @@ selection can be applied to identify differences across groups.
 }
 \details{
 This function extends the ordinal MRF framework
-\insertCite{MarsmanVandenBerghHaslbeck_2024;textual}{bgms} to multiple
+\insertCite{MarsmanVandenBerghHaslbeck_2025;textual}{bgms} to multiple
 groups. The basic idea of modeling, analyzing, and testing group
 differences in MRFs was introduced in
 \insertCite{MarsmanWaldorpSekulovskiHaslbeck_2024;textual}{bgms}, where

@@ -1,13 +1,59 @@
-citHeader("To cite bgms in publications use:")
+bibentry(
+  bibtype = "Manual",
+  title = "bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables",
+  author = c(person("Maarten", "Marsman"),
+             person("Don", "van den Bergh")),
+  year = "2026",
+  note = "R package version 0.1.6.3",
+  url = "https://CRAN.R-project.org/package=bgms",
+  key = "bgms-package",
+  textVersion = "Marsman, M., & van den Bergh, D. (2026). bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables. R package version 0.1.6.3."
+)
 
 bibentry(
-  bibtype = "manual",
-  title    = "bgms: Bayesian analysis of networks of binary and/or ordinal variables",
-  author   = "Maarten Marsman and Giuseppe Arena and Karoline Huth and Nikola Sekulovski and Don van den Bergh",
-  year     = "2025",
-  url      = "https://CRAN.R-project.org/package=bgms",
-  note     = "R package version 0.1.6.2",
-  textVersion = "Marsman, M., Arena, G., Huth, K., Sekulovski, N., & van den Bergh, D. (2025). bgms: Bayesian analysis of networks of binary and/or ordinal variables. https://CRAN.R-project.org/package=bgms"
+  bibtype = "Article",
+  title = "Bayesian analysis of the ordinal Markov random field",
+  author = c(person("Maarten", "Marsman"),
+             person("Don", "van den Bergh"),
+             person("Jolanda M. B.", "Haslbeck")),
+  journal = "Psychometrika",
+  year = "2025",
+  volume = "90",
+  number = "1",
+  pages = "146--182",
+  doi = "10.1017/psy.2024.4",
+  key = "Marsman2025-ordinal"
+)
+
+bibentry(
+  bibtype = "Article",
+  title = "Bayes factor tests for group differences in ordinal and binary graphical models",
+  author = c(person("Maarten", "Marsman"),
+             person("Lourens J.", "Waldorp"),
+             person("Nikola", "Sekulovski"),
+             person("Jolanda M. B.", "Haslbeck")),
+  journal = "Psychometrika",
+  year = "2025",
+  volume = "90",
+  number = "5",
+  pages = "1809--1842",
+  doi = "10.1017/psy.2025.10060",
+  key = "Marsman2025-bayes"
+)
+
+bibentry(
+  bibtype = "Misc",
+  title = "A stochastic block prior for clustering in graphical models",
+  author = c(person("Nikola", "Sekulovski"),
+             person("Giuseppe", "Arena"),
+             person("Jolanda M. B.", "Haslbeck"),
+             person("Karoline B. S.", "Huth"),
+             person("Nial", "Friel"),
+             person("Maarten", "Marsman")),
+  year = "2025",
+  note = "PsyArXiv Preprints",
+  url = "https://osf.io/preprints/psyarxiv/29p3m_v1",
+  key = "Sekulovski2025-stochastic"
 )
 
 

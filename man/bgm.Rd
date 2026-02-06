@@ -221,7 +221,7 @@ priors to infer the network structure.
 This function models the joint distribution of binary and ordinal variables
 using a Markov Random Field, with support for edge selection through Bayesian
 variable selection. The statistical foundation of the model is described in
-\insertCite{MarsmanVandenBerghHaslbeck_2024;textual}{bgms}, where the ordinal
+\insertCite{MarsmanVandenBerghHaslbeck_2025;textual}{bgms}, where the ordinal
 MRF model and its Bayesian estimation procedure were first introduced. While
 the implementation in \pkg{bgms} has since been extended and updated (e.g.,
 alternative priors, parallel chains, HMC/NUTS warmup), it builds on that

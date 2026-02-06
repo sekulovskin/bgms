@@ -2,18 +2,18 @@ Package: bgms
 Type: Package
 Title: Bayesian Analysis of Networks of Binary and/or Ordinal Variables
 Version: 0.1.6.3
-Date: 2026-02-04
+Date: 2026-02-06
 Authors@R: c(
     person("Maarten", "Marsman", , "m.marsman@uva.nl", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-5309-7502")),
-    person("Giuseppe", "Arena", role = "ctb",
-           comment = c(ORCID = "0000-0001-5204-3326")),
-    person("Karoline", "Huth", role = "ctb",
-           comment = c(ORCID = "0000-0002-0662-1591")),
+    person("Don", "van den Bergh", role = "aut",
+           comment = c(ORCID = "0000-0002-9838-7308")),
     person("Nikola", "Sekulovski", role = "ctb",
            comment = c(ORCID = "0000-0001-7032-1684")),
-    person("Don", "van den Bergh", role = "ctb",
-    comment = c(ORCID = "0000-0002-9838-7308"))
+    person("Giuseppe", "Arena", role = "ctb",
+           comment = c(ORCID = "0000-0001-5204-3326")),
+    person("Laura", "Groot", role = "ctb"),
+    person("Gali", "Geller", role = "ctb")
   )
 Maintainer: Maarten Marsman <m.marsman@uva.nl>
 Description: Bayesian variable selection methods for analyzing the structure of a Markov random field model for a network of binary and/or ordinal variables. 

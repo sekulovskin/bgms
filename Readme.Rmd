@@ -35,7 +35,7 @@ library(bgms)
 
 The **bgms** package implements Bayesian estimation and model comparison for
 **ordinal Markov random fields (MRFs)**, graphical models that represent
-networks of binary and/or ordinal variables [@MarsmanVandenBerghHaslbeck_2024].
+networks of binary and/or ordinal variables [@MarsmanVandenBerghHaslbeck_2025].
 The likelihood is approximated with a pseudolikelihood, and Markov chain Monte
 Carlo (MCMC) methods are used to sample from the corresponding pseudoposterior
 distribution of the model parameters.
@@ -55,7 +55,7 @@ Both functions support **effect selection** with spike-and-slab priors:
 - **Edges in one-sample designs**:
   `bgm()` models the presence or absence of edges between variables. Posterior
   inclusion probabilities indicate the plausibility of each edge and can be
-  converted into Bayes factors for conditional independence tests [see @MarsmanVandenBerghHaslbeck_2024; @SekulovskiEtAl_2024].
+  converted into Bayes factors for conditional independence tests [see @MarsmanVandenBerghHaslbeck_2025; @SekulovskiEtAl_2024].
 
 - **Communities/clusters in one-sample designs**:
   `bgm()` can also model community structure. Posterior probabilities for the

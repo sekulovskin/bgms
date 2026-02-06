@@ -8,7 +8,7 @@
 \description{
 The \code{R} package \strong{bgms} provides tools for Bayesian analysis of
 the ordinal Markov random field (MRF), a graphical model describing networks
-of binary and/or ordinal variables \insertCite{MarsmanVandenBerghHaslbeck_2024}{bgms}.
+of binary and/or ordinal variables \insertCite{MarsmanVandenBerghHaslbeck_2025}{bgms}.
 The likelihood is approximated via a pseudolikelihood, and Markov chain Monte
 Carlo (MCMC) methods are used to sample from the corresponding pseudoposterior
 distribution of model parameters.
@@ -77,12 +77,17 @@ Useful links:
 \author{
 \strong{Maintainer}: Maarten Marsman \email{m.marsman@uva.nl} (\href{https://orcid.org/0000-0001-5309-7502}{ORCID})
 
+Authors:
+\itemize{
+  \item Don van den Bergh (\href{https://orcid.org/0000-0002-9838-7308}{ORCID})
+}
+
 Other contributors:
 \itemize{
-  \item Giuseppe Arena (\href{https://orcid.org/0000-0001-5204-3326}{ORCID}) [contributor]
-  \item Karoline Huth (\href{https://orcid.org/0000-0002-0662-1591}{ORCID}) [contributor]
   \item Nikola Sekulovski (\href{https://orcid.org/0000-0001-7032-1684}{ORCID}) [contributor]
-  \item Don van den Bergh (\href{https://orcid.org/0000-0002-9838-7308}{ORCID}) [contributor]
+  \item Giuseppe Arena (\href{https://orcid.org/0000-0001-5204-3326}{ORCID}) [contributor]
+  \item Laura Groot [contributor]
+  \item Gali Geller [contributor]
 }
 
 }
