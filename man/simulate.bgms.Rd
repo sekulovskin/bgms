@@ -29,7 +29,7 @@
     single simulation).}
   \item{\code{"posterior-sample"}}{Sample from posterior draws, producing
     one dataset per draw (accounts for parameter uncertainty). This method
-    uses parallel processing when \code{ncores > 1}.}
+    uses parallel processing when \code{cores > 1}.}
 }}
 
 \item{ndraws}{Number of posterior draws to use when
@@ -64,7 +64,7 @@ This function uses the estimated interaction and threshold parameters to
 generate new data via Gibbs sampling. When \code{method = "posterior-sample"},
 parameter uncertainty is propagated to the simulated data by using different
 posterior draws. Parallel processing is available for this method via the
-\code{ncores} argument.
+\code{cores} argument.
 }
 \examples{
 \donttest{

@@ -31,7 +31,7 @@
 #' have a special type of baseline_category category, such as the neutral
 #' category in a Likert scale. The Blume-Capel model specifies the following
 #' quadratic model for the threshold parameters:
-#' \deqn{\mu_{\text{c}} = \alpha \times \text{c} + \beta \times (\text{c} - \text{r})^2,}{{\mu_{\text{c}} = \alpha \times \text{c} + \beta \times (\text{c} - \text{r})^2,}}
+#' \deqn{\mu_{\text{c}} = \alpha \times (\text{c} - \text{r}) + \beta \times (\text{c} - \text{r})^2,}{{\mu_{\text{c}} = \alpha \times (\text{c} - \text{r}) + \beta \times (\text{c} - \text{r})^2,}}
 #' where \eqn{\mu_{\text{c}}}{\mu_{\text{c}}} is the threshold for category c
 #' (which now includes zero), \eqn{\alpha}{\alpha} offers a linear trend
 #' across categories (increasing threshold values if
@@ -450,7 +450,7 @@ mrfSampler = function(no_states,
 #'       single simulation).}
 #'     \item{\code{"posterior-sample"}}{Sample from posterior draws, producing
 #'       one dataset per draw (accounts for parameter uncertainty). This method
-#'       uses parallel processing when \code{ncores > 1}.}
+#'       uses parallel processing when \code{cores > 1}.}
 #'   }
 #' @param ndraws Number of posterior draws to use when
 #'   \code{method = "posterior-sample"}. If \code{NULL}, uses all available draws.
@@ -476,7 +476,7 @@ mrfSampler = function(no_states,
 #' generate new data via Gibbs sampling. When \code{method = "posterior-sample"},
 #' parameter uncertainty is propagated to the simulated data by using different
 #' posterior draws. Parallel processing is available for this method via the
-#' \code{ncores} argument.
+#' \code{cores} argument.
 #'
 #' @seealso \code{\link{predict.bgms}} for computing conditional probabilities,
 #'   \code{\link{simulate_mrf}} for simulation with user-specified parameters.
