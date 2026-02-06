@@ -81,6 +81,12 @@
 #'   rows of \code{x} (multi-group designs). Ignored if \code{y} is supplied.
 #' @param difference_selection Logical. If \code{TRUE}, spike-and-slab priors
 #'   are applied to difference parameters. Default: \code{TRUE}.
+#' @param main_difference_selection Logical. If \code{TRUE}, apply spike-and-slab
+#'   selection to main effect (threshold) differences. If \code{FALSE}, main
+#'   effect differences are always included (no selection). Since main effects
+#'   are often nuisance parameters and their selection can interfere with
+#'   pairwise selection under the Beta-Bernoulli prior, the default is
+#'   \code{FALSE}. Only used when \code{difference_selection = TRUE}.
 #' @param variable_type Character vector specifying type of each variable:
 #'   \code{"ordinal"} (default) or \code{"blume-capel"}.
 #' @param baseline_category Integer or vector giving the baseline category
@@ -188,6 +194,7 @@ bgmCompare = function(
   y,
   group_indicator,
   difference_selection = TRUE,
+  main_difference_selection = FALSE,
   variable_type = "ordinal",
   baseline_category,
   difference_scale = 1,
@@ -567,6 +574,7 @@ bgmCompare = function(
     is_ordinal_variable = ordinal_variable,
     baseline_category = baseline_category,
     difference_selection = difference_selection,
+    main_difference_selection = main_difference_selection,
     main_effect_indices = main_effect_indices,
     pairwise_effect_indices = pairwise_effect_indices,
     target_accept = target_accept,

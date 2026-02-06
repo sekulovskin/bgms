@@ -75,10 +75,12 @@ inline void initialise_graph_bgmcompare(
     const arma::imat& main_indices,
     const arma::imat& pairwise_indices,
     const arma::mat& incl_prob,
+    const bool main_difference_selection,
     SafeRNG& rng
 ) {
   int V = indicator.n_rows;
   int G = main.n_cols;
+  // Initialize pairwise indicators
   for (int i = 0; i < V-1; ++i) {
     for (int j = i+1; j < V; ++j) {
       double p = incl_prob(i,j);
@@ -90,14 +92,20 @@ inline void initialise_graph_bgmcompare(
       }
     }
   }
+  // Initialize main effect indicators (only if main_difference_selection is enabled)
   for(int i = 0; i < V; i++) {
-    double p = incl_prob(i,i);
-    int draw = (runif(rng) < p) ? 1 : 0;
-    indicator(i,i) = draw;
-    if(!draw) {
-      int start = main_indices(i,0);
-      int end = main_indices(i,1);
-      main(arma::span(start, end), arma::span(1, G - 1)).zeros();
+    if (main_difference_selection) {
+      double p = incl_prob(i,i);
+      int draw = (runif(rng) < p) ? 1 : 0;
+      indicator(i,i) = draw;
+      if(!draw) {
+        int start = main_indices(i,0);
+        int end = main_indices(i,1);
+        main(arma::span(start, end), arma::span(1, G - 1)).zeros();
+      }
+    } else {
+      // Keep main effect indicators at 1 (all differences included)
+      indicator(i,i) = 1;
     }
   }
 };

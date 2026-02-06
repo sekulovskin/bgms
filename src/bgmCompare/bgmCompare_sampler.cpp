@@ -1191,13 +1191,16 @@ void update_indicator_differences_metropolis_bgmcompare (
     const std::vector<arma::imat>& counts_per_category,
     const std::vector<arma::imat>& blume_capel_stats,
     const std::vector<arma::mat>& pairwise_stats,
+    const bool main_difference_selection,
     SafeRNG& rng
 ) {
   const int num_variables = observations.n_cols;
 
   // --- main effects ---
-  for(int var = 0; var < num_variables; var++) {
-    int start = main_effect_indices(var, 0);
+  // Skip main effect indicator updates if main_difference_selection is disabled
+  if (main_difference_selection) {
+    for(int var = 0; var < num_variables; var++) {
+      int start = main_effect_indices(var, 0);
     int stop = main_effect_indices(var, 1);
 
     arma::mat current_main_effects = main_effects;
@@ -1272,6 +1275,7 @@ void update_indicator_differences_metropolis_bgmcompare (
         proposed_main_effects.rows(start, stop).cols(1, num_groups - 1);
     }
   }
+  } // end if (main_difference_selection)
 
   // --- pairwise effects ---
   const int num_pairwise = index.n_rows;
@@ -1456,14 +1460,15 @@ void gibbs_update_step_bgmcompare (
     const UpdateMethod update_method,
     arma::mat& proposal_sd_main,
     arma::mat& proposal_sd_pair,
-    const arma::imat& index
+    const arma::imat& index,
+    const bool main_difference_selection
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
   if (schedule.selection_enabled(iteration) && iteration == schedule.stage3c_start) {
     initialise_graph_bgmcompare(
       inclusion_indicator, main_effects, pairwise_effects, main_effect_indices,
-      pairwise_effect_indices, inclusion_probability, rng
+      pairwise_effect_indices, inclusion_probability, main_difference_selection, rng
     );
   }
 
@@ -1475,7 +1480,7 @@ void gibbs_update_step_bgmcompare (
         num_groups, group_indices, num_categories, inclusion_indicator,
         is_ordinal_variable, baseline_category, proposal_sd_main,
         difference_scale, pairwise_scaling_factors, proposal_sd_pair, counts_per_category,
-        blume_capel_stats, pairwise_stats, rng
+        blume_capel_stats, pairwise_stats, main_difference_selection, rng
     );
   }
 
@@ -1631,6 +1636,7 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const bool difference_selection,
+    const bool main_difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
     const double target_accept,
@@ -1749,7 +1755,8 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
         warmup_schedule, treedepth_samples, divergent_samples, energy_samples,
         main_effect_indices, projection, num_groups, group_indices,
         difference_scale, rng, inclusion_probability, hmc_num_leapfrogs,
-        update_method, proposal_sd_main, proposal_sd_pair, index
+        update_method, proposal_sd_main, proposal_sd_pair, index,
+        main_difference_selection
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)
@@ -1757,18 +1764,23 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
       int sumG = 0;
 
       if (difference_prior == "Beta-Bernoulli") {
-        // Update pairwise inclusion probabilities
+        // Count pairwise inclusion indicators
         for (int i = 0; i < num_variables - 1; ++i) {
           for (int j = i + 1; j < num_variables; ++j) {
             sumG += inclusion_indicator(i, j);
           }
         }
-        for(int i = 0; i < num_variables; i++) {
-          sumG += inclusion_indicator(i, i);
+        // Only count main effect indicators if main_difference_selection is enabled
+        int num_main_selectable = 0;
+        if (main_difference_selection) {
+          for(int i = 0; i < num_variables; i++) {
+            sumG += inclusion_indicator(i, i);
+          }
+          num_main_selectable = num_variables;
         }
         double prob = rbeta(rng,
                             difference_selection_alpha + sumG,
-                            difference_selection_beta + num_pair + num_variables - sumG);
+                            difference_selection_beta + num_pair + num_main_selectable - sumG);
         std::fill(inclusion_probability.begin(), inclusion_probability.end(), prob);
       }
     }

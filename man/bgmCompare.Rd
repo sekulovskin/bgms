@@ -9,6 +9,7 @@ bgmCompare(
   y,
   group_indicator,
   difference_selection = TRUE,
+  main_difference_selection = FALSE,
   variable_type = "ordinal",
   baseline_category,
   difference_scale = 1,
@@ -65,6 +66,13 @@ rows of \code{x} (multi-group designs). Ignored if \code{y} is supplied.}
 
 \item{difference_selection}{Logical. If \code{TRUE}, spike-and-slab priors
 are applied to difference parameters. Default: \code{TRUE}.}
+
+\item{main_difference_selection}{Logical. If \code{TRUE}, apply spike-and-slab
+selection to main effect (threshold) differences. If \code{FALSE}, main
+effect differences are always included (no selection). Since main effects
+are often nuisance parameters and their selection can interfere with
+pairwise selection under the Beta-Bernoulli prior, the default is
+\code{FALSE}. Only used when \code{difference_selection = TRUE}.}
 
 \item{variable_type}{Character vector specifying type of each variable:
 \code{"ordinal"} (default) or \code{"blume-capel"}.}

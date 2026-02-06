@@ -31,6 +31,7 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const bool difference_selection,
+    const bool main_difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
     const double target_accept,

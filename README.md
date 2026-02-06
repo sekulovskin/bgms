@@ -124,7 +124,7 @@ remotes::install_github("Bayesian-Graphical-Modelling-Lab/bgms")
 
 ## Contributors
 
-**bgms** is developed by the Bayesian Graphical Modelling Lab in collaboration with contributors from across the R community. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for acknowledgments and detailed information on contributions.
+**bgms** is developed by the Bayesian Graphical Modelling Lab in collaboration with contributors from across the R community. See [CONTRIBUTORS.md](inst/CONTRIBUTORS.md) for acknowledgments and detailed information on contributions.
 
 ## References
 

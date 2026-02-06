@@ -115,6 +115,7 @@ struct GibbsCompareChainRunner : public Worker {
   const arma::uvec& is_ordinal_variable;
   const arma::ivec& baseline_category;
   const bool difference_selection;
+  const bool main_difference_selection;
   const arma::imat& main_effect_indices;
   const arma::imat& pairwise_effect_indices;
   const double target_accept;
@@ -155,6 +156,7 @@ struct GibbsCompareChainRunner : public Worker {
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     bool difference_selection,
+    bool main_difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
     double target_accept,
@@ -192,6 +194,7 @@ struct GibbsCompareChainRunner : public Worker {
     is_ordinal_variable(is_ordinal_variable),
     baseline_category(baseline_category),
     difference_selection(difference_selection),
+    main_difference_selection(main_difference_selection),
     main_effect_indices(main_effect_indices),
     pairwise_effect_indices(pairwise_effect_indices),
     target_accept(target_accept),
@@ -250,6 +253,7 @@ struct GibbsCompareChainRunner : public Worker {
           is_ordinal_variable,
           baseline_category,
           difference_selection,
+          main_difference_selection,
           main_effect_indices,
           pairwise_effect_indices,
           target_accept,
@@ -369,6 +373,7 @@ Rcpp::List run_bgmCompare_parallel(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     bool difference_selection,
+    bool main_difference_selection,
     const arma::imat& main_effect_indices,
     const arma::imat& pairwise_effect_indices,
     double target_accept,
@@ -407,7 +412,7 @@ Rcpp::List run_bgmCompare_parallel(
       num_categories, main_alpha, main_beta, pairwise_scale, pairwise_scaling_factors, difference_scale,
       difference_selection_alpha, difference_selection_beta, difference_prior,
       iter, warmup, na_impute, missing_data_indices, is_ordinal_variable,
-      baseline_category, difference_selection, main_effect_indices,
+      baseline_category, difference_selection, main_difference_selection, main_effect_indices,
       pairwise_effect_indices, target_accept, nuts_max_depth, learn_mass_matrix,
       projection, group_membership, group_indices, interaction_index_matrix,
       inclusion_probability, chain_rngs, update_method_enum, hmc_num_leapfrogs,

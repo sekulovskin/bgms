@@ -2,6 +2,7 @@
 
 ## New features
 
+* added `main_difference_selection` argument to `bgmCompare()` to control whether spike-and-slab selection is applied to main effect (threshold) differences. When `FALSE` (the new default), main effect differences are always estimated without selection, while pairwise effect selection proceeds independently. This prevents interference between main and pairwise selection under the Beta-Bernoulli prior, which is particularly useful when main effects are nuisance parameters.
 * added `standardize` argument to `bgm()` and `bgmCompare()` to optionally scale the Cauchy prior for pairwise interactions based on the range of response scores. When enabled, the prior scale is multiplied by the maximum score product for each pair, ensuring equivalent relative shrinkage regardless of the number of response categories. The scaling factors are stored in `fit$arguments$pairwise_scaling_factors`.
 * added `simulate_mrf()` function for standalone MRF data simulation with user-specified parameters
 * added `simulate.bgms()` S3 method to generate new observations from a fitted model using estimated parameters. Supports parallel processing via `cores` argument when using `method = "posterior-sample"` with optional progress bar
