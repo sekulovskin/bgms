@@ -31,6 +31,7 @@ bgmCompare(
   cores = parallel::detectCores(),
   display_progress = c("per-chain", "total", "none"),
   seed = NULL,
+  standardize = FALSE,
   main_difference_model,
   reference_category,
   main_difference_scale,
@@ -124,6 +125,15 @@ matrix during warmup (HMC/NUTS only). Default: \code{TRUE}.}
 Default: \code{"per-chain"}.}
 
 \item{seed}{Optional integer. Random seed for reproducibility.}
+
+\item{standardize}{Logical. If \code{TRUE}, the Cauchy prior scale for each
+pairwise interaction (both baseline and difference) is adjusted based on
+the range of response scores. Without standardization, pairs with more
+response categories experience less shrinkage because their naturally
+smaller interaction effects make a fixed prior relatively wide.
+Standardization equalizes relative shrinkage across all pairs, with
+\code{pairwise_scale} itself applying to the unit interval (binary) case.
+See \code{\link{bgm}} for details on the adjustment. Default: \code{FALSE}.}
 
 \item{main_difference_model, reference_category, pairwise_difference_scale, main_difference_scale, pairwise_difference_prior, main_difference_prior, pairwise_difference_probability, main_difference_probability, pairwise_beta_bernoulli_alpha, pairwise_beta_bernoulli_beta, main_beta_bernoulli_alpha, main_beta_bernoulli_beta, interaction_scale, threshold_alpha, threshold_beta, burnin, save}{`r lifecycle::badge("deprecated")`
 Deprecated arguments as of **bgms 0.1.6.0**.

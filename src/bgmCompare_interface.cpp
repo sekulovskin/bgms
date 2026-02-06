@@ -103,6 +103,7 @@ struct GibbsCompareChainRunner : public Worker {
   const double main_alpha;
   const double main_beta;
   const double pairwise_scale;
+  const arma::mat& pairwise_scaling_factors;
   const double difference_scale;
   const double difference_selection_alpha;
   const double difference_selection_beta;
@@ -142,6 +143,7 @@ struct GibbsCompareChainRunner : public Worker {
     double main_alpha,
     double main_beta,
     double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     double difference_scale,
     double difference_selection_alpha,
     double difference_selection_beta,
@@ -178,6 +180,7 @@ struct GibbsCompareChainRunner : public Worker {
     main_alpha(main_alpha),
     main_beta(main_beta),
     pairwise_scale(pairwise_scale),
+    pairwise_scaling_factors(pairwise_scaling_factors),
     difference_scale(difference_scale),
     difference_selection_alpha(difference_selection_alpha),
     difference_selection_beta(difference_selection_beta),
@@ -235,6 +238,7 @@ struct GibbsCompareChainRunner : public Worker {
           main_alpha,
           main_beta,
           pairwise_scale,
+          pairwise_scaling_factors,
           difference_scale,
           difference_selection_alpha,
           difference_selection_beta,
@@ -353,6 +357,7 @@ Rcpp::List run_bgmCompare_parallel(
     double main_alpha,
     double main_beta,
     double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     double difference_scale,
     double difference_selection_alpha,
     double difference_selection_beta,
@@ -399,7 +404,7 @@ Rcpp::List run_bgmCompare_parallel(
   GibbsCompareChainRunner worker(
       observations, num_groups,
       counts_per_category, blume_capel_stats, pairwise_stats,
-      num_categories, main_alpha, main_beta, pairwise_scale, difference_scale,
+      num_categories, main_alpha, main_beta, pairwise_scale, pairwise_scaling_factors, difference_scale,
       difference_selection_alpha, difference_selection_beta, difference_prior,
       iter, warmup, na_impute, missing_data_indices, is_ordinal_variable,
       baseline_category, difference_selection, main_effect_indices,

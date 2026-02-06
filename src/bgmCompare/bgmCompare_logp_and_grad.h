@@ -23,6 +23,7 @@ double log_pseudoposterior(
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale
 );
 
@@ -73,6 +74,7 @@ arma::vec gradient(
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const arma::imat& main_index,
     const arma::imat& pair_index,
@@ -118,6 +120,7 @@ double log_pseudoposterior_pair_component(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double interaction_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     int variable1,
     int variable2,

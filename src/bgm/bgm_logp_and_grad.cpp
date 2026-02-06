@@ -148,6 +148,7 @@ double log_pseudoposterior_interactions_component (
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::imat& pairwise_stats,
     const int var1,
     const int var2
@@ -188,7 +189,8 @@ double log_pseudoposterior_interactions_component (
 
   // Add Cauchy prior terms for included pairwise effects
   if (inclusion_indicator (var1, var2) == 1) {
-    log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, pairwise_scale, true);
+    const double scaled_pairwise_scale = pairwise_scale * pairwise_scaling_factors(var1, var2);
+    log_pseudo_posterior += R::dcauchy (pairwise_effects (var1, var2), 0.0, scaled_pairwise_scale, true);
   }
 
   return log_pseudo_posterior;
@@ -244,6 +246,7 @@ double log_pseudoposterior (
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::imat& pairwise_stats,
     const arma::mat& residual_matrix
 ) {
@@ -282,7 +285,8 @@ double log_pseudoposterior (
 
       double value = pairwise_effects(var1, var2);
       log_pseudoposterior += 2.0 * pairwise_stats(var1, var2) * value;
-      log_pseudoposterior += R::dcauchy(value, 0.0, pairwise_scale, true); // Cauchy prior
+      const double scaled_pairwise_scale = pairwise_scale * pairwise_scaling_factors(var1, var2);
+      log_pseudoposterior += R::dcauchy(value, 0.0, scaled_pairwise_scale, true); // Cauchy prior
     }
   }
 
@@ -413,6 +417,7 @@ arma::vec gradient_log_pseudoposterior(
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::mat& residual_matrix,
     const arma::imat index_matrix,
     const arma::vec grad_obs
@@ -511,7 +516,8 @@ arma::vec gradient_log_pseudoposterior(
       if (inclusion_indicator(i, j) == 0) continue;
       int location = index_matrix(i, j);
       const double effect = pairwise_effects(i, j);
-      gradient(location) -= 2.0 * effect / (effect * effect + pairwise_scale * pairwise_scale);
+      const double scaled_scale = pairwise_scale * pairwise_scaling_factors(i, j);
+      gradient(location) -= 2.0 * effect / (effect * effect + scaled_scale * scaled_scale);
     }
   }
 

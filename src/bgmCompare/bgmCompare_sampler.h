@@ -19,6 +19,7 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const double difference_selection_alpha,
     const double difference_selection_beta,

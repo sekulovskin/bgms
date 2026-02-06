@@ -91,6 +91,7 @@ struct GibbsChainRunner : public Worker {
   int hmc_num_leapfrogs;
   int nuts_max_depth;
   bool learn_mass_matrix;
+  const arma::mat& pairwise_scaling_factors;
 
   // Wrapped RNG engines
   const std::vector<SafeRNG>& chain_rngs;
@@ -130,6 +131,7 @@ struct GibbsChainRunner : public Worker {
     int hmc_num_leapfrogs,
     int nuts_max_depth,
     bool learn_mass_matrix,
+    const arma::mat& pairwise_scaling_factors,
     const std::vector<SafeRNG>& chain_rngs,
     ProgressManager& pm,
     std::vector<bgmChainResult>& results
@@ -164,6 +166,7 @@ struct GibbsChainRunner : public Worker {
     hmc_num_leapfrogs(hmc_num_leapfrogs),
     nuts_max_depth(nuts_max_depth),
     learn_mass_matrix(learn_mass_matrix),
+    pairwise_scaling_factors(pairwise_scaling_factors),
     chain_rngs(chain_rngs),
     pm(pm),
     results(results)
@@ -211,6 +214,7 @@ struct GibbsChainRunner : public Worker {
           hmc_num_leapfrogs,
           nuts_max_depth,
           learn_mass_matrix,
+          pairwise_scaling_factors,
           rng,
           pm
         );
@@ -313,7 +317,8 @@ Rcpp::List run_bgm_parallel(
     int num_chains,
     int nThreads,
     int seed,
-    int progress_type
+    int progress_type,
+    const arma::mat& pairwise_scaling_factors
 ) {
   std::vector<bgmChainResult> results(num_chains);
 
@@ -339,7 +344,7 @@ Rcpp::List run_bgm_parallel(
       na_impute, missing_index, is_ordinal_variable, baseline_category,
       edge_selection, update_method_enum, pairwise_effect_indices, target_accept,
       pairwise_stats, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix,
-      chain_rngs, pm, results
+      pairwise_scaling_factors, chain_rngs, pm, results
   );
 
   {

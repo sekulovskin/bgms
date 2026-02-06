@@ -2,6 +2,7 @@
 
 ## New features
 
+* added `standardize` argument to `bgm()` and `bgmCompare()` to optionally scale the Cauchy prior for pairwise interactions based on the range of response scores. When enabled, the prior scale is multiplied by the maximum score product for each pair, ensuring equivalent relative shrinkage regardless of the number of response categories. The scaling factors are stored in `fit$arguments$pairwise_scaling_factors`.
 * added `simulate_mrf()` function for standalone MRF data simulation with user-specified parameters
 * added `simulate.bgms()` S3 method to generate new observations from a fitted model using estimated parameters. Supports parallel processing via `cores` argument when using `method = "posterior-sample"` with optional progress bar
 * added `predict.bgms()` S3 method to compute conditional probability distributions P(X_j | X_{-j}) for one or more variables given observed data

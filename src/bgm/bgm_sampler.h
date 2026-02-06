@@ -39,6 +39,7 @@ bgmOutput run_gibbs_sampler_bgm(
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
     const bool learn_mass_matrix,
+    const arma::mat& pairwise_scaling_factors,
     SafeRNG& rng,
     ProgressManager& pm
 );

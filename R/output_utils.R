@@ -1,6 +1,6 @@
 prepare_output_bgm = function(
   out, x, num_categories, iter, data_columnnames, is_ordinal_variable,
-  warmup, pairwise_scale, main_alpha, main_beta,
+  warmup, pairwise_scale, standardize, pairwise_scaling_factors, main_alpha, main_beta,
   na_action, na_impute, edge_selection, edge_prior, inclusion_probability,
   beta_bernoulli_alpha, beta_bernoulli_beta, beta_bernoulli_alpha_between,
   beta_bernoulli_beta_between, dirichlet_alpha, lambda,
@@ -15,6 +15,7 @@ prepare_output_bgm = function(
     iter = iter,
     warmup = warmup,
     pairwise_scale = pairwise_scale,
+    standardize = standardize,
     main_alpha = main_alpha,
     main_beta = main_beta,
     edge_selection = edge_selection,
@@ -37,6 +38,7 @@ prepare_output_bgm = function(
     num_categories = num_categories,
     data_columnnames = data_columnnames,
     baseline_category = baseline_category,
+    pairwise_scaling_factors = pairwise_scaling_factors,
     no_variables = ncol(x) # backwards compatibility easybgm
   )
 
@@ -283,7 +285,7 @@ prepare_output_bgmCompare = function(
   data_columnnames, difference_selection,
   difference_prior, difference_selection_alpha, difference_selection_beta,
   inclusion_probability,
-  pairwise_scale, difference_scale,
+  pairwise_scale, difference_scale, standardize, pairwise_scaling_factors,
   update_method, target_accept, nuts_max_depth, hmc_num_leapfrogs,
   learn_mass_matrix, num_chains, projection
 ) {
@@ -296,6 +298,7 @@ prepare_output_bgmCompare = function(
     warmup = warmup,
     pairwise_scale = pairwise_scale,
     difference_scale = difference_scale,
+    standardize = standardize,
     difference_selection = difference_selection,
     difference_prior = difference_prior,
     difference_selection_alpha = difference_selection_alpha,
@@ -313,7 +316,8 @@ prepare_output_bgmCompare = function(
     projection = projection,
     num_categories = num_categories,
     is_ordinal_variable = is_ordinal_variable,
-    group = group
+    group = group,
+    pairwise_scaling_factors = pairwise_scaling_factors
   )
 
   # --- parameter names

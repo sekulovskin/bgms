@@ -191,6 +191,27 @@
 #' @param pairwise_scale Double. Scale of the Cauchy prior for pairwise
 #'   interaction parameters. Default: \code{2.5}.
 #'
+#' @param standardize Logical. If \code{TRUE}, the Cauchy prior scale for each
+#'   pairwise interaction is adjusted based on the range of response scores.
+#'   Variables with more response categories have larger score products
+#'   \eqn{x_i \cdot x_j}, which typically correspond to smaller interaction
+#'   effects \eqn{\sigma_{ij}}. Without standardization, a fixed prior scale
+#'   is relatively wide for these smaller effects, resulting in less shrinkage
+#'   for high-category pairs and more shrinkage for low-category pairs.
+#'   Standardization scales the prior proportionally to the maximum score
+#'   product, ensuring equivalent relative shrinkage across all pairs.
+#'   After internal recoding, regular ordinal variables have scores
+#'   \eqn{0, 1, \ldots, m}. The adjusted scale for the interaction between
+#'   variables \eqn{i} and \eqn{j} is \code{pairwise_scale * m_i * m_j},
+#'   so that \code{pairwise_scale} itself applies to the unit interval case
+#'   (binary variables where \eqn{m_i = m_j = 1}). For Blume-Capel variables
+#'   with reference category \eqn{b}, scores are centered as
+#'   \eqn{-b, \ldots, m-b}, and the adjustment uses the maximum absolute
+#'   product of the score endpoints. For mixed pairs, ordinal variables use
+#'   raw score endpoints \eqn{(0, m)} and Blume-Capel variables use centered
+#'   score endpoints \eqn{(-b, m-b)}.
+#'   Default: \code{FALSE}.
+#'
 #' @param main_alpha,main_beta Double. Shape parameters of the
 #'   beta-prime prior for threshold parameters. Must be positive. If equal,
 #'   the prior is symmetric. Defaults: \code{main_alpha = 0.5} and
@@ -380,6 +401,7 @@ bgm = function(
   cores = parallel::detectCores(),
   display_progress = c("per-chain", "total", "none"),
   seed = NULL,
+  standardize = FALSE,
   interaction_scale,
   burnin,
   save,
@@ -538,7 +560,6 @@ bgm = function(
     ncol = num_variables
   )
 
-
   # Starting values of interactions and thresholds (posterior mode) -------------
   interactions = matrix(0, nrow = num_variables, ncol = num_variables)
   thresholds = matrix(0, nrow = num_variables, ncol = max(num_categories))
@@ -592,6 +613,55 @@ bgm = function(
     }
   }
 
+  # Compute pairwise scaling factors for standardized priors --------------------
+  pairwise_scaling_factors = matrix(1, nrow = num_variables, ncol = num_variables)
+  if(standardize) {
+    for(v1 in seq_len(num_variables - 1)) {
+      for(v2 in seq((v1 + 1), num_variables)) {
+        if(variable_bool[v1] && variable_bool[v2]) {
+          # Both ordinal: m_i * m_j (where m is max score, 0...m)
+          pairwise_scaling_factors[v1, v2] = num_categories[v1] * num_categories[v2]
+        } else if(!variable_bool[v1] && !variable_bool[v2]) {
+          # Both Blume-Capel: max of endpoint products
+          b1 = baseline_category[v1]
+          b2 = baseline_category[v2]
+          m1 = num_categories[v1]
+          m2 = num_categories[v2]
+          # Endpoints for centered scores: -b and M-b
+          endpoints1 = c(-b1, m1 - b1)
+          endpoints2 = c(-b2, m2 - b2)
+          all_products = abs(outer(endpoints1, endpoints2))
+          pairwise_scaling_factors[v1, v2] = max(all_products)
+        } else {
+          # Mixed: one ordinal, one Blume-Capel
+          if(variable_bool[v1]) {
+            # v1 is ordinal (range 0 to M1), v2 is Blume-Capel (range -b2 to M2-b2)
+            m1 = num_categories[v1]
+            b2 = baseline_category[v2]
+            m2 = num_categories[v2]
+            endpoints1 = c(0, m1)
+            endpoints2 = c(-b2, m2 - b2)
+          } else {
+            # v1 is Blume-Capel, v2 is ordinal
+            b1 = baseline_category[v1]
+            m1 = num_categories[v1]
+            m2 = num_categories[v2]
+            endpoints1 = c(-b1, m1 - b1)
+            endpoints2 = c(0, m2)
+          }
+          all_products = abs(outer(endpoints1, endpoints2))
+          pairwise_scaling_factors[v1, v2] = max(all_products)
+        }
+        pairwise_scaling_factors[v2, v1] = pairwise_scaling_factors[v1, v2]
+      }
+    }
+  }
+
+  # Add variable names to scaling factors matrix
+  varnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(num_variables)) else colnames(x)
+  rownames(pairwise_scaling_factors) = varnames
+  colnames(pairwise_scaling_factors) = varnames
+
   # Setting the seed
   if(missing(seed) || is.null(seed)) {
     # Draw a random seed if none provided
@@ -625,7 +695,8 @@ bgm = function(
     target_accept = target_accept, pairwise_stats = pairwise_stats,
     hmc_num_leapfrogs = hmc_num_leapfrogs, nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix, num_chains = chains,
-    nThreads = cores, seed = seed, progress_type = progress_type
+    nThreads = cores, seed = seed, progress_type = progress_type,
+    pairwise_scaling_factors = pairwise_scaling_factors
   )
 
   userInterrupt = any(vapply(out, FUN = `[[`, FUN.VALUE = logical(1L), "userInterrupt"))
@@ -637,7 +708,8 @@ bgm = function(
         out = out, x = x, num_categories = num_categories, iter = iter,
         data_columnnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
         is_ordinal_variable = variable_bool,
-        warmup = warmup, pairwise_scale = pairwise_scale,
+        warmup = warmup, pairwise_scale = pairwise_scale, standardize = standardize,
+        pairwise_scaling_factors = pairwise_scaling_factors,
         main_alpha = main_alpha, main_beta = main_beta,
         na_action = na_action, na_impute = na_impute,
         edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
@@ -669,7 +741,8 @@ bgm = function(
     out = out, x = x, num_categories = num_categories, iter = iter,
     data_columnnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
     is_ordinal_variable = variable_bool,
-    warmup = warmup, pairwise_scale = pairwise_scale,
+    warmup = warmup, pairwise_scale = pairwise_scale, standardize = standardize,
+    pairwise_scaling_factors = pairwise_scaling_factors,
     main_alpha = main_alpha, main_beta = main_beta,
     na_action = na_action, na_impute = na_impute,
     edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,

@@ -204,6 +204,7 @@ double find_initial_stepsize_bgm(
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double target_acceptance,
     const arma::imat& pairwise_stats,
     SafeRNG& rng
@@ -232,7 +233,7 @@ double find_initial_stepsize_bgm(
     return gradient_log_pseudoposterior (
         current_main, current_pair, inclusion_indicator, observations,
         num_categories, baseline_category, is_ordinal_variable, main_alpha,
-        main_beta, pairwise_scale, rm, index_matrix, grad_obs
+        main_beta, pairwise_scale, pairwise_scaling_factors, rm, index_matrix, grad_obs
     );
   };
 
@@ -245,7 +246,7 @@ double find_initial_stepsize_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_scaling_factors, pairwise_stats, rm
     );
   };
 
@@ -411,6 +412,7 @@ void update_pairwise_effects_metropolis_bgm (
     arma::mat& proposal_sd_pairwise_effects,
     RWMAdaptationController& adapter,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const int num_variables,
     arma::mat& residual_matrix,
     const arma::uvec& is_ordinal_variable,
@@ -436,7 +438,7 @@ void update_pairwise_effects_metropolis_bgm (
           return log_pseudoposterior_interactions_component(
             pairwise_effects, main_effects, observations, num_categories,
             inclusion_indicator, is_ordinal_variable, baseline_category,
-            pairwise_scale, pairwise_stats, variable1, variable2
+            pairwise_scale, pairwise_scaling_factors, pairwise_stats, variable1, variable2
           );
         };
 
@@ -516,6 +518,7 @@ void update_hmc_bgm(
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     arma::mat& residual_matrix,
     const arma::imat& pairwise_stats,
     const int num_leapfrogs,
@@ -549,7 +552,7 @@ void update_hmc_bgm(
     return gradient_log_pseudoposterior (
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, baseline_category, is_ordinal_variable, main_alpha,
-      main_beta, pairwise_scale, rm, index_matrix, grad_obs
+      main_beta, pairwise_scale, pairwise_scaling_factors, rm, index_matrix, grad_obs
     );
   };
 
@@ -561,7 +564,7 @@ void update_hmc_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_scaling_factors, pairwise_stats, rm
     );
   };
 
@@ -660,6 +663,7 @@ SamplerResult update_nuts_bgm(
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::imat& pairwise_stats,
     arma::mat& residual_matrix,
     const int nuts_max_depth,
@@ -693,7 +697,7 @@ SamplerResult update_nuts_bgm(
     return gradient_log_pseudoposterior (
         current_main, current_pair, inclusion_indicator, observations,
         num_categories, baseline_category, is_ordinal_variable, main_alpha,
-        main_beta, pairwise_scale, rm, index_matrix, grad_obs
+        main_beta, pairwise_scale, pairwise_scaling_factors, rm, index_matrix, grad_obs
     );
   };
 
@@ -706,7 +710,7 @@ SamplerResult update_nuts_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_scaling_factors, pairwise_stats, rm
     );
   };
 
@@ -802,6 +806,7 @@ void tune_proposal_sd_bgm(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::imat& pairwise_stats,
     int iteration,
     const WarmupSchedule& sched,
@@ -830,7 +835,7 @@ void tune_proposal_sd_bgm(
         return log_pseudoposterior_interactions_component(
           pairwise_effects, main_effects, observations, num_categories,
           inclusion_indicator, is_ordinal_variable, baseline_category,
-          pairwise_scale, pairwise_stats, variable1, variable2
+          pairwise_scale, pairwise_scaling_factors, pairwise_stats, variable1, variable2
         );
       };
 
@@ -911,6 +916,7 @@ void update_indicator_edges_metropolis_bgm (
     const arma::ivec& num_categories,
     const arma::mat& proposal_sd,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::imat& index,
     const int num_interactions,
     const int num_persons,
@@ -941,13 +947,14 @@ void update_indicator_edges_metropolis_bgm (
     // Add prior ratio and proposal correction
     const double inclusion_probability_ij = inclusion_probability(variable1, variable2);
     const double sd = proposal_sd(variable1, variable2);
+    const double scaled_pairwise_scale = pairwise_scale * pairwise_scaling_factors(variable1, variable2);
 
     if (proposing_addition) {
-      log_accept += R::dcauchy(proposed_state, 0.0, pairwise_scale, true);
+      log_accept += R::dcauchy(proposed_state, 0.0, scaled_pairwise_scale, true);
       log_accept -= R::dnorm(proposed_state, current_state, sd, true);
       log_accept += MY_LOG (inclusion_probability_ij) - MY_LOG (1.0 - inclusion_probability_ij);
     } else {
-      log_accept -= R::dcauchy(current_state, 0.0, pairwise_scale, true);
+      log_accept -= R::dcauchy(current_state, 0.0, scaled_pairwise_scale, true);
       log_accept += R::dnorm(current_state, proposed_state, sd, true);
       log_accept -= MY_LOG (inclusion_probability_ij) - MY_LOG (1.0 - inclusion_probability_ij);
     }
@@ -1051,6 +1058,7 @@ void gibbs_update_step_bgm (
     const arma::imat& observations,
     const arma::ivec& num_categories,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     arma::mat& proposal_sd_pairwise,
     arma::mat& proposal_sd_main,
     const arma::imat& index,
@@ -1098,7 +1106,7 @@ void gibbs_update_step_bgm (
   if (schedule.selection_enabled(iteration)) {
     update_indicator_edges_metropolis_bgm (
         pairwise_effects, main_effects, inclusion_indicator, observations,
-        num_categories, proposal_sd_pairwise, pairwise_scale, index,
+        num_categories, proposal_sd_pairwise, pairwise_scale, pairwise_scaling_factors, index,
         num_pairwise, num_persons, residual_matrix, inclusion_probability,
         is_ordinal_variable, baseline_category, pairwise_stats,
         rng
@@ -1110,7 +1118,7 @@ void gibbs_update_step_bgm (
     update_pairwise_effects_metropolis_bgm (
         pairwise_effects, main_effects, inclusion_indicator, observations,
         num_categories, proposal_sd_pairwise, adapt_pairwise, pairwise_scale,
-        num_variables, residual_matrix, is_ordinal_variable, baseline_category,
+        pairwise_scaling_factors, num_variables, residual_matrix, is_ordinal_variable, baseline_category,
         iteration, pairwise_stats, rng
     );
   }
@@ -1132,7 +1140,7 @@ void gibbs_update_step_bgm (
       main_effects, pairwise_effects, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, residual_matrix, pairwise_stats, hmc_num_leapfrogs,
+      pairwise_scale, pairwise_scaling_factors, residual_matrix, pairwise_stats, hmc_num_leapfrogs,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
       rng
     );
@@ -1141,7 +1149,7 @@ void gibbs_update_step_bgm (
       main_effects, pairwise_effects, inclusion_indicator,
       observations, num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, pairwise_stats, residual_matrix, nuts_max_depth,
+      pairwise_scale, pairwise_scaling_factors, pairwise_stats, residual_matrix, nuts_max_depth,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
       rng
     );
@@ -1159,7 +1167,7 @@ void gibbs_update_step_bgm (
   tune_proposal_sd_bgm(
     proposal_sd_pairwise, pairwise_effects, main_effects, inclusion_indicator,
     observations, residual_matrix, num_categories, is_ordinal_variable,
-    baseline_category, pairwise_scale, pairwise_stats,
+    baseline_category, pairwise_scale, pairwise_scaling_factors, pairwise_stats,
     iteration, schedule, rng
   );
 }
@@ -1253,6 +1261,7 @@ bgmOutput run_gibbs_sampler_bgm(
     const int hmc_num_leapfrogs,
     const int nuts_max_depth,
     const bool learn_mass_matrix,
+    const arma::mat& pairwise_scaling_factors,
     SafeRNG& rng,
     ProgressManager& pm
 ) {
@@ -1335,7 +1344,7 @@ bgmOutput run_gibbs_sampler_bgm(
       main_effects, pairwise_effects, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, target_accept, pairwise_stats, rng
+      pairwise_scale, pairwise_scaling_factors, target_accept, pairwise_stats, rng
     );
   }
 
@@ -1383,7 +1392,7 @@ bgmOutput run_gibbs_sampler_bgm(
 
     // Main Gibbs update step for parameters
     gibbs_update_step_bgm (
-        observations, num_categories, pairwise_scale, proposal_sd_pairwise,
+        observations, num_categories, pairwise_scale, pairwise_scaling_factors, proposal_sd_pairwise,
         proposal_sd_main, index, counts_per_category, blume_capel_stats,
         main_alpha, main_beta, num_persons, num_variables, num_pairwise,
         num_main, inclusion_indicator, pairwise_effects, main_effects,

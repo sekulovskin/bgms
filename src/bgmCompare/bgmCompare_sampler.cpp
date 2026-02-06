@@ -390,6 +390,7 @@ void update_pairwise_effects_metropolis_bgmcompare (
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const int iteration,
     RWMAdaptationController& rwm_adapt,
@@ -417,7 +418,7 @@ void update_pairwise_effects_metropolis_bgmcompare (
         pairwise_effect_indices, projection, observations, group_indices,
         num_categories, pairwise_stats, num_groups,
         inclusion_indicator, is_ordinal_variable, baseline_category,
-        pairwise_scale, difference_scale, var1, var2, h
+        pairwise_scale, pairwise_scaling_factors, difference_scale, var1, var2, h
       );
     };
 
@@ -506,6 +507,7 @@ double find_initial_stepsize_bgmcompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const double main_alpha,
     const double main_beta,
@@ -549,7 +551,7 @@ double find_initial_stepsize_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale, main_index, pair_index,
+      pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
       grad_obs_act
     );
   };
@@ -567,7 +569,7 @@ double find_initial_stepsize_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale
+      pairwise_scale, pairwise_scaling_factors, difference_scale
     );
   };
 
@@ -639,6 +641,7 @@ void update_hmc_bgmcompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const double main_alpha,
     const double main_beta,
@@ -688,7 +691,7 @@ void update_hmc_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale, main_index, pair_index,
+      pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
       grad_obs_act
     );
   };
@@ -706,7 +709,7 @@ void update_hmc_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale
+      pairwise_scale, pairwise_scaling_factors, difference_scale
     );
   };
 
@@ -814,6 +817,7 @@ SamplerResult update_nuts_bgmcompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const double main_alpha,
     const double main_beta,
@@ -863,7 +867,7 @@ SamplerResult update_nuts_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale, main_index, pair_index,
+      pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
       grad_obs_act
     );
   };
@@ -881,7 +885,7 @@ SamplerResult update_nuts_bgmcompare(
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, difference_scale
+      pairwise_scale, pairwise_scaling_factors, difference_scale
     );
   };
 
@@ -997,6 +1001,7 @@ void tune_proposal_sd_bgmcompare(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     double difference_scale,
     double main_alpha,
     double main_beta,
@@ -1099,7 +1104,7 @@ void tune_proposal_sd_bgmcompare(
             projection, observations, group_indices,
             num_categories, pairwise_stats, num_groups,
             inclusion_indicator, is_ordinal_variable, baseline_category,
-            pairwise_scale, difference_scale, v1, v2, h
+            pairwise_scale, pairwise_scaling_factors, difference_scale, v1, v2, h
           );
         };
 
@@ -1181,6 +1186,7 @@ void update_indicator_differences_metropolis_bgmcompare (
     const arma::ivec& baseline_category,
     const arma::mat& proposal_sd_main,
     const double difference_scale,
+    const arma::mat& pairwise_scaling_factors,
     const arma::mat& proposal_sd_pairwise,
     const std::vector<arma::imat>& counts_per_category,
     const std::vector<arma::imat>& blume_capel_stats,
@@ -1309,11 +1315,12 @@ void update_indicator_differences_metropolis_bgmcompare (
     }
 
     // Add parameter prior contribution
+    const double scaled_difference_scale = difference_scale * pairwise_scaling_factors(var1, var2);
     if(proposed_ind == 1) {
       // Propose to set difference to non-zero
       for(int h = 1; h < num_groups; h++) {
         log_accept += R::dcauchy(
-          proposed_pairwise_effects(int_index, h), 0.0, difference_scale, true
+          proposed_pairwise_effects(int_index, h), 0.0, scaled_difference_scale, true
         );
         log_accept -= R::dnorm(
           proposed_pairwise_effects(int_index, h),
@@ -1326,7 +1333,7 @@ void update_indicator_differences_metropolis_bgmcompare (
       // Propose to set difference to zero
       for(int h = 1; h < num_groups; h++) {
         log_accept -= R::dcauchy(
-          current_pairwise_effects(int_index, h), 0.0, difference_scale, true
+          current_pairwise_effects(int_index, h), 0.0, scaled_difference_scale, true
         );
         log_accept += R::dnorm(
           current_pairwise_effects(int_index, h),
@@ -1416,6 +1423,7 @@ void gibbs_update_step_bgmcompare (
     const arma::imat& observations,
     const arma::ivec& num_categories,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const std::vector<arma::imat>& counts_per_category,
     const std::vector<arma::imat>& blume_capel_stats,
     const double main_alpha,
@@ -1466,7 +1474,7 @@ void gibbs_update_step_bgmcompare (
         main_effect_indices, pairwise_effect_indices, projection, observations,
         num_groups, group_indices, num_categories, inclusion_indicator,
         is_ordinal_variable, baseline_category, proposal_sd_main,
-        difference_scale, proposal_sd_pair, counts_per_category,
+        difference_scale, pairwise_scaling_factors, proposal_sd_pair, counts_per_category,
         blume_capel_stats, pairwise_stats, rng
     );
   }
@@ -1487,7 +1495,7 @@ void gibbs_update_step_bgmcompare (
         pairwise_effect_indices, inclusion_indicator, projection,
         num_categories, observations, num_groups, group_indices,
         pairwise_stats, is_ordinal_variable, baseline_category,
-        pairwise_scale, difference_scale, iteration, rwm_adapt_pair, rng,
+        pairwise_scale, pairwise_scaling_factors, difference_scale, iteration, rwm_adapt_pair, rng,
         proposal_sd_pair
     );
   } else if (update_method == hamiltonian_mc) {
@@ -1496,7 +1504,7 @@ void gibbs_update_step_bgmcompare (
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
       observations, num_groups, group_indices, counts_per_category,
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
-      baseline_category, pairwise_scale, difference_scale, main_alpha,
+      baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha,
       main_beta, hmc_nuts_leapfrogs, iteration, hmc_adapt, learn_mass_matrix,
       schedule.selection_enabled(iteration), rng
     );
@@ -1506,7 +1514,7 @@ void gibbs_update_step_bgmcompare (
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
       observations, num_groups, group_indices, counts_per_category,
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
-      baseline_category, pairwise_scale, difference_scale, main_alpha,
+      baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha,
       main_beta, nuts_max_depth, iteration, hmc_adapt, learn_mass_matrix,
       schedule.selection_enabled(iteration), rng
     );
@@ -1528,7 +1536,7 @@ void gibbs_update_step_bgmcompare (
     inclusion_indicator, projection, num_categories, observations, num_groups,
     group_indices, counts_per_category, blume_capel_stats,
     pairwise_stats, is_ordinal_variable, baseline_category, pairwise_scale,
-    difference_scale, main_alpha, main_beta, iteration, rng, schedule
+    pairwise_scaling_factors, difference_scale, main_alpha, main_beta, iteration, rng, schedule
   );
 }
 
@@ -1611,6 +1619,7 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     const double main_alpha,
     const double main_beta,
     const double pairwise_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const double difference_selection_alpha,
     const double difference_selection_beta,
@@ -1680,7 +1689,7 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
       observations, num_groups, group_indices, counts_per_category,
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
-      baseline_category, pairwise_scale, difference_scale, main_alpha, main_beta,
+      baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha, main_beta,
       target_accept, rng
     );
   }
@@ -1732,7 +1741,7 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
 
     // Main Gibbs update step for parameters
     gibbs_update_step_bgmcompare (
-        observations, num_categories, pairwise_scale, counts_per_category,
+        observations, num_categories, pairwise_scale, pairwise_scaling_factors, counts_per_category,
         blume_capel_stats, main_alpha, main_beta, inclusion_indicator,
         pairwise_effects, main_effects, is_ordinal_variable, baseline_category,
         iteration, pairwise_effect_indices, pairwise_stats, nuts_max_depth,

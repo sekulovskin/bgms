@@ -75,6 +75,7 @@ double log_pseudoposterior(
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale
 ) {
   const int num_variables = observations.n_cols;
@@ -189,11 +190,13 @@ double log_pseudoposterior(
   for (int v1 = 0; v1 < num_variables - 1; v1++) {
     for (int v2 = v1 + 1; v2 < num_variables; v2++) {
       const int idx = pairwise_effect_indices(v1, v2);
-      log_pp += R::dcauchy(pairwise_effects(idx, 0), 0.0, interaction_scale, true);
+      const double scaled_interaction_scale = interaction_scale * pairwise_scaling_factors(v1, v2);
+      const double scaled_difference_scale = difference_scale * pairwise_scaling_factors(v1, v2);
+      log_pp += R::dcauchy(pairwise_effects(idx, 0), 0.0, scaled_interaction_scale, true);
 
       if (inclusion_indicator(v1, v2) == 0) continue;
       for (int eff = 1; eff < num_groups; eff++) {
-        log_pp += R::dcauchy(pairwise_effects(idx, eff), 0.0, difference_scale, true);
+        log_pp += R::dcauchy(pairwise_effects(idx, eff), 0.0, scaled_difference_scale, true);
       }
     }
   }
@@ -489,6 +492,7 @@ arma::vec gradient(
     const double main_alpha,
     const double main_beta,
     const double interaction_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     const arma::imat& main_index,
     const arma::imat& pair_index,
@@ -684,18 +688,20 @@ arma::vec gradient(
   for (int v1 = 0; v1 < num_variables - 1; ++v1) {
     for (int v2 = v1 + 1; v2 < num_variables; ++v2) {
       const int row = pairwise_effect_indices(v1, v2);
+      const double scaled_interaction_scale = interaction_scale * pairwise_scaling_factors(v1, v2);
+      const double scaled_difference_scale = difference_scale * pairwise_scaling_factors(v1, v2);
 
-      // overall uses interaction_scale
+      // overall uses scaled interaction_scale
       off = pair_index(row, 0);
       double value = pairwise_effects(row, 0);
-      grad(off) -= 2.0 * value / (value * value + interaction_scale * interaction_scale);
+      grad(off) -= 2.0 * value / (value * value + scaled_interaction_scale * scaled_interaction_scale);
 
 
       if (inclusion_indicator(v1, v2) == 0) continue;
       for (int k = 1; k < num_groups; ++k) {
         off = pair_index(row, k);
         double value = pairwise_effects(row, k);
-        grad(off) -= 2.0 * value / (value * value + difference_scale * difference_scale);
+        grad(off) -= 2.0 * value / (value * value + scaled_difference_scale * scaled_difference_scale);
       }
     }
   }
@@ -948,6 +954,7 @@ double log_pseudoposterior_pair_component(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const double interaction_scale,
+    const arma::mat& pairwise_scaling_factors,
     const double difference_scale,
     int variable1,
     int variable2,
@@ -1035,10 +1042,12 @@ double log_pseudoposterior_pair_component(
   }
 
   // ---- priors ----
+  const double scaled_interaction_scale = interaction_scale * pairwise_scaling_factors(variable1, variable2);
+  const double scaled_difference_scale = difference_scale * pairwise_scaling_factors(variable1, variable2);
   if (h == 0) {
-    log_pp += R::dcauchy(pairwise_effects(idx, 0), 0.0, interaction_scale, true);
+    log_pp += R::dcauchy(pairwise_effects(idx, 0), 0.0, scaled_interaction_scale, true);
   } else {
-    log_pp += R::dcauchy(pairwise_effects(idx, h), 0.0, difference_scale, true);
+    log_pp += R::dcauchy(pairwise_effects(idx, h), 0.0, scaled_difference_scale, true);
   }
   return log_pp;
 }

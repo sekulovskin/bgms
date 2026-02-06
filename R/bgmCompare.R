@@ -96,6 +96,14 @@
 #'   model. Defaults: \code{1}.
 #' @param pairwise_scale Double. Scale of the Cauchy prior for baseline
 #'   pairwise interactions. Default: \code{2.5}.
+#' @param standardize Logical. If \code{TRUE}, the Cauchy prior scale for each
+#'   pairwise interaction (both baseline and difference) is adjusted based on
+#'   the range of response scores. Without standardization, pairs with more
+#'   response categories experience less shrinkage because their naturally
+#'   smaller interaction effects make a fixed prior relatively wide.
+#'   Standardization equalizes relative shrinkage across all pairs, with
+#'   \code{pairwise_scale} itself applying to the unit interval (binary) case.
+#'   See \code{\link{bgm}} for details on the adjustment. Default: \code{FALSE}.
 #' @param main_alpha,main_beta Doubles. Shape parameters of the beta-prime
 #'   prior for baseline threshold parameters. Defaults: \code{0.5}.
 #' @param iter Integer. Number of post–warmup iterations per chain.
@@ -202,6 +210,7 @@ bgmCompare = function(
   cores = parallel::detectCores(),
   display_progress = c("per-chain", "total", "none"),
   seed = NULL,
+  standardize = FALSE,
   main_difference_model,
   reference_category,
   main_difference_scale,
@@ -459,6 +468,52 @@ bgmCompare = function(
     }
   }
 
+  # Compute pairwise scaling factors for standardized priors --------------------
+  pairwise_scaling_factors = matrix(1, nrow = num_variables, ncol = num_variables)
+  if(standardize) {
+    for(v1 in seq_len(num_variables - 1)) {
+      for(v2 in seq((v1 + 1), num_variables)) {
+        if(ordinal_variable[v1] && ordinal_variable[v2]) {
+          # Both ordinal: M_i * M_j
+          pairwise_scaling_factors[v1, v2] = num_categories[v1] * num_categories[v2]
+        } else if(!ordinal_variable[v1] && !ordinal_variable[v2]) {
+          # Both Blume-Capel: max of endpoint products
+          b1 = baseline_category[v1]
+          b2 = baseline_category[v2]
+          m1 = num_categories[v1]
+          m2 = num_categories[v2]
+          endpoints1 = c(-b1, m1 - b1)
+          endpoints2 = c(-b2, m2 - b2)
+          all_products = abs(outer(endpoints1, endpoints2))
+          pairwise_scaling_factors[v1, v2] = max(all_products)
+        } else {
+          # Mixed: one ordinal, one Blume-Capel
+          if(ordinal_variable[v1]) {
+            m1 = num_categories[v1]
+            b2 = baseline_category[v2]
+            m2 = num_categories[v2]
+            endpoints1 = c(0, m1)
+            endpoints2 = c(-b2, m2 - b2)
+          } else {
+            b1 = baseline_category[v1]
+            m1 = num_categories[v1]
+            m2 = num_categories[v2]
+            endpoints1 = c(-b1, m1 - b1)
+            endpoints2 = c(0, m2)
+          }
+          all_products = abs(outer(endpoints1, endpoints2))
+          pairwise_scaling_factors[v1, v2] = max(all_products)
+        }
+        pairwise_scaling_factors[v2, v1] = pairwise_scaling_factors[v1, v2]
+      }
+    }
+  }
+
+  # Add variable names to scaling factors matrix
+  varnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(num_variables)) else colnames(x)
+  rownames(pairwise_scaling_factors) = varnames
+  colnames(pairwise_scaling_factors) = varnames
+
   # Compute group-level data
   num_groups = length(unique(group))
   group_indices = matrix(NA, nrow = num_groups, ncol = 2)
@@ -503,6 +558,7 @@ bgmCompare = function(
     main_alpha = main_alpha,
     main_beta = main_beta,
     pairwise_scale = pairwise_scale,
+    pairwise_scaling_factors = pairwise_scaling_factors,
     difference_scale = difference_scale,
     difference_selection_alpha = beta_bernoulli_alpha,
     difference_selection_beta = beta_bernoulli_beta,
@@ -550,6 +606,8 @@ bgmCompare = function(
         inclusion_probability = model$inclusion_probability_difference,
         pairwise_scale = pairwise_scale,
         difference_scale = difference_scale,
+        standardize = standardize,
+        pairwise_scaling_factors = pairwise_scaling_factors,
         update_method = update_method,
         target_accept = target_accept,
         nuts_max_depth = nuts_max_depth,
@@ -588,6 +646,8 @@ bgmCompare = function(
     inclusion_probability = model$inclusion_probability_difference,
     pairwise_scale = pairwise_scale,
     difference_scale = difference_scale,
+    standardize = standardize,
+    pairwise_scaling_factors = pairwise_scaling_factors,
     update_method = update_method,
     target_accept = target_accept,
     nuts_max_depth = nuts_max_depth,
