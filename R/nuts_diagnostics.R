@@ -25,76 +25,64 @@ summarize_nuts_diagnostics <- function(out, nuts_max_depth = 10, verbose = TRUE)
   ebfmi_per_chain <- apply(energy_mat, 1, compute_ebfmi)
 
   # Summaries
+  n_total <- nrow(divergent_mat) * ncol(divergent_mat)
   total_divergences <- sum(divergent_mat)
   max_tree_depth_hits <- sum(treedepth_mat == nuts_max_depth)
   min_ebfmi <- min(ebfmi_per_chain)
+  low_ebfmi_chains <- which(ebfmi_per_chain < 0.2)
+
+  divergence_rate <- total_divergences / n_total
+  depth_hit_rate <- max_tree_depth_hits / n_total
 
   if(verbose) {
-    cat("NUTS Diagnostics Summary:\n")
-    cat("  Total divergences:        ", total_divergences, "\n")
-    cat("  Max tree depth hits:      ", max_tree_depth_hits, "\n")
-    cat("  Min E-BFMI across chains: ", round(min_ebfmi, 3), "\n")
+    issues <- character(0)
 
-    divergence_rate <- total_divergences / (nrow(divergent_mat) * ncol(divergent_mat))
-    if(divergence_rate > 0.001) {
-      warning(sprintf(
-        "About %.3f%% of transitions ended with a divergence (%d out of %d).\n",
-        100 * divergence_rate,
-        total_divergences,
-        nrow(divergent_mat) * ncol(divergent_mat)
-      ), "Consider increasing the target acceptance rate or change to update_method = ``adaptive-metropolis''.")
-    } else if (divergence_rate > 0) {
-      message(sprintf(
-        "Note: %.3f%% of transitions ended with a divergence (%d of %d).\n",
-        100 * divergence_rate,
-        total_divergences,
-        nrow(divergent_mat) * ncol(divergent_mat)
-      ),
-      "Check R-hat and effective sample size (ESS) to ensure the chains are\n",
-      "mixing well.")
+    # Divergences
+    if (total_divergences > 0) {
+      if (divergence_rate > 0.001) {
+        issues <- c(issues, sprintf(
+          "Divergences: %d (%.2f%%) - increase target acceptance or use adaptive-metropolis",
+          total_divergences, 100 * divergence_rate))
+      } else {
+        issues <- c(issues, sprintf(
+          "Divergences: %d (%.3f%%) - check R-hat and ESS",
+          total_divergences, 100 * divergence_rate))
+      }
     }
 
-    depth_hit_rate <- max_tree_depth_hits / (nrow(treedepth_mat) * ncol(treedepth_mat))
-    if(depth_hit_rate > 0.01) {
-      warning(paste0(
-        sprintf(
-          "About %.2f%% of transitions hit the maximum tree depth (%d out of %d).\n",
-          100 * depth_hit_rate,
-          max_tree_depth_hits,
-          nrow(treedepth_mat) * ncol(treedepth_mat)
-        ),
-        "Consider increasing max_depth."
-      ))
-    } else if(depth_hit_rate > 0) {
-      message(paste0(
-        sprintf(
-          "Note: %.2f%% of transitions hit the maximum tree depth (%d of %d).\n",
-          100 * depth_hit_rate,
-          max_tree_depth_hits,
-          nrow(treedepth_mat) * ncol(treedepth_mat)
-        ),
-        "Check efficiency metrics such as effective sample size (ESS) to ensure\n",
-        "sufficient exploration of the posterior."
-      ))
+    # Tree depth
+    if (max_tree_depth_hits > 0) {
+      if (depth_hit_rate > 0.01) {
+        issues <- c(issues, sprintf(
+          "Tree depth: %d hits (%.1f%%) - consider max_depth > %d",
+          max_tree_depth_hits, 100 * depth_hit_rate, nuts_max_depth))
+      } else {
+        issues <- c(issues, sprintf(
+          "Tree depth: %d hits (%.2f%%) - check ESS",
+          max_tree_depth_hits, 100 * depth_hit_rate))
+      }
     }
 
-
-    low_ebfmi_chains <- which(ebfmi_per_chain < 0.3)
-    min_ebfmi <- min(ebfmi_per_chain)
-
+    # E-BFMI
     if (length(low_ebfmi_chains) > 0) {
-      warning(sprintf(
-        "E-BFMI below 0.3 detected in %d chain(s): %s.\n",
-        length(low_ebfmi_chains),
-        paste(low_ebfmi_chains, collapse = ", ")
-      ),
-      "This suggests inefficient momentum resampling in those chains.\n",
-      "Sampling efficiency may be reduced. Consider longer chains and check convergence diagnostics.")
+      issues <- c(issues, sprintf(
+        "E-BFMI: %.3f in chain%s %s - try adaptive-metropolis or more warmup",
+        min_ebfmi,
+        if(length(low_ebfmi_chains) > 1) "s" else "",
+        paste(low_ebfmi_chains, collapse = ", ")))
+    }
+
+    # Only print if there are issues
+    if (length(issues) > 0) {
+      cat("NUTS issues:\n")
+      for (issue in issues) {
+        cat("  -", issue, "\n")
+      }
     }
   }
 
   # Return structured summary
-  list(
+  invisible(list(
     treedepth = treedepth_mat,
     divergent = divergent_mat,
     energy = energy_mat,
@@ -104,5 +92,5 @@ summarize_nuts_diagnostics <- function(out, nuts_max_depth = 10, verbose = TRUE)
       max_tree_depth_hits = max_tree_depth_hits,
       min_ebfmi = min_ebfmi
     )
-  )
+  ))
 }

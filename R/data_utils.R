@@ -13,25 +13,13 @@ reformat_data = function(x,
         "You could try option na_action = impute."
       ))
     }
-    if(sum(missing_values) > 1) {
-      warning(
-        paste0(
-          "There were ",
-          sum(missing_values),
-          " rows with missing observations in the input matrix x.\n",
-          "Since na_action = listwise these rows were excluded from the analysis."
-        ),
-        call. = FALSE
-      )
-    }
-    if(sum(missing_values) == 1) {
-      warning(
-        paste0(
-          "There was one row with missing observations in the input matrix x.\n",
-          "Since na_action = listwise this row was excluded from \n",
-          "the analysis."
-        ),
-        call. = FALSE
+    n_missing <- sum(missing_values)
+    n_remaining <- nrow(x) - n_missing
+    if(n_missing > 0) {
+      message(
+        n_missing, " row", if(n_missing > 1) "s" else "",
+        " with missing values excluded (n = ", n_remaining, " remaining).\n",
+        "To impute missing values instead, use na_action = \"impute\"."
       )
     }
     x = x[!missing_values, ]
@@ -165,18 +153,11 @@ reformat_data = function(x,
     # Warn that maximum category value is large --------------------------------
     num_categories[node] = max(x[, node])
     if(!variable_bool[node] & num_categories[node] > 10) {
-      # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
-      warning(paste0(
-        "In the (pseudo) likelihood of Blume-Capel variables, the normalization constant \n",
-        "is a sum over all possible values of the ordinal variable. The range of \n",
-        "observed values, possibly after recoding to integers, is assumed to be the \n",
-        "number of possible response categories.  For node ", node, ", this range was \n",
-        "equal to ", num_categories[node], "which may cause the analysis to take some \n",
-        "time to run. Note that for the Blume-Capel model, the bgm function does not \n",
-        "collapse the categories that have no observations between zero and the last \n",
-        "category. This may explain the large discrepancy between the first and last \n",
-        "category values."
-      ))
+      warning(
+        "Blume-Capel variable ", node, " has ", num_categories[node], " categories. ",
+        "This may slow computation. Empty categories are not collapsed.",
+        call. = FALSE
+      )
     }
 
     # Check to see if not all responses are in one category --------------------
@@ -192,22 +173,12 @@ reformat_data = function(x,
   }
 
   if(check_fail_zero == TRUE) {
-    if(length(failed_zeroes) == 1) {
-      node = failed_zeroes[1]
-      warning(paste0(
-        "The bgm function assumes that the observed ordinal variables are integers and \n",
-        "that the lowest observed category score is zero. The lowest score for node \n",
-        node, " was recoded to zero for the analysis.\n",
-        "Note that bgm also recoded the corresponding reference category score to ", baseline_category[node], "."
-      ))
-    } else {
-      warning(paste0(
-        "The bgm function assumes that the observed ordinal variables are integers and \n",
-        "that the lowest observed category score is zero. The lowest score for nodes \n",
-        paste(failed_zeroes, collapse = ","), " were recoded to zero for the analysis.\n",
-        "Note that bgm also recoded the corresponding reference category scores."
-      ))
-    }
+    nodes_str <- paste(failed_zeroes, collapse = ", ")
+    message(
+      "Variable", if(length(failed_zeroes) > 1) "s" else "", " ", nodes_str,
+      " recoded to start at 0 (baseline categor",
+      if(length(failed_zeroes) > 1) "ies" else "y", " adjusted)."
+    )
   }
 
   return(list(
@@ -305,25 +276,13 @@ compare_reformat_data = function(
         "You could try option na_action = impute."
       ))
     }
-    if(sum(missing_values) > 1) {
-      warning(
-        paste0(
-          "There were ",
-          sum(missing_values),
-          " rows with missing observations in the input matrix x.\n",
-          "Since na_action = listwise these rows were excluded from the analysis."
-        ),
-        call. = FALSE
-      )
-    }
-    if(sum(missing_values) == 1) {
-      warning(
-        paste0(
-          "There was one row with missing observations in the input matrix x.\n",
-          "Since na_action = listwise this row was excluded from \n",
-          "the analysis."
-        ),
-        call. = FALSE
+    n_missing <- sum(missing_values)
+    n_remaining <- nrow(x) - n_missing
+    if(n_missing > 0) {
+      message(
+        n_missing, " row", if(n_missing > 1) "s" else "",
+        " with missing values excluded (n = ", n_remaining, " remaining).\n",
+        "To impute missing values instead, use na_action = \"impute\"."
       )
     }
 
@@ -500,18 +459,11 @@ compare_reformat_data = function(
     num_categories[node] = max(x[, node])
 
     if(!variable_bool[node] & max(num_categories[node]) > 10) {
-      # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
-      warning(paste0(
-        "In the (pseudo) likelihood of Blume-Capel variables, the normalization constant \n",
-        "is a sum over all possible values of the ordinal variable. The range of \n",
-        "observed values, possibly after recoding to integers, is assumed to be the \n",
-        "number of possible response categories.  For node ", node, ", in group 1, this \n",
-        "range was equal to ", max(num_categories[node]), "which may cause the analysis to take some \n",
-        "time to run. Note that for the Blume-Capel model, the bgm function does not \n",
-        "collapse the categories that have no observations between zero and the last \n",
-        "category. This may explain the large discrepancy between the first and last \n",
-        "category values."
-      ))
+      warning(
+        "Blume-Capel variable ", node, " has ", max(num_categories[node]), " categories. ",
+        "This may slow computation. Empty categories are not collapsed.",
+        call. = FALSE
+      )
     }
 
 
@@ -523,22 +475,12 @@ compare_reformat_data = function(
 
 
   if(check_fail_zero == TRUE) {
-    if(length(failed_zeroes) == 1) {
-      node = failed_zeroes[1]
-      warning(paste0(
-        "The bgm function assumes that the observed ordinal variables are integers and \n",
-        "that the lowest observed category score is zero. The lowest score for node \n",
-        node, " was recoded to zero for the analysis. Note that bgm also recoded the \n",
-        "the corresponding reference category score to ", baseline_category[node], "."
-      ))
-    } else {
-      warning(paste0(
-        "The bgm function assumes that the observed ordinal variables are integers and \n",
-        "that the lowest observed category score is zero. The lowest score for nodes \n",
-        paste(failed_zeroes, collapse = ","), " were recoded to zero for the analysis. \n",
-        "Note that bgm also recoded the corresponding reference category scores."
-      ))
-    }
+    nodes_str <- paste(failed_zeroes, collapse = ", ")
+    message(
+      "Variable", if(length(failed_zeroes) > 1) "s" else "", " ", nodes_str,
+      " recoded to start at 0 (baseline categor",
+      if(length(failed_zeroes) > 1) "ies" else "y", " adjusted)."
+    )
   }
 
   return(list(

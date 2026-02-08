@@ -93,20 +93,40 @@ public:
 };
 
 
-// === Stan-style Dynamic Warmup Schedule with Adaptive Windows ===
+// === Dynamic Warmup Schedule with Adaptive Windows ===
+// 
+// For edge_selection = FALSE:
+//   Stage 1 (init), Stage 2 (doubling windows), Stage 3a (terminal)
+//   total_warmup = user-specified warmup
+//
+// For edge_selection = TRUE:
+//   User warmup is split: 85% for Stage 1-3a, 10% for Stage 3b, 5% for Stage 3c
+//   - Stage 3b: proposal SD tuning for edge selection MH moves
+//   - Stage 3c: step size re-adaptation with edge selection active
+//   If Stage 3b would get < 20 iterations, it's skipped (uses default proposal SD)
+//
+// Warning types:
+//   0 = none
+//   1 = warmup extremely short (< 50)
+//   2 = core stages using proportional fallback 
+//   3 = limited proposal SD tuning (edge_selection && warmup < 300)
+//   4 = Stage 3b skipped (would have < 20 iterations)
+//
 struct WarmupSchedule {
-  /* ---------- members (keep this order!) ---------- */
+  /* ---------- members ---------- */
   int stage1_end;                 // Stage-1   [0 … stage1_end-1]
   std::vector<int> window_ends;   // Stage-2   windows (last index of each)
   int stage3a_start;              // first iter in Stage-3 a
-  int stage3b_start;              // first iter in Stage-3 b (may == total_warmup)
-  int stage3c_start;              // = stage3b_end if selection is ON, else stage3b_end == total_warmup
-  int total_warmup;               // warm-up iterations in total
+  int stage3b_start;              // first iter in Stage-3 b (== stage3c_start if skipped)
+  int stage3c_start;              // first iter in Stage-3 c (== total_warmup if skipped)
+  int total_warmup;               // warm-up iterations = user-specified value
   bool learn_proposal_sd;         // do we run the proposal-SD tuner?
-  bool enable_selection;          // allow edge-indicator moves (after warm-up)
-  /* ------------------------------------------------ */
+  bool enable_selection;          // allow edge-indicator moves
+  int warning_type;               // see above
+  bool stage3b_skipped;           // true if 3b was skipped due to insufficient budget
+  /* ------------------------------ */
 
-  WarmupSchedule(int warmup_core,
+  WarmupSchedule(int warmup,
                  bool enable_sel,
                  bool learn_sd)
     : stage1_end(0)
@@ -114,56 +134,115 @@ struct WarmupSchedule {
     , stage3a_start(0)
     , stage3b_start(0)
     , stage3c_start(0)
-    , total_warmup(0)             // will be set below
+    , total_warmup(warmup)        // User gets exactly what they specify
     , learn_proposal_sd(learn_sd)
     , enable_selection(enable_sel)
+    , warning_type(0)
+    , stage3b_skipped(false)
   {
-    /* ---------- Stage-1 (7.5 % of core warm-up) ---------- */
-    stage1_end      = int(0.075 * warmup_core);
+    // ===== Step 1: Determine budget allocation =====
+    int warmup_core;    // Budget for Stage 1-3a (mass matrix + step size)
+    int stage3b_budget = 0;
 
-    /* ---------- Stage-3 a (last 10 % of core warm-up) ---- */
-    stage3a_start   = warmup_core - int(0.10 * warmup_core);
+    if (enable_sel && learn_sd) {
+      // For edge selection models: split warmup as 85%/10%/5%
+      warmup_core    = static_cast<int>(0.85 * warmup);
+      stage3b_budget = static_cast<int>(0.10 * warmup);
+      // Stage 3c gets remainder: warmup - warmup_core - stage3b_budget (~5%)
 
-    /* ---------- Stage-2 : build doubling windows ---------- */
-    int cur   = stage1_end;
-    int wsize = 25;
-    while (cur < stage3a_start) {
-      int win = std::min(wsize, stage3a_start - cur);
-      window_ends.push_back(cur + win);          // 0-based index of *last* iter
-      cur   += win;
-      wsize  = std::min(wsize * 2, stage3a_start - cur);
+      // Check if Stage 3b has enough iterations to be meaningful
+      if (stage3b_budget < 20) {
+        // Skip Stage 3b entirely - will use default proposal SD
+        stage3b_skipped = true;
+        warning_type = 4;
+        warmup_core = warmup;  // Give all warmup to core stages
+        stage3b_budget = 0;
+      } else if (warmup < 300) {
+        // Marginal but runs - warn about limited tuning
+        warning_type = 3;
+      }
+    } else {
+      // No edge selection: all warmup goes to core stages 1-3a
+      warmup_core = warmup;
     }
 
-    /* ---------- Stage-3 b : proposal-SD learning ---------- */
-    int stage3a_len = warmup_core - stage3a_start;          // 10 % of core
-    int stage3b_len = (learn_proposal_sd && enable_selection)
-      ? std::max(100, stage3a_len)
-        : 0;
-    int stage3c_len = (learn_proposal_sd && enable_selection)
-      ? std::max(100, stage3a_len)
-        : 0;
+    // ===== Step 2: Set up core stages (1, 2, 3a) =====
+    constexpr int default_init_buffer = 75;   // Stage-1: initial fast adaptation
+    constexpr int default_term_buffer = 50;   // Stage-3a: final fast adaptation
+    constexpr int default_base_window = 25;   // Stage-2: initial window size
 
-    stage3b_start = warmup_core;            // begins directly after 3 a
-    stage3c_start = warmup_core + stage3b_len;
-    total_warmup  = stage3c_start + stage3c_len;
+    int init_buffer, term_buffer, base_window;
+
+    if (warmup_core < 20) {
+      // Too short for any meaningful adaptation
+      if (warning_type == 0) warning_type = 1;  // Don't overwrite more specific warnings
+      init_buffer = warmup_core;
+      term_buffer = 0;
+      base_window = 0;
+    } else if (default_init_buffer + default_base_window + default_term_buffer > warmup_core) {
+      // Not enough room for fixed buffers; fall back to proportional (15%/75%/10%)
+      if (warning_type == 0) warning_type = 2;
+      init_buffer = static_cast<int>(0.15 * warmup_core);
+      term_buffer = static_cast<int>(0.10 * warmup_core);
+      base_window = warmup_core - init_buffer - term_buffer;
+    } else {
+      // Standard case: use fixed buffers
+      init_buffer = default_init_buffer;
+      term_buffer = default_term_buffer;
+      base_window = default_base_window;
+    }
+
+    // Additional warning for extremely short warmup with edge selection
+    if (enable_sel && warmup < 50 && warning_type != 1) {
+      warning_type = 1;  // Override to most severe
+    }
+
+    /* ---------- Stage-1 ---------- */
+    stage1_end = init_buffer;
+
+    /* ---------- Stage-3a start ---------- */
+    stage3a_start = warmup_core - term_buffer;
+
+    /* ---------- Stage-2: build doubling windows ---------- */
+    if (base_window > 0 && stage3a_start > stage1_end) {
+      int cur   = stage1_end;
+      int wsize = base_window;
+      while (cur < stage3a_start) {
+        int win = std::min(wsize, stage3a_start - cur);
+        window_ends.push_back(cur + win);
+        cur   += win;
+        wsize  = std::min(wsize * 2, stage3a_start - cur);
+      }
+    }
+
+    /* ---------- Stage-3b and 3c boundaries ---------- */
+    stage3b_start = warmup_core;
+    stage3c_start = warmup_core + stage3b_budget;
+    // total_warmup already set to user's warmup value
   }
 
   /* ---------- helpers ---------- */
-  bool in_stage1 (int i) const { return i <  stage1_end;               }
-  bool in_stage2 (int i) const { return i >= stage1_end   && i < stage3a_start; }
-  bool in_stage3a(int i) const { return i >= stage3a_start&& i < stage3b_start; }
-  bool in_stage3b(int i) const { return i >= stage3b_start&& i < stage3c_start; }
-  bool in_stage3c(int i) const { return enable_selection && i >= stage3c_start && i < total_warmup; }
+  bool in_stage1 (int i) const { return i <  stage1_end; }
+  bool in_stage2 (int i) const { return i >= stage1_end && i < stage3a_start; }
+  bool in_stage3a(int i) const { return i >= stage3a_start && i < stage3b_start; }
+  bool in_stage3b(int i) const { return !stage3b_skipped && i >= stage3b_start && i < stage3c_start; }
+  bool in_stage3c(int i) const { return enable_selection && !stage3b_skipped && i >= stage3c_start && i < total_warmup; }
   bool sampling (int i) const { return i >= total_warmup; }
+  
+  bool has_warning() const { return warning_type > 0; }
+  bool warmup_extremely_short() const { return warning_type == 1; }
+  bool using_proportional_fallback() const { return warning_type == 2; }
+  bool limited_proposal_tuning() const { return warning_type == 3; }
+  bool proposal_tuning_skipped() const { return warning_type == 4 || stage3b_skipped; }
 
-  /* indicator moves only once warm-up is finished */
+  /* indicator moves in Stage 3c and sampling (if selection is enabled) */
   bool selection_enabled(int i) const {
-    return enable_selection && ( in_stage3c(i) || sampling(i) );
+    return enable_selection && (in_stage3c(i) || sampling(i));
   }
 
-  /* adapt proposal_sd only inside Stage-3 b (if that phase exists) */
+  /* adapt proposal_sd only inside Stage-3b (if that phase exists and wasn't skipped) */
   bool adapt_proposal_sd(int i) const {
-    return learn_proposal_sd && in_stage3b(i);
+    return learn_proposal_sd && !stage3b_skipped && in_stage3b(i);
   }
 
   /* current Stage-2 window index (-1 outside Stage-2) */
@@ -219,7 +298,7 @@ public:
       mass_accumulator.update(theta);
       int w = schedule.current_window(iteration);
       if (iteration + 1 == schedule.window_ends[w]) {
-        // STAN convention: inv_mass = variance (not 1/variance!)
+        // inv_mass = variance (not 1/variance)
         // Higher variance → higher inverse mass → parameter moves more freely
         inv_mass_ = mass_accumulator.variance();
         mass_accumulator.reset();
@@ -253,7 +332,6 @@ public:
    * This should be called after running heuristic_initial_step_size() with
    * the new mass matrix to find an appropriate starting step size.
    *
-   * Following STAN's approach:
    * - Set the new step size
    * - Set mu = log(10 * new_step_size) as the adaptation target
    * - Restart the dual averaging counters
@@ -261,7 +339,7 @@ public:
   void reinit_stepsize(double new_step_size) {
     step_size_ = new_step_size;
     step_adapter.restart(new_step_size);
-    // Set mu to log(10 * epsilon) as per STAN's approach
+    // Set mu to log(10 * epsilon) for dual averaging
     step_adapter.mu = MY_LOG(10.0 * new_step_size);
     mass_matrix_updated_ = false;
   }

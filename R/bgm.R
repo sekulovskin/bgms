@@ -110,8 +110,8 @@
 #'
 #' @section Warmup and Adaptation:
 #'
-#' The warmup procedure in \code{bgm} is based on the multi–stage adaptation
-#' schedule used in Stan \insertCite{stan-manual}{bgms}. Warmup iterations are
+#' The warmup procedure in \code{bgm} uses a multi-stage adaptation
+#' schedule \insertCite{stan-manual}{bgms}. Warmup iterations are
 #' split into several phases:
 #'
 #' \itemize{
@@ -512,10 +512,27 @@ bgm = function(
   # Check Gibbs input -----------------------------------------------------------
   check_positive_integer(iter, "iter")
   check_non_negative_integer(warmup, "warmup")
-  if(warmup < 1e3) {
-    warning("The warmup parameter is set to a low value. This may lead to unreliable results. Reset to a minimum of 1000 iterations.")
+
+  # Warmup warnings for HMC/NUTS (tiered based on edge_selection)
+  if (update_method %in% c("hmc", "nuts")) {
+    if (edge_selection) {
+      # For edge_selection models: warmup is split 85%/10%/5% for stages 1-3a/3b/3c
+      if (warmup < 50) {
+        warning("warmup = ", warmup, " is very short for edge selection. Consider >= 300.")
+      } else if (warmup < 200) {
+        warning("warmup = ", warmup, ": proposal SD tuning skipped (needs >= 200). Consider >= 300.")
+      } else if (warmup < 300) {
+        warning("warmup = ", warmup, ": limited proposal SD tuning. Consider >= 300.")
+      }
+    } else {
+      # For models without edge selection: standard warmup warnings
+      if (warmup < 20) {
+        warning("warmup = ", warmup, ": no mass matrix estimation (needs >= 20).")
+      } else if (warmup < 150) {
+        warning("warmup = ", warmup, ": using proportional allocation (needs >= 150 for fixed buffers).")
+      }
+    }
   }
-  warmup = max(warmup, 1e3) # Set minimum warmup to 1000 iterations
 
   check_positive_integer(hmc_num_leapfrogs, "hmc_num_leapfrogs")
   hmc_num_leapfrogs = max(hmc_num_leapfrogs, 1) # Set minimum hmc_num_leapfrogs to 1

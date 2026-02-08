@@ -349,8 +349,8 @@ fixed at their learned values, and proposal SDs remain constant.
 \section{Warmup and Adaptation}{
 
 
-The warmup procedure in \code{bgm} is based on the multi–stage adaptation
-schedule used in Stan \insertCite{stan-manual}{bgms}. Warmup iterations are
+The warmup procedure in \code{bgm} uses a multi-stage adaptation
+schedule \insertCite{stan-manual}{bgms}. Warmup iterations are
 split into several phases:
 
 \itemize{

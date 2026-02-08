@@ -391,6 +391,15 @@ bgmCompare = function(
   check_positive_integer(iter, "iter")
   check_non_negative_integer(warmup, "warmup")
 
+  # Warmup warnings for HMC/NUTS
+  if (update_method %in% c("hmc", "nuts")) {
+    if (warmup < 20) {
+      warning("warmup = ", warmup, ": no mass matrix estimation (needs >= 20).")
+    } else if (warmup < 150) {
+      warning("warmup = ", warmup, ": using proportional allocation (needs >= 150 for fixed buffers).")
+    }
+  }
+
   # Check na_action
   na_action_input = na_action
   na_action = try(match.arg(na_action), silent = TRUE)
