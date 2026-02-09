@@ -2,7 +2,9 @@
 % Please edit documentation in R/bgm.R
 \name{bgm}
 \alias{bgm}
-\title{Bayesian Estimation or Edge Selection for Markov Random Fields}
+\title{Bayesian Estimation or Edge Selection for Markov Random Fields
+(Using a Negative Binomial prior for the number of clusters,
+with a fixed size parameter of 100)}
 \usage{
 bgm(
   x,
@@ -97,8 +99,7 @@ Default: \code{beta_bernoulli_alpha_between = 1} and \code{beta_bernoulli_beta_b
 prior on block assignments (used with the Stochastic Block model).
 Default: \code{1}.}
 
-\item{lambda}{Double. Rate of the zero-truncated Poisson prior on the
-number of clusters in the Stochastic Block Model. Default: \code{1}.}
+\item{lambda}{Double. In this case this is the mean parameter of the negative binomial distribution. Default: \code{1}.}
 
 \item{na_action}{Character. Specifies missing data handling. Either
 \code{"listwise"} (drop rows with missing values) or \code{"impute"}

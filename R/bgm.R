@@ -1,4 +1,6 @@
 #' Bayesian Estimation or Edge Selection for Markov Random Fields
+#' (Using a Negative Binomial prior for the number of clusters,
+#' with a fixed size parameter of 100)
 #'
 #' @description
 #' The \code{bgm} function estimates the pseudoposterior distribution of
@@ -242,8 +244,7 @@
 #'   prior on block assignments (used with the Stochastic Block model).
 #'   Default: \code{1}.
 #'
-#' @param lambda Double. Rate of the zero-truncated Poisson prior on the
-#'   number of clusters in the Stochastic Block Model. Default: \code{1}.
+#' @param lambda Double. In this case this is the mean parameter of the negative binomial distribution. Default: \code{1}.
 #'
 #' @param na_action Character. Specifies missing data handling. Either
 #'   \code{"listwise"} (drop rows with missing values) or \code{"impute"}

@@ -388,13 +388,15 @@ find_representative_clustering = function(cluster_matrix) {
 # Miller & Harrison (2018). Mixture Models With a Prior on the Number of
 # blocks, Journal of the American Statistical Association, 113:521, 340-356,
 # DOI:10.1080/01621459.2016.1255636
+# This function is adjusted to use the negative binomial distribution
+# as a prior on the number of clusters
 #' @importFrom stats dpois
 compute_p_k_given_t = function(
-  t,
-  log_Vn,
-  dirichlet_alpha,
-  num_variables,
-  lambda
+    t,
+    log_Vn,
+    dirichlet_alpha,
+    num_variables,
+    lambda
 ) {
   # Define the K_values
   K_values = as.numeric(1:num_variables)
@@ -405,9 +407,14 @@ compute_p_k_given_t = function(
   # Normalization constant for t
   log_vn_t = log_Vn[t]
 
-  # Normalizing factor for the truncated Poisson distribution
-  norm_factor = 1 - dpois(0, lambda)
-  truncated_poisson_pmf = dpois(K_values, lambda) / norm_factor
+  # Use negative binomial instead of Poisson
+  nb_size = 100  # Must match the value in compute_Vn_mfm_sbm
+
+  # Normalizing factor for the truncated negative binomial distribution
+  norm_factor = 1 - dnbinom(0, size = nb_size, mu = lambda)
+
+  # Truncated negative binomial PMF
+  truncated_nb_pmf = dnbinom(K_values, size = nb_size, mu = lambda) / norm_factor
 
   # Loop through each value of K
   for(i in seq_along(K_values)) {
@@ -415,17 +422,21 @@ compute_p_k_given_t = function(
     if(K >= t) {
       # Falling factorial
       falling_factorial = prod(K:(K - t + 1))
+
       # Rising factorial
       rising_factorial = prod((dirichlet_alpha * K) + 0:(num_variables - 1))
+
       # Compute log probability
       log_p_k = log(falling_factorial) - log(rising_factorial) +
-        log(truncated_poisson_pmf[i]) - log_vn_t
+        log(truncated_nb_pmf[i]) - log_vn_t
+
       # Convert log probability to probability
       p_k_given_t[i] = exp(log_p_k)
     } else {
       p_k_given_t[i] = 0
     }
   }
+
   # Normalize probabilities
   p_k_given_t = p_k_given_t / sum(p_k_given_t)
 
