@@ -72,8 +72,8 @@ summarize_nuts_diagnostics <- function(out, nuts_max_depth = 10, verbose = TRUE)
         paste(low_ebfmi_chains, collapse = ", ")))
     }
 
-    # Only print if there are issues
-    if (length(issues) > 0) {
+    # Only print if there are issues and verbose is enabled
+    if (length(issues) > 0 && isTRUE(getOption("bgms.verbose", TRUE))) {
       cat("NUTS issues:\n")
       for (issue in issues) {
         cat("  -", issue, "\n")

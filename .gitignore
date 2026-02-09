@@ -1,5 +1,6 @@
 .Rproj.user
 .Rhistory
+**/.Rhistory
 .RData
 .Ruserdata
 src/*.o
@@ -10,7 +11,6 @@ src/**/*.so
 src/**/*.dll
 .DS_Store
 *.Rcheck/
-/doc/
 /Meta/
 src/Makevars
 src/Makevars.win

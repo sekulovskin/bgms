@@ -26,6 +26,12 @@
 \alias{extract_group_params.bgmCompare}
 \alias{extract_edge_indicators}
 \alias{extract_pairwise_thresholds}
+\alias{extract_rhat}
+\alias{extract_rhat.bgms}
+\alias{extract_rhat.bgmCompare}
+\alias{extract_ess}
+\alias{extract_ess.bgms}
+\alias{extract_ess.bgmCompare}
 \title{Extractor Functions for bgms Objects}
 \usage{
 extract_arguments(bgms_object)
@@ -75,6 +81,21 @@ extract_group_params(bgms_object)
 extract_edge_indicators(bgms_object)
 
 extract_pairwise_thresholds(bgms_object)
+
+extract_rhat(bgms_object)
+
+\method{extract_rhat}{bgms}(bgms_object)
+
+\method{extract_rhat}{bgmCompare}(bgms_object)
+
+extract_ess(bgms_object)
+
+\method{extract_ess}{bgms}(bgms_object)
+
+\method{extract_ess}{bgmCompare}(bgms_object)
+}
+\arguments{
+\item{bgms_object}{An object of class `bgms` or `bgmCompare`.}
 }
 \description{
 Extractor Functions for bgms Objects
@@ -105,7 +126,9 @@ in `$posterior_summary_main`. Access via older names is supported but deprecated
 - `extract_pairwise_interactions()` – Posterior mean of pairwise interactions
 - `extract_category_thresholds()` – Posterior mean of category thresholds
 - `extract_indicator_priors()` – Prior structure used for edge indicators
-- `extract_sbm`  – Extract stochastic block model parameters (if applicable)
+- `extract_sbm()` – Extract stochastic block model parameters (if applicable)
+- `extract_rhat()` – Extract R-hat convergence diagnostics
+- `extract_ess()` – Extract effective sample size estimates
 }
 
 \keyword{internal}

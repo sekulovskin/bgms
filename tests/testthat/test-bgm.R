@@ -1,7 +1,21 @@
+# ==============================================================================
+# Core bgm() Function Tests
+# ==============================================================================
+#
+# EXTENDS: test-tolerance.R (stochastic-robust testing approach)
+# PATTERN: Reproducibility, correlation with sufficient statistics
+#
+# These tests verify core bgm() functionality:
+#   - Reproducibility: identical seeds produce identical MCMC chains
+#   - Sanity: posterior means correlate with classical sufficient statistics
+#
+# See helper-fixtures.R for testing philosophy and session-cached fixtures.
+# ==============================================================================
+
 test_that("Posterior means correlate with sufficient precision statistics", {
   testthat::skip_on_cran()
 
-  fit = bgm(Wenchuan, edge_selection = FALSE, iter = 100, warmup = 1000, seed = 1234, chains = 1)
+  fit = bgm(Wenchuan, edge_selection = FALSE, iter = 100, warmup = 1000, seed = 1234, chains = 1, display_progress = "none")
   x = Wenchuan
   x = na.omit(x)
   alt = -solve(t(x) %*% x)
@@ -18,8 +32,8 @@ test_that("bgm is reproducible", {
 
   data("Wenchuan", package = "bgms")
   x <- Wenchuan[1:50, 1:5]
-  fit1 <- bgm(x = x, iter = 100, warmup = 1000, cores = no_cores, seed = 1234)
-  fit2 <- bgm(x = x, iter = 100, warmup = 1000, cores = no_cores, seed = 1234)
+  fit1 <- bgm(x = x, iter = 100, warmup = 1000, cores = no_cores, seed = 1234, display_progress = "none")
+  fit2 <- bgm(x = x, iter = 100, warmup = 1000, cores = no_cores, seed = 1234, display_progress = "none")
 
   testthat::expect_equal(fit1$raw_samples, fit2$raw_samples)
 })
@@ -30,8 +44,8 @@ test_that("bgmCompare is reproducible", {
   data("Wenchuan", package = "bgms")
   x <- Wenchuan[1:50, 1:5]
   y <- Wenchuan[1:50, c(1:4, 6)]
-  fit1 <- bgmCompare(x = x, y = y, iter = 100, warmup = 1000, cores = no_cores, seed = 1234)
-  fit2 <- bgmCompare(x = x, y = y, iter = 100, warmup = 1000, cores = no_cores, seed = 1234)
+  fit1 <- bgmCompare(x = x, y = y, iter = 100, warmup = 1000, cores = no_cores, seed = 1234, display_progress = "none")
+  fit2 <- bgmCompare(x = x, y = y, iter = 100, warmup = 1000, cores = no_cores, seed = 1234, display_progress = "none")
 
   combine_chains <- function(fit) {
     pairs <- fit$raw_samples$pairwise

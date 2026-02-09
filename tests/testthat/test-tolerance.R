@@ -1,3 +1,26 @@
+# ==============================================================================
+# FOUNDATIONAL TOLERANCE TESTING APPROACH FOR STOCHASTIC OUTPUT
+# ==============================================================================
+#
+# This file establishes the core testing philosophy for bgms. All other test
+# files in this suite extend and apply these principles.
+#
+# CORE PRINCIPLE: Because bgms output is stochastic (MCMC-based), we cannot
+# test for exact values. Instead we test for ROBUST PROPERTIES that must hold
+# regardless of the specific random samples drawn.
+#
+# The patterns demonstrated here are reused throughout the test suite:
+#   - test-extractor-functions.R: Applies range invariants and symmetry checks
+#   - test-methods.R: Uses dimension consistency and value range checks
+#   - test-simulate-mrf.R: Tests range, reproducibility, and distribution properties
+#   - test-input-validation.R: Tests error conditions (complementary to tolerance)
+#   - test-bgmCompare.R: Extends tolerance patterns to group comparison output
+#
+# See helper-fixtures.R for reusable helper functions: is_symmetric(),
+# values_in_range(), upper_vals(), and testing philosophy documentation.
+#
+# ==============================================================================
+
 ## Debug helper:
 ## Run with this command to get more context when something fails:
 ## testthat::test_file("tests/testthat/test-tolerance.R", reporter = "progress")

@@ -122,6 +122,10 @@
 #' @param display_progress Character. Controls progress reporting:
 #'   \code{"per-chain"}, \code{"total"}, or \code{"none"}.
 #'   Default: \code{"per-chain"}.
+#' @param verbose Logical. If \code{TRUE}, prints informational messages
+#'   during data processing (e.g., missing data handling, variable recoding).
+#'   Defaults to \code{getOption("bgms.verbose", TRUE)}. Set
+#'   \code{options(bgms.verbose = FALSE)} to suppress messages globally.
 #' @param update_method Character. Sampling algorithm:
 #'   \code{"adaptive-metropolis"}, \code{"hamiltonian-mc"}, or \code{"nuts"}.
 #'   Default: \code{"nuts"}.
@@ -218,6 +222,7 @@ bgmCompare = function(
   display_progress = c("per-chain", "total", "none"),
   seed = NULL,
   standardize = FALSE,
+  verbose = getOption("bgms.verbose", TRUE),
   main_difference_model,
   reference_category,
   main_difference_scale,
@@ -236,6 +241,11 @@ bgmCompare = function(
   burnin,
   save
 ) {
+  # Set verbose option for internal functions, restore on exit
+  old_verbose <- getOption("bgms.verbose")
+  options(bgms.verbose = verbose)
+  on.exit(options(bgms.verbose = old_verbose), add = TRUE)
+
   if(hasArg(main_difference_model)) {
     lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(main_difference_model =)")
   }
@@ -392,7 +402,7 @@ bgmCompare = function(
   check_non_negative_integer(warmup, "warmup")
 
   # Warmup warnings for HMC/NUTS
-  if (update_method %in% c("hmc", "nuts")) {
+  if (verbose && update_method %in% c("hmc", "nuts")) {
     if (warmup < 20) {
       warning("warmup = ", warmup, ": no mass matrix estimation (needs >= 20).")
     } else if (warmup < 150) {

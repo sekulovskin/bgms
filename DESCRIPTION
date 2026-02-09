@@ -41,6 +41,7 @@ Depends:
 LazyData: true
 Encoding: UTF-8
 Suggests: 
+    covr,
     ggplot2,
     knitr,
     parallel,

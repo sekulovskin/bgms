@@ -2,6 +2,9 @@
 
 ## New features
 
+* `extract_rhat()`: extract R-hat convergence diagnostics from fitted objects
+* `extract_ess()`: extract effective sample size estimates from fitted objects
+* `verbose` argument: control informational messages; set `options(bgms.verbose = FALSE)` to suppress globally
 * `simulate_mrf()`: standalone MRF simulation with user-specified parameters
 * `simulate.bgms()`: generate observations from fitted models (supports parallel processing)
 * `predict.bgms()`: compute conditional probabilities P(X_j | X_{-j})
@@ -18,6 +21,7 @@
 
 ## Other changes
 
+* expanded test suite: input validation, extractor functions, S3 methods, simulation, and numerical sanity tests
 * improved warmup schedule: fixed buffers (75/25/50) with proportional fallback for short warmup
 * edge selection warmup now within user budget: 85%/10%/5% split for stages 1-3a/3b/3c
 * streamlined user messages: concise warnings, consolidated NUTS diagnostics

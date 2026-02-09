@@ -6,6 +6,8 @@
 #' @param x An object of class `bgms`.
 #' @param ... Ignored.
 #'
+#' @return Invisibly returns `x`.
+#'
 #' @export
 print.bgms <- function(x, ...) {
   arguments <- extract_arguments(x)
@@ -45,6 +47,7 @@ print.bgms <- function(x, ...) {
 
   cat("Use the `summary()` function for posterior summaries and chain diagnostics.\n")
   cat("See the `easybgm` package for summary and plotting tools.\n")
+  invisible(x)
 }
 
 

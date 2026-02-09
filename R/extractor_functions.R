@@ -3,6 +3,8 @@
 #' These functions extract various components from objects returned by the `bgm()` function,
 #' such as edge indicators, posterior inclusion probabilities, and parameter summaries.
 #'
+#' @param bgms_object An object of class `bgms` or `bgmCompare`.
+#'
 #' @section Functions:
 #' - `extract_arguments()` – Extract model arguments
 #' - `extract_indicators()` – Get sampled edge indicators
@@ -10,7 +12,9 @@
 #' - `extract_pairwise_interactions()` – Posterior mean of pairwise interactions
 #' - `extract_category_thresholds()` – Posterior mean of category thresholds
 #' - `extract_indicator_priors()` – Prior structure used for edge indicators
-#' - `extract_sbm`  – Extract stochastic block model parameters (if applicable)
+#' - `extract_sbm()` – Extract stochastic block model parameters (if applicable)
+#' - `extract_rhat()` – Extract R-hat convergence diagnostics
+#' - `extract_ess()` – Extract effective sample size estimates
 #'
 #' @name extractor_functions
 #' @title Extractor Functions for bgms Objects
@@ -634,3 +638,179 @@ extract_pairwise_thresholds = function(bgms_object) {
   lifecycle::deprecate_warn("0.1.4.2", "extract_pairwise_thresholds()", "extract_category_thresholds()")
   extract_category_thresholds(bgms_object)
 }
+
+
+# ------------------------------------------------------------------------------
+# extract_rhat() - R-hat Convergence Diagnostics
+# ------------------------------------------------------------------------------
+
+#' @rdname extractor_functions
+#' @export
+extract_rhat = function(bgms_object) {
+
+  UseMethod("extract_rhat")
+}
+
+#' @rdname extractor_functions
+#' @export
+extract_rhat.bgms = function(bgms_object) {
+  if(!inherits(bgms_object, "bgms")) stop("Object must be of class 'bgms'.")
+
+  result = list()
+
+  # Main effect Rhat
+  if(!is.null(bgms_object$posterior_summary_main)) {
+    result$main = bgms_object$posterior_summary_main$Rhat
+    names(result$main) = rownames(bgms_object$posterior_summary_main)
+  }
+
+  # Pairwise interaction Rhat
+  if(!is.null(bgms_object$posterior_summary_pairwise)) {
+    result$pairwise = bgms_object$posterior_summary_pairwise$Rhat
+    names(result$pairwise) = rownames(bgms_object$posterior_summary_pairwise)
+  }
+
+  # Indicator Rhat (if edge selection was used)
+  if(!is.null(bgms_object$posterior_summary_indicator)) {
+    result$indicator = bgms_object$posterior_summary_indicator$Rhat
+    names(result$indicator) = rownames(bgms_object$posterior_summary_indicator)
+  }
+
+  if(length(result) == 0) {
+    stop("No posterior summary information found in this object.")
+  }
+
+  return(result)
+}
+
+#' @rdname extractor_functions
+#' @export
+extract_rhat.bgmCompare = function(bgms_object) {
+  if(!inherits(bgms_object, "bgmCompare")) stop("Object must be of class 'bgmCompare'.")
+
+  result = list()
+
+  # Main baseline Rhat
+  if(!is.null(bgms_object$posterior_summary_main_baseline)) {
+    result$main_baseline = bgms_object$posterior_summary_main_baseline$Rhat
+    names(result$main_baseline) = rownames(bgms_object$posterior_summary_main_baseline)
+  }
+
+  # Main differences Rhat
+  if(!is.null(bgms_object$posterior_summary_main_differences)) {
+    result$main_differences = bgms_object$posterior_summary_main_differences$Rhat
+    names(result$main_differences) = rownames(bgms_object$posterior_summary_main_differences)
+  }
+
+  # Pairwise baseline Rhat
+  if(!is.null(bgms_object$posterior_summary_pairwise_baseline)) {
+    result$pairwise_baseline = bgms_object$posterior_summary_pairwise_baseline$Rhat
+    names(result$pairwise_baseline) = rownames(bgms_object$posterior_summary_pairwise_baseline)
+  }
+
+  # Pairwise differences Rhat
+  if(!is.null(bgms_object$posterior_summary_pairwise_differences)) {
+    result$pairwise_differences = bgms_object$posterior_summary_pairwise_differences$Rhat
+    names(result$pairwise_differences) = rownames(bgms_object$posterior_summary_pairwise_differences)
+  }
+
+  # Indicator Rhat (if difference selection was used)
+  if(!is.null(bgms_object$posterior_summary_indicator)) {
+    result$indicator = bgms_object$posterior_summary_indicator$Rhat
+    names(result$indicator) = rownames(bgms_object$posterior_summary_indicator)
+  }
+
+  if(length(result) == 0) {
+    stop("No posterior summary information found in this object.")
+  }
+
+  return(result)
+}
+
+
+# ------------------------------------------------------------------------------
+# extract_ess() - Effective Sample Size
+# ------------------------------------------------------------------------------
+
+#' @rdname extractor_functions
+#' @export
+extract_ess = function(bgms_object) {
+  UseMethod("extract_ess")
+}
+
+#' @rdname extractor_functions
+#' @export
+extract_ess.bgms = function(bgms_object) {
+  if(!inherits(bgms_object, "bgms")) stop("Object must be of class 'bgms'.")
+
+  result = list()
+
+  # Main effect ESS
+  if(!is.null(bgms_object$posterior_summary_main)) {
+    result$main = bgms_object$posterior_summary_main$n_eff
+    names(result$main) = rownames(bgms_object$posterior_summary_main)
+  }
+
+  # Pairwise interaction ESS
+  if(!is.null(bgms_object$posterior_summary_pairwise)) {
+    result$pairwise = bgms_object$posterior_summary_pairwise$n_eff
+    names(result$pairwise) = rownames(bgms_object$posterior_summary_pairwise)
+  }
+
+  # Indicator ESS (if edge selection was used)
+  if(!is.null(bgms_object$posterior_summary_indicator)) {
+    result$indicator = bgms_object$posterior_summary_indicator$n_eff
+    names(result$indicator) = rownames(bgms_object$posterior_summary_indicator)
+  }
+
+  if(length(result) == 0) {
+    stop("No posterior summary information found in this object.")
+  }
+
+  return(result)
+}
+
+#' @rdname extractor_functions
+#' @export
+extract_ess.bgmCompare = function(bgms_object) {
+  if(!inherits(bgms_object, "bgmCompare")) stop("Object must be of class 'bgmCompare'.")
+
+  result = list()
+
+  # Main baseline ESS
+  if(!is.null(bgms_object$posterior_summary_main_baseline)) {
+    result$main_baseline = bgms_object$posterior_summary_main_baseline$n_eff
+    names(result$main_baseline) = rownames(bgms_object$posterior_summary_main_baseline)
+  }
+
+  # Main differences ESS
+  if(!is.null(bgms_object$posterior_summary_main_differences)) {
+    result$main_differences = bgms_object$posterior_summary_main_differences$n_eff
+    names(result$main_differences) = rownames(bgms_object$posterior_summary_main_differences)
+  }
+
+  # Pairwise baseline ESS
+  if(!is.null(bgms_object$posterior_summary_pairwise_baseline)) {
+    result$pairwise_baseline = bgms_object$posterior_summary_pairwise_baseline$n_eff
+    names(result$pairwise_baseline) = rownames(bgms_object$posterior_summary_pairwise_baseline)
+  }
+
+  # Pairwise differences ESS
+  if(!is.null(bgms_object$posterior_summary_pairwise_differences)) {
+    result$pairwise_differences = bgms_object$posterior_summary_pairwise_differences$n_eff
+    names(result$pairwise_differences) = rownames(bgms_object$posterior_summary_pairwise_differences)
+  }
+
+  # Indicator ESS (if difference selection was used)
+  if(!is.null(bgms_object$posterior_summary_indicator)) {
+    result$indicator = bgms_object$posterior_summary_indicator$n_eff
+    names(result$indicator) = rownames(bgms_object$posterior_summary_indicator)
+  }
+
+  if(length(result) == 0) {
+    stop("No posterior summary information found in this object.")
+  }
+
+  return(result)
+}
+
