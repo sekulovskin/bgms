@@ -449,3 +449,279 @@ test_that("bgms fit contains all fields accessed by easybgm", {
     }
   }
 })
+
+
+# ------------------------------------------------------------------------------
+# extract_indicators.bgmCompare Tests
+# ------------------------------------------------------------------------------
+
+test_that("extract_indicators.bgmCompare returns indicator matrix for difference selection fits", {
+  fit <- get_bgmcompare_fit()
+  args <- extract_arguments(fit)
+  
+  if (!isTRUE(args$difference_selection)) {
+    skip("Fit object does not have difference_selection = TRUE")
+  }
+  
+  indicators <- extract_indicators(fit)
+  
+  # Structure
+  expect_true(is.matrix(indicators), info = "should be matrix")
+  
+  # Binary values
+  expect_true(all(indicators %in% c(0, 1)), 
+              info = "indicators should be 0 or 1")
+  
+  # Has column names
+  expect_true(!is.null(colnames(indicators)), info = "should have column names")
+})
+
+test_that("extract_indicators.bgmCompare errors when difference_selection = FALSE", {
+  skip_on_cran_mcmc()
+  
+  data <- generate_grouped_test_data(n_per_group = 15, p = 3)
+  args <- c(
+    list(x = data$x, group_indicator = data$group_indicator, difference_selection = FALSE),
+    quick_mcmc_args()
+  )
+  fit <- do.call(bgmCompare, args)
+  
+  expect_error(extract_indicators(fit), regexp = "difference_selection")
+})
+
+
+# ------------------------------------------------------------------------------
+# extract_posterior_inclusion_probabilities.bgmCompare Tests
+# ------------------------------------------------------------------------------
+
+test_that("extract_posterior_inclusion_probabilities.bgmCompare returns symmetric PIP matrix", {
+  fit <- get_bgmcompare_fit()
+  args <- extract_arguments(fit)
+  
+  if (!isTRUE(args$difference_selection)) {
+    skip("Fit object does not have difference_selection = TRUE")
+  }
+  
+  pip <- extract_posterior_inclusion_probabilities(fit)
+  p <- args$num_variables
+  
+  # Structure
+  expect_true(is.matrix(pip), info = "should be matrix")
+  expect_equal(dim(pip), c(p, p), info = "should be p x p")
+  
+  # Symmetry
+  expect_true(is_symmetric(pip), info = "should be symmetric")
+  
+  # Range [0, 1]
+  expect_true(values_in_range(pip, 0, 1), info = "PIPs should be in [0,1]")
+  
+  # Has variable names
+  expect_equal(colnames(pip), args$data_columnnames, info = "should have column names")
+})
+
+test_that("extract_posterior_inclusion_probabilities.bgmCompare errors when difference_selection = FALSE", {
+  skip_on_cran_mcmc()
+  
+  data <- generate_grouped_test_data(n_per_group = 15, p = 3)
+  args <- c(
+    list(x = data$x, group_indicator = data$group_indicator, difference_selection = FALSE),
+    quick_mcmc_args()
+  )
+  fit <- do.call(bgmCompare, args)
+  
+  expect_error(extract_posterior_inclusion_probabilities(fit), regexp = "difference_selection")
+})
+
+
+# ------------------------------------------------------------------------------
+# extract_indicator_priors.bgmCompare Tests
+# ------------------------------------------------------------------------------
+
+test_that("extract_indicator_priors.bgmCompare returns prior specification", {
+  fit <- get_bgmcompare_fit()
+  args <- extract_arguments(fit)
+  
+  if (!isTRUE(args$difference_selection)) {
+    skip("Fit object does not have difference_selection = TRUE")
+  }
+  
+  priors <- extract_indicator_priors(fit)
+  
+  # Returns the difference_prior from arguments
+  expect_true(!is.null(priors), info = "should return prior specification")
+})
+
+test_that("extract_indicator_priors.bgmCompare errors when difference_selection = FALSE", {
+  skip_on_cran_mcmc()
+  
+  data <- generate_grouped_test_data(n_per_group = 15, p = 3)
+  args <- c(
+    list(x = data$x, group_indicator = data$group_indicator, difference_selection = FALSE),
+    quick_mcmc_args()
+  )
+  fit <- do.call(bgmCompare, args)
+  
+  expect_error(extract_indicator_priors(fit), regexp = "selection")
+})
+
+
+# ------------------------------------------------------------------------------
+# main_difference_selection Tests
+# ------------------------------------------------------------------------------
+
+test_that("bgmCompare with main_difference_selection = TRUE produces valid output", {
+  fit <- get_bgmcompare_fit_main_selection()
+  args <- extract_arguments(fit)
+  
+  # Verify main_difference_selection is TRUE in arguments
+
+  expect_true(isTRUE(args$main_difference_selection), 
+              info = "main_difference_selection should be TRUE")
+  expect_true(isTRUE(args$difference_selection), 
+              info = "difference_selection should be TRUE")
+})
+
+test_that("extract_indicators works with main_difference_selection = TRUE", {
+  fit <- get_bgmcompare_fit_main_selection()
+  args <- extract_arguments(fit)
+  
+  indicators <- extract_indicators(fit)
+  
+  # Structure
+  expect_true(is.matrix(indicators), info = "should be matrix")
+  
+  # Binary values
+  expect_true(all(indicators %in% c(0, 1)), 
+              info = "indicators should be 0 or 1")
+  
+  # With main_difference_selection = TRUE, there should be more indicator columns
+  # than just pairwise (includes main effect indicators)
+  p <- args$num_variables
+  n_pairwise <- p * (p - 1) / 2
+  
+  # Indicator dimensions should include main effects + pairwise
+  # Exact count depends on number of categories, but should be > n_pairwise
+  expect_true(ncol(indicators) >= n_pairwise, 
+              info = "indicators should include at least pairwise effects")
+})
+
+test_that("extract_posterior_inclusion_probabilities works with main_difference_selection = TRUE", {
+  fit <- get_bgmcompare_fit_main_selection()
+  args <- extract_arguments(fit)
+  
+  pip <- extract_posterior_inclusion_probabilities(fit)
+  p <- args$num_variables
+  
+  # Structure - should be p x p matrix
+  expect_true(is.matrix(pip), info = "should be matrix")
+  expect_equal(dim(pip), c(p, p), info = "should be p x p")
+  
+  # Symmetry
+  expect_true(is_symmetric(pip), info = "should be symmetric")
+  
+  # Range [0, 1]
+  expect_true(values_in_range(pip, 0, 1), info = "PIPs should be in [0,1]")
+})
+
+test_that("extract_group_params works with main_difference_selection = TRUE", {
+  fit <- get_bgmcompare_fit_main_selection()
+  args <- extract_arguments(fit)
+  
+  group_params <- extract_group_params(fit)
+  
+  expect_type(group_params, "list")
+  expect_true("main_effects_groups" %in% names(group_params))
+  expect_true("pairwise_effects_groups" %in% names(group_params))
+  
+  # Dimensions match number of groups
+  n_groups <- args$num_groups
+  expect_equal(ncol(group_params$main_effects_groups), n_groups)
+  expect_equal(ncol(group_params$pairwise_effects_groups), n_groups)
+  
+  # Values finite
+  expect_true(all(is.finite(group_params$main_effects_groups)))
+  expect_true(all(is.finite(group_params$pairwise_effects_groups)))
+})
+
+
+# ------------------------------------------------------------------------------
+# extract_sbm.bgms Tests (Stochastic Block Model)
+# ------------------------------------------------------------------------------
+
+test_that("extract_sbm.bgms returns SBM summaries for Stochastic-Block prior", {
+  fit <- get_bgms_fit_sbm()
+  args <- extract_arguments(fit)
+  
+  sbm <- extract_sbm(fit)
+  
+  # Structure
+  expect_type(sbm, "list")
+  
+  # Required fields
+  expect_true("posterior_num_blocks" %in% names(sbm), 
+              info = "should have posterior_num_blocks")
+  expect_true("posterior_mean_allocations" %in% names(sbm), 
+              info = "should have posterior_mean_allocations")
+  expect_true("posterior_mode_allocations" %in% names(sbm), 
+              info = "should have posterior_mode_allocations")
+  expect_true("posterior_mean_coclustering_matrix" %in% names(sbm), 
+              info = "should have posterior_mean_coclustering_matrix")
+  
+  # Coclustering matrix should be symmetric
+  ccm <- sbm$posterior_mean_coclustering_matrix
+  expect_true(is.matrix(ccm), info = "coclustering matrix should be matrix")
+  expect_true(is_symmetric(ccm), info = "coclustering matrix should be symmetric")
+  
+  # Values in [0, 1] for coclustering probabilities
+  expect_true(values_in_range(ccm, 0, 1), 
+              info = "coclustering probabilities should be in [0,1]")
+})
+
+test_that("extract_sbm.bgms errors for non-SBM prior", {
+  fit <- get_bgms_fit()  # Uses default Bernoulli prior
+  
+  expect_error(extract_sbm(fit), regexp = "Stochastic-Block")
+})
+
+
+# ------------------------------------------------------------------------------
+# extract_indicator_priors with Beta-Bernoulli Prior Tests
+# ------------------------------------------------------------------------------
+
+test_that("extract_indicator_priors returns Beta-Bernoulli parameters", {
+  fit <- get_bgms_fit_beta_bernoulli()
+  args <- extract_arguments(fit)
+  
+  priors <- extract_indicator_priors(fit)
+  
+  # Type check
+  expect_type(priors, "list")
+  expect_equal(priors$type, "Beta-Bernoulli")
+  
+  # Required parameters
+  expect_true("alpha" %in% names(priors), info = "should have alpha parameter")
+  expect_true("beta" %in% names(priors), info = "should have beta parameter")
+  
+  # Positive values
+
+  expect_true(priors$alpha > 0, info = "alpha should be positive")
+  expect_true(priors$beta > 0, info = "beta should be positive")
+})
+
+test_that("extract_indicator_priors returns Stochastic-Block parameters", {
+  fit <- get_bgms_fit_sbm()
+  
+  priors <- extract_indicator_priors(fit)
+  
+  # Type check
+  expect_type(priors, "list")
+  expect_equal(priors$type, "Stochastic-Block")
+  
+  # Required parameters
+  expect_true("beta_bernoulli_alpha" %in% names(priors), 
+              info = "should have beta_bernoulli_alpha")
+  expect_true("beta_bernoulli_beta" %in% names(priors), 
+              info = "should have beta_bernoulli_beta")
+  expect_true("dirichlet_alpha" %in% names(priors), 
+              info = "should have dirichlet_alpha")
+})

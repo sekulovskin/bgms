@@ -16,3 +16,4 @@ src/Makevars
 src/Makevars.win
 src/sources.mk
 docs/*
+/doc/

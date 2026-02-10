@@ -180,6 +180,58 @@ get_bgmcompare_fit_adaptive_metropolis <- function() {
   .test_cache$bgmcompare_fit_am
 }
 
+#' @description Get cached bgmCompare fit with main_difference_selection = TRUE (2 chains)
+get_bgmcompare_fit_main_selection <- function() {
+  if (is.null(.test_cache$bgmcompare_fit_main_sel)) {
+    data("ADHD", package = "bgms")
+    .test_cache$bgmcompare_fit_main_sel <- bgmCompare(
+      x = ADHD[, 2:6],
+      group_indicator = ADHD[, "group"],
+      difference_selection = TRUE,
+      main_difference_selection = TRUE,
+      iter = 100, warmup = 150, chains = 2,
+      seed = 44444,
+      display_progress = "none"
+    )
+  }
+  .test_cache$bgmcompare_fit_main_sel
+}
+
+#' @description Get cached bgms fit with Beta-Bernoulli edge prior (2 chains)
+get_bgms_fit_beta_bernoulli <- function() {
+  if (is.null(.test_cache$bgms_fit_bb)) {
+    data("ADHD", package = "bgms")
+    .test_cache$bgms_fit_bb <- bgm(
+      ADHD[1:50, 2:6],  # 5 binary symptom variables
+      edge_prior = "Beta-Bernoulli",
+      beta_bernoulli_alpha = 1,
+      beta_bernoulli_beta = 4,
+      iter = 100, warmup = 150, chains = 2,
+      seed = 22222,
+      display_progress = "none"
+    )
+  }
+  .test_cache$bgms_fit_bb
+}
+
+#' @description Get cached bgms fit with Stochastic-Block Model edge prior (2 chains)
+get_bgms_fit_sbm <- function() {
+  if (is.null(.test_cache$bgms_fit_sbm)) {
+    data("ADHD", package = "bgms")
+    .test_cache$bgms_fit_sbm <- bgm(
+      ADHD[1:50, 2:6],  # 5 binary symptom variables
+      edge_prior = "Stochastic-Block",
+      beta_bernoulli_alpha = 1,
+      beta_bernoulli_beta = 1,
+      dirichlet_alpha = 1,
+      iter = 100, warmup = 150, chains = 2,
+      seed = 33333,
+      display_progress = "none"
+    )
+  }
+  .test_cache$bgms_fit_sbm
+}
+
 # ------------------------------------------------------------------------------
 # 2. Prediction Data Helpers
 # ------------------------------------------------------------------------------

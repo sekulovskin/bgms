@@ -148,6 +148,19 @@ test_that("print.summary.bgms produces readable output", {
   expect_output(print(summ), regexp = "Posterior summaries")
 })
 
+test_that("print.summary.bgmCompare produces readable output for all fixture types", {
+  for (spec in get_bgmcompare_fixtures()) {
+    ctx <- sprintf("[bgmCompare %s]", spec$label)
+    fit <- spec$get_fit()
+    summ <- summary(fit)
+    
+    if (!is.null(summ)) {
+      expect_output(print(summ), regexp = "Posterior summaries", info = ctx)
+      expect_output(print(summ), regexp = "bgmCompare", info = ctx)
+    }
+  }
+})
+
 
 # ==============================================================================
 # coef() Tests (Parameterized)
