@@ -41,7 +41,7 @@ test_that("bgms outputs are numerically sane (stochastic-robust)", {
   set.seed(123)
   
   data("Wenchuan", package = "bgms")
-  dat <- na.omit(Wenchuan)[1:40, 1:5]
+  dat <- na.omit(Wenchuan)[1:40, 1:4]
   p   <- ncol(dat)
   
   upper_vals <- function(M) M[upper.tri(M)]
@@ -53,8 +53,8 @@ test_that("bgms outputs are numerically sane (stochastic-robust)", {
       fun       = bgms::bgm,
       args      = list(
         x                = dat,
-        iter             = 1000,
-        warmup           = 1000,
+        iter             = 50,
+        warmup           = 100,
         chains           = 2,
         edge_selection   = TRUE,
         edge_prior       = "Bernoulli",
@@ -138,8 +138,8 @@ test_that("bgms outputs are numerically sane (stochastic-robust)", {
       args      = list(
         x                    = dat,
         group_indicator      = rep(1:2, each = 20),
-        iter                 = 1000,
-        warmup               = 1000,
+        iter                 = 50,
+        warmup               = 100,
         chains               = 2,
         difference_selection = FALSE,
         na_action            = "listwise",

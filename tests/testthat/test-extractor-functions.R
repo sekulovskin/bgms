@@ -219,8 +219,6 @@ test_that("extract_posterior_inclusion_probabilities returns symmetric PIP matri
 })
 
 test_that("extract_indicators errors when edge_selection = FALSE", {
-  skip_on_cran_mcmc()
-  
   data <- generate_test_data(n = 20, p = 3)
   args <- c(list(x = data, edge_selection = FALSE), quick_mcmc_args())
   fit <- do.call(bgm, args)
@@ -324,8 +322,6 @@ test_that("extract_indicator_priors returns prior specification", {
 })
 
 test_that("extract_indicator_priors errors when no selection performed", {
-  skip_on_cran_mcmc()
-  
   data <- generate_test_data(n = 20, p = 3)
   args <- c(list(x = data, edge_selection = FALSE), quick_mcmc_args())
   fit <- do.call(bgm, args)
@@ -477,8 +473,6 @@ test_that("extract_indicators.bgmCompare returns indicator matrix for difference
 })
 
 test_that("extract_indicators.bgmCompare errors when difference_selection = FALSE", {
-  skip_on_cran_mcmc()
-  
   data <- generate_grouped_test_data(n_per_group = 15, p = 3)
   args <- c(
     list(x = data$x, group_indicator = data$group_indicator, difference_selection = FALSE),
@@ -520,8 +514,6 @@ test_that("extract_posterior_inclusion_probabilities.bgmCompare returns symmetri
 })
 
 test_that("extract_posterior_inclusion_probabilities.bgmCompare errors when difference_selection = FALSE", {
-  skip_on_cran_mcmc()
-  
   data <- generate_grouped_test_data(n_per_group = 15, p = 3)
   args <- c(
     list(x = data$x, group_indicator = data$group_indicator, difference_selection = FALSE),
@@ -552,8 +544,6 @@ test_that("extract_indicator_priors.bgmCompare returns prior specification", {
 })
 
 test_that("extract_indicator_priors.bgmCompare errors when difference_selection = FALSE", {
-  skip_on_cran_mcmc()
-  
   data <- generate_grouped_test_data(n_per_group = 15, p = 3)
   args <- c(
     list(x = data$x, group_indicator = data$group_indicator, difference_selection = FALSE),

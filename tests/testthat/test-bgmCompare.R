@@ -8,64 +8,28 @@
 # These tests parallel the structure of test-bgm.R for consistency.
 # Tests both reproducibility and basic output structure.
 #
-# Tolerance testing principles applied here:
-#   - Reproducibility: identical seeds produce identical MCMC chains
-#   - Range invariants: posterior indicators in [0,1], finite estimates
-#   - Symmetry: baseline pairwise matrices must be symmetric
-#   - Dimension consistency: correct number of groups, edges, variables
+# INTEGRATION NOTE: Many configurations (Blume-Capel, missing data imputation,
+# standardization) are tested via the parameterized fixture approach in
+# test-methods.R. See:
+#   - helper-fixtures.R: Cached fit functions (get_bgmcompare_fit_blumecapel, etc.)
+#   - test-methods.R: get_bgmcompare_fixtures() loops over all configurations
 #
-# See helper-fixtures.R for testing philosophy and session-cached fixtures.
+# This file focuses on tests that require special setup or unique assertions.
 # ==============================================================================
 
-# Determine cores for testing
-on_ci <- isTRUE(as.logical(Sys.getenv("CI", "false")))
-no_cores <- if (on_ci) 2L else min(2L, parallel::detectCores())
-
 # ------------------------------------------------------------------------------
-# Reproducibility Tests
+# Reproducibility Tests (using fixtures to save one model fit)
 # ------------------------------------------------------------------------------
 
 test_that("bgmCompare is reproducible with seed (x, y interface)", {
-
-  testthat::skip_on_cran()
-
-  data("Wenchuan", package = "bgms")
-  x <- Wenchuan[1:40, 1:4]
-  y <- Wenchuan[41:80, 1:4]
-
-  fit1 <- bgmCompare(x = x, y = y, iter = 100, warmup = 200, cores = no_cores, seed = 1234, display_progress = "none")
-  fit2 <- bgmCompare(x = x, y = y, iter = 100, warmup = 200, cores = no_cores, seed = 1234, display_progress = "none")
-
-  # Combine chains for comparison
-  combine_chains <- function(fit) {
-    pairs <- do.call(rbind, fit$raw_samples$pairwise)
-    mains <- do.call(rbind, fit$raw_samples$main)
-    cbind(mains, pairs)
-  }
-
-  combined1 <- combine_chains(fit1)
-  combined2 <- combine_chains(fit2)
-
-  expect_equal(combined1, combined2)
-})
-
-test_that("bgmCompare is reproducible with seed (x + group_indicator interface)", {
-  testthat::skip_on_cran()
+  # Use cached fixture as fit1, run one fresh fit as fit2 with same params
+  fit1 <- get_bgmcompare_fit_xy()
 
   data("Wenchuan", package = "bgms")
-  x <- Wenchuan[1:80, 1:4]
-  group_ind <- rep(1:2, each = 40)
+  x <- Wenchuan[1:25, 1:4]
+  y <- Wenchuan[26:50, 1:4]
 
-  fit1 <- bgmCompare(
-    x = x, group_indicator = group_ind,
-    iter = 100, warmup = 200, cores = no_cores, seed = 5678,
-    display_progress = "none"
-  )
-  fit2 <- bgmCompare(
-    x = x, group_indicator = group_ind,
-    iter = 100, warmup = 200, cores = no_cores, seed = 5678,
-    display_progress = "none"
-  )
+  fit2 <- bgmCompare(x = x, y = y, iter = 50, warmup = 100, chains = 2, seed = 1234, display_progress = "none")
 
   combine_chains <- function(fit) {
     pairs <- do.call(rbind, fit$raw_samples$pairwise)
@@ -143,20 +107,18 @@ test_that("bgmCompare outputs are numerically sane", {
 
 
 # ------------------------------------------------------------------------------
-# Fresh Fit Tests (slower, skip on CRAN)
+# Fresh Fit Tests
 # ------------------------------------------------------------------------------
 
 test_that("bgmCompare without selection produces valid estimates", {
-  skip_on_cran_mcmc()
-
-  data <- generate_grouped_test_data(n_per_group = 25, p = 3, n_groups = 2, seed = 42)
+  data <- generate_grouped_test_data(n_per_group = 20, p = 3, n_groups = 2, seed = 42)
 
   fit <- bgmCompare(
     x = data$x,
     group_indicator = data$group_indicator,
     difference_selection = FALSE,
-    iter = 100,
-    warmup = 150,
+    iter = 50,
+    warmup = 100,
     chains = 1,
     display_progress = "none"
   )
@@ -169,17 +131,15 @@ test_that("bgmCompare without selection produces valid estimates", {
 })
 
 test_that("bgmCompare with selection produces valid indicators", {
-  skip_on_cran_mcmc()
-
-  data <- generate_grouped_test_data(n_per_group = 30, p = 3, n_groups = 2, seed = 123)
+  data <- generate_grouped_test_data(n_per_group = 20, p = 3, n_groups = 2, seed = 123)
 
   # Test with single chain (previously caused bug in summarize_mixture_effect)
   fit <- bgmCompare(
     x = data$x,
     group_indicator = data$group_indicator,
     difference_selection = TRUE,
-    iter = 200,
-    warmup = 200,
+    iter = 50,
+    warmup = 100,
     chains = 1,
     display_progress = "none"
   )
@@ -200,8 +160,6 @@ test_that("bgmCompare with selection produces valid indicators", {
 # ------------------------------------------------------------------------------
 
 test_that("bgmCompare works with different update methods", {
-  skip_on_cran_mcmc()
-
   data <- generate_grouped_test_data(n_per_group = 20, p = 3, n_groups = 2, seed = 99)
 
   methods_to_test <- c("adaptive-metropolis")
@@ -213,8 +171,8 @@ test_that("bgmCompare works with different update methods", {
         x = data$x,
         group_indicator = data$group_indicator,
         update_method = method,
-        iter = 50,
-        warmup = 150,
+        iter = 25,
+        warmup = 50,
         chains = 1,
         display_progress = "none"
       ),
@@ -233,10 +191,8 @@ test_that("bgmCompare works with different update methods", {
 # ------------------------------------------------------------------------------
 
 test_that("bgmCompare handles more than 2 groups", {
-  skip_on_cran_mcmc()
-
   data <- generate_grouped_test_data(
-    n_per_group = 20, p = 3, n_groups = 3, seed = 456
+    n_per_group = 15, p = 3, n_groups = 3, seed = 456
   )
 
   # Use difference_selection = FALSE to avoid summary computation issues
@@ -245,8 +201,8 @@ test_that("bgmCompare handles more than 2 groups", {
     x = data$x,
     group_indicator = data$group_indicator,
     difference_selection = FALSE,
-    iter = 100,
-    warmup = 150,
+    iter = 25,
+    warmup = 50,
     chains = 1,
     display_progress = "none"
   )

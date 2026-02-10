@@ -230,8 +230,6 @@ test_that("simulate.bgms errors on invalid cores argument", {
 # ------------------------------------------------------------------------------
 
 test_that("extract_indicators errors correctly without edge selection", {
-  skip_on_cran_mcmc()
-
   data <- generate_test_data(n = 20, p = 3)
   args <- c(list(x = data, edge_selection = FALSE), quick_mcmc_args())
   fit <- do.call(bgm, args)
@@ -240,8 +238,6 @@ test_that("extract_indicators errors correctly without edge selection", {
 })
 
 test_that("extract_posterior_inclusion_probabilities errors without edge selection", {
-  skip_on_cran_mcmc()
-
   data <- generate_test_data(n = 20, p = 3)
   args <- c(list(x = data, edge_selection = FALSE), quick_mcmc_args())
   fit <- do.call(bgm, args)
@@ -270,8 +266,6 @@ test_that("extract_sbm errors with non-SBM prior", {
 # ------------------------------------------------------------------------------
 
 test_that("bgm handles constant columns gracefully", {
-  skip_on_cran_mcmc()
-
   data <- generate_test_data(n = 20, p = 3)
   data[, 1] <- 0 # Make first column constant
 

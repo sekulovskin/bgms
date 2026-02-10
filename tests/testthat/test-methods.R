@@ -34,22 +34,46 @@ get_bgms_fixtures <- function() {
       var_type = "ordinal"
     ),
     list(
-      label = "blume-capel",
-      get_fit = get_bgms_fit_blumecapel,
-      get_prediction_data = get_prediction_data_ordinal,
-      var_type = "blume-capel"
-    ),
-    list(
       label = "single-chain",
       get_fit = get_bgms_fit_single_chain,
       get_prediction_data = get_prediction_data_binary,
       var_type = "binary"
     ),
     list(
+      label = "blume-capel",
+      get_fit = get_bgms_fit_blumecapel,
+      get_prediction_data = get_prediction_data_ordinal,
+      var_type = "blume-capel"
+    ),
+    list(
       label = "adaptive-metropolis",
       get_fit = get_bgms_fit_adaptive_metropolis,
       get_prediction_data = get_prediction_data_binary,
       var_type = "binary"
+    ),
+    list(
+      label = "hmc",
+      get_fit = get_bgms_fit_hmc,
+      get_prediction_data = get_prediction_data_ordinal,
+      var_type = "ordinal"
+    ),
+    list(
+      label = "am-blumecapel",
+      get_fit = get_bgms_fit_am_blumecapel,
+      get_prediction_data = get_prediction_data_ordinal,
+      var_type = "blume-capel"
+    ),
+    list(
+      label = "impute",
+      get_fit = get_bgms_fit_impute,
+      get_prediction_data = get_prediction_data_ordinal,
+      var_type = "ordinal"
+    ),
+    list(
+      label = "standardize",
+      get_fit = get_bgms_fit_standardize,
+      get_prediction_data = get_prediction_data_ordinal,
+      var_type = "ordinal"
     )
   )
 }
@@ -70,6 +94,21 @@ get_bgmcompare_fixtures <- function() {
       label = "adaptive-metropolis",
       get_fit = get_bgmcompare_fit_adaptive_metropolis,
       var_type = "binary"
+    ),
+    list(
+      label = "blume-capel",
+      get_fit = get_bgmcompare_fit_blumecapel,
+      var_type = "blume-capel"
+    ),
+    list(
+      label = "impute",
+      get_fit = get_bgmcompare_fit_impute,
+      var_type = "ordinal"
+    ),
+    list(
+      label = "standardize",
+      get_fit = get_bgmcompare_fit_standardize,
+      var_type = "ordinal"
     )
   )
 }
@@ -388,8 +427,6 @@ test_that("predict.bgms handles edge cases", {
 })
 
 test_that("predict.bgms with posterior-sample returns sd attribute", {
-  skip_on_cran_mcmc()
-  
   fit <- get_bgms_fit()
   args <- extract_arguments(fit)
   newdata <- get_prediction_data_binary(n = 5)
