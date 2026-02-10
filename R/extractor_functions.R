@@ -394,8 +394,8 @@ extract_pairwise_interactions.bgms = function(bgms_object) {
   } else if(!is.null(bgms_object$posterior_summary_pairwise)) {
     vec = bgms_object$posterior_summary_pairwise[, "mean"]
     mat = matrix(0, nrow = num_vars, ncol = num_vars)
-    mat[upper.tri(mat)] = vec
-    mat[lower.tri(mat)] = t(mat)[lower.tri(mat)]
+    mat[lower.tri(mat)] = vec
+    mat = mat + t(mat)
     dimnames(mat) = list(var_names, var_names)
   } else if(!is.null(bgms_object$posterior_mean_pairwise)) {
     mat = bgms_object$posterior_mean_pairwise

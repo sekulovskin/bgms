@@ -128,9 +128,8 @@ prepare_output_bgm = function(
   if(edge_selection) {
     indicator_means = indicator_summary$mean
     results$posterior_mean_indicator = matrix(0, nrow = num_variables, ncol = num_variables)
-    results$posterior_mean_indicator[upper.tri(results$posterior_mean_indicator)] = indicator_means
-    results$posterior_mean_indicator[lower.tri(results$posterior_mean_indicator)] =
-      t(results$posterior_mean_indicator)[lower.tri(results$posterior_mean_indicator)]
+    results$posterior_mean_indicator[lower.tri(results$posterior_mean_indicator)] = indicator_means
+    results$posterior_mean_indicator = results$posterior_mean_indicator + t(results$posterior_mean_indicator)
     rownames(results$posterior_mean_indicator) = data_columnnames
     colnames(results$posterior_mean_indicator) = data_columnnames
 
