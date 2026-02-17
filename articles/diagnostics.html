@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">bgms</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -87,9 +87,6 @@ probabilities and Bayes factors.</p>
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://Bayesian-Graphical-Modelling-Lab.github.io/bgms/" class="external-link">bgms</a></span><span class="op">)</span></span>
 <span><span class="va">data</span> <span class="op">=</span> <span class="va">Wenchuan</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">]</span></span>
 <span><span class="va">fit</span> <span class="op">=</span> <span class="fu"><a href="../reference/bgm.html">bgm</a></span><span class="op">(</span><span class="va">data</span>, seed <span class="op">=</span> <span class="fl">1234</span><span class="op">)</span></span></code></pre></div>
-<p>Note: During fitting, progress bars are shown in interactive
-sessions. In this vignette, they are suppressed for clarity. Sampling
-can take a while; the progress bars usually help track progress.</p>
 </div>
 <div class="section level2">
 <h2 id="convergence-diagnostics">Convergence diagnostics<a class="anchor" aria-label="anchor" href="#convergence-diagnostics"></a>
@@ -99,27 +96,27 @@ diagnostics:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">pairwise</span></span>
 <span><span class="co">#&gt;                          mean          sd        mcse     n_eff</span></span>
-<span><span class="co">#&gt; intrusion-dreams  0.631924323 0.001551325 0.064266150 1716.1643</span></span>
-<span><span class="co">#&gt; intrusion-flash   0.338297975 0.001448421 0.061854243 1823.6826</span></span>
-<span><span class="co">#&gt; intrusion-upset   0.190695963 0.076279341 0.005921381  165.9464</span></span>
-<span><span class="co">#&gt; intrusion-physior 0.198176315 0.065555747 0.003647515  323.0185</span></span>
-<span><span class="co">#&gt; dreams-flash      0.498040695 0.001270565 0.060466106 2264.8025</span></span>
-<span><span class="co">#&gt; dreams-upset      0.230776860 0.056205053 0.002092867  721.2197</span></span>
-<span><span class="co">#&gt; dreams-physior    0.005254907 0.021861327 0.000843593  671.5636</span></span>
-<span><span class="co">#&gt; flash-upset       0.006462176 0.024675968 0.001036232  567.0671</span></span>
-<span><span class="co">#&gt; flash-physior     0.307138582 0.001205035 0.053371694 1961.6559</span></span>
-<span><span class="co">#&gt; upset-physior     0.707867139 0.001478310 0.059720575 1631.9869</span></span>
+<span><span class="co">#&gt; intrusion-dreams  0.629338089 0.001804519 0.067102463 1382.7822</span></span>
+<span><span class="co">#&gt; intrusion-flash   0.338657791 0.001589875 0.060421205 1444.2846</span></span>
+<span><span class="co">#&gt; intrusion-upset   0.202376428 0.064014992 0.004668924  187.9879</span></span>
+<span><span class="co">#&gt; intrusion-physior 0.188939686 0.071198984 0.006082051  137.0400</span></span>
+<span><span class="co">#&gt; dreams-flash      0.499816233 0.001803795 0.060493065 1124.7000</span></span>
+<span><span class="co">#&gt; dreams-upset      0.225595383 0.053378801 0.001589095 1128.3344</span></span>
+<span><span class="co">#&gt; dreams-physior    0.007497679 0.025566651 0.001247486  420.0263</span></span>
+<span><span class="co">#&gt; flash-upset       0.004566734 0.019291950 0.001055790  333.8854</span></span>
+<span><span class="co">#&gt; flash-physior     0.308420955 0.001426490 0.053789058 1421.8396</span></span>
+<span><span class="co">#&gt; upset-physior     0.707339037 0.001706434 0.059781270 1227.3022</span></span>
 <span><span class="co">#&gt;                        Rhat</span></span>
-<span><span class="co">#&gt; intrusion-dreams  0.9998582</span></span>
-<span><span class="co">#&gt; intrusion-flash   0.9999985</span></span>
-<span><span class="co">#&gt; intrusion-upset   1.0325834</span></span>
-<span><span class="co">#&gt; intrusion-physior 1.0053426</span></span>
-<span><span class="co">#&gt; dreams-flash      0.9999931</span></span>
-<span><span class="co">#&gt; dreams-upset      1.0076821</span></span>
-<span><span class="co">#&gt; dreams-physior    1.0051407</span></span>
-<span><span class="co">#&gt; flash-upset       1.0115874</span></span>
-<span><span class="co">#&gt; flash-physior     1.0013808</span></span>
-<span><span class="co">#&gt; upset-physior     0.9999992</span></span></code></pre></div>
+<span><span class="co">#&gt; intrusion-dreams  1.0047113</span></span>
+<span><span class="co">#&gt; intrusion-flash   1.0024625</span></span>
+<span><span class="co">#&gt; intrusion-upset   1.0026218</span></span>
+<span><span class="co">#&gt; intrusion-physior 1.0002991</span></span>
+<span><span class="co">#&gt; dreams-flash      1.0018317</span></span>
+<span><span class="co">#&gt; dreams-upset      0.9999766</span></span>
+<span><span class="co">#&gt; dreams-physior    1.0020293</span></span>
+<span><span class="co">#&gt; flash-upset       0.9999943</span></span>
+<span><span class="co">#&gt; flash-physior     0.9998950</span></span>
+<span><span class="co">#&gt; upset-physior     1.0047092</span></span></code></pre></div>
 <ul>
 <li>R-hat values close to 1 (typically below 1.01) suggest convergence
 <span class="citation">(<a href="#ref-VehtariEtAl_2021">Vehtari et al.,
@@ -157,12 +154,12 @@ package to create a traceplot for a pairwise effect parameter.</p>
 edges:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">indicator</span></span>
-<span><span class="co">#&gt;           intrusion  dreams   flash   upset physior</span></span>
-<span><span class="co">#&gt; intrusion   0.00000 1.00000 1.00000 0.96575  0.0560</span></span>
-<span><span class="co">#&gt; dreams      1.00000 0.00000 0.92525 1.00000  0.0655</span></span>
-<span><span class="co">#&gt; flash       1.00000 0.92525 0.00000 0.99600  1.0000</span></span>
-<span><span class="co">#&gt; upset       0.96575 1.00000 0.99600 0.00000  1.0000</span></span>
-<span><span class="co">#&gt; physior     0.05600 0.06550 1.00000 1.00000  0.0000</span></span></code></pre></div>
+<span><span class="co">#&gt;           intrusion dreams  flash  upset physior</span></span>
+<span><span class="co">#&gt; intrusion    0.0000 1.0000 1.0000 0.9790  0.9405</span></span>
+<span><span class="co">#&gt; dreams       1.0000 0.0000 1.0000 0.9985  0.0820</span></span>
+<span><span class="co">#&gt; flash        1.0000 1.0000 0.0000 0.0545  1.0000</span></span>
+<span><span class="co">#&gt; upset        0.9790 0.9985 0.0545 0.0000  1.0000</span></span>
+<span><span class="co">#&gt; physior      0.9405 0.0820 1.0000 1.0000  0.0000</span></span></code></pre></div>
 <ul>
 <li>Values near 1.0: strong evidence the edge is present.</li>
 <li>Values near 0.0: strong evidence the edge is absent.</li>
@@ -183,26 +180,148 @@ absence:</p>
 <span><span class="va">p</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">indicator</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">5</span><span class="op">]</span></span>
 <span><span class="va">BF_10</span> <span class="op">=</span> <span class="va">p</span> <span class="op">/</span> <span class="op">(</span><span class="fl">1</span> <span class="op">-</span> <span class="va">p</span><span class="op">)</span></span>
 <span><span class="va">BF_10</span></span>
-<span><span class="co">#&gt; [1] 0.05932203</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 15.80672</span></span></code></pre></div>
 <p>Here the Bayes factor in favor of inclusion (H1) is small, meaning
 that there is little evidence for inclusion. Since the Bayes factor is
 transitive, we can use it to express the evidence in favor of exclusion
 (H0) as</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fl">1</span> <span class="op">/</span> <span class="va">BF_10</span></span>
-<span><span class="co">#&gt; [1] 16.85714</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 0.06326422</span></span></code></pre></div>
 <p>This Bayes factor shows that there is strong evidence for the absence
 of a network relation between the variables <code>intrusion</code> and
 <code>physior</code>.</p>
 </div>
 <div class="section level2">
-<h2 id="notes-on-runtime">Notes on runtime<a class="anchor" aria-label="anchor" href="#notes-on-runtime"></a>
+<h2 id="nuts-diagnostics">NUTS diagnostics<a class="anchor" aria-label="anchor" href="#nuts-diagnostics"></a>
 </h2>
+<p>When using <code>update_method = "nuts"</code> (the default),
+additional diagnostics are available to assess the quality of the
+Hamiltonian Monte Carlo sampling. These can be accessed via
+<code>fit$nuts_diag</code>:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="va">nuts_diag</span><span class="op">$</span><span class="va">summary</span></span>
+<span><span class="co">#&gt; $total_divergences</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $max_tree_depth_hits</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $min_ebfmi</span></span>
+<span><span class="co">#&gt; [1] 0.9600455</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $warmup_incomplete</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="e-bfmi">E-BFMI<a class="anchor" aria-label="anchor" href="#e-bfmi"></a>
+</h3>
+<p>E-BFMI (Energy Bayesian Fraction of Missing Information) measures how
+efficiently the sampler explores the posterior. It compares the typical
+size of energy changes between successive samples to the overall spread
+of energies. Values close to 1 indicate that the sampler moves freely
+across the energy landscape; values below 0.3 suggest the sampler may be
+getting stuck or that the chain has not yet settled into its stationary
+distribution.</p>
+<p>A low E-BFMI does not necessarily mean your results are wrong, but it
+does warrant further investigation. In models with edge selection, the
+most common cause is that the warmup period was too short for the
+discrete graph structure to equilibrate. Increasing <code>warmup</code>
+often resolves this.</p>
+</div>
+<div class="section level3">
+<h3 id="divergent-transitions">Divergent transitions<a class="anchor" aria-label="anchor" href="#divergent-transitions"></a>
+</h3>
+<p>Divergent transitions occur when the numerical integrator encounters
+regions of the posterior where the curvature changes too rapidly for the
+current step size. A small number of divergences (say, fewer than 0.1%
+of samples) is generally acceptable. However, many divergences indicate
+that the sampler may be missing important parts of the posterior.</p>
+<p>If you see a large number of divergences, consider increasing
+<code>target_accept</code> (which makes the sampler use a smaller step
+size) and, if this does not fix it, switching to
+<code>update_method = "adaptive-metropolis"</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="tree-depth">Tree depth<a class="anchor" aria-label="anchor" href="#tree-depth"></a>
+</h3>
+<p>NUTS builds trajectories by repeatedly doubling their length until a
+“U-turn” criterion is satisfied. If the trajectory frequently reaches
+the maximum allowed depth (<code>nuts_max_depth</code>, default 10), it
+suggests the sampler may benefit from longer trajectories to explore the
+posterior efficiently. Hitting the maximum depth occasionally is normal;
+hitting it on most iterations may indicate challenging posterior
+geometry. If this happens, consider increasing
+<code>nuts_max_depth</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="warmup-and-equilibration">Warmup and equilibration<a class="anchor" aria-label="anchor" href="#warmup-and-equilibration"></a>
+</h3>
+<p>Standard HMC/NUTS warmup is designed to tune the step size and mass
+matrix for the continuous parameters. In models with edge selection, the
+discrete graph structure may take longer to reach its stationary
+distribution than the continuous parameters. As a result, even after
+warmup completes, the first portion of the sampling phase may still show
+transient behavior (i.e., non-stationarity).</p>
+<p>The <code>warmup_check</code> component provides simple diagnostics
+that compare the first and second halves of the post-warmup samples:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span><span class="op">$</span><span class="va">nuts_diag</span><span class="op">$</span><span class="va">warmup_check</span></span>
+<span><span class="co">#&gt; $warmup_incomplete</span></span>
+<span><span class="co">#&gt; [1] FALSE FALSE</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $energy_slope</span></span>
+<span><span class="co">#&gt;     time_idx     time_idx </span></span>
+<span><span class="co">#&gt; -0.001538370  0.001249026 </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $slope_significant</span></span>
+<span><span class="co">#&gt; time_idx time_idx </span></span>
+<span><span class="co">#&gt;    FALSE    FALSE </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $ebfmi_first_half</span></span>
+<span><span class="co">#&gt; [1] 1.007220 1.085859</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $ebfmi_second_half</span></span>
+<span><span class="co">#&gt; [1] 0.9180415 0.9804561</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $var_ratio</span></span>
+<span><span class="co">#&gt; [1] 1.0982277 0.8839425</span></span></code></pre></div>
+<p>The returned list contains the following fields (one value per
+chain):</p>
 <ul>
-<li>Sampling with spike-and-slab priors can take longer.</li>
-<li>In interactive sessions, progress bars are displayed. In this
-vignette, they are suppressed for readability.</li>
+<li>
+<strong>warmup_incomplete</strong>: A logical flag that is
+<code>TRUE</code> when any of the indicators below suggest the chain may
+not have reached stationarity.</li>
+<li>
+<strong>energy_slope</strong>: The slope of a linear regression of
+energy against iteration number. A slope near zero indicates stable
+energy; a significant negative slope suggests the chain is still
+drifting toward higher-probability regions.</li>
+<li>
+<strong>slope_significant</strong>: <code>TRUE</code> if the energy
+slope is statistically significant (p &lt; 0.01).</li>
+<li>
+<strong>ebfmi_first_half</strong> and
+<strong>ebfmi_second_half</strong>: E-BFMI computed separately for the
+first and second halves of the post-warmup samples. If the first-half
+value is much lower (for example, below 0.3) while the second-half value
+is healthy, the early samples were likely still settling.</li>
+<li>
+<strong>var_ratio</strong>: The ratio of energy variance in the
+first half to that in the second half. A ratio much greater than 1 (for
+example, above 2) indicates higher variability early on, consistent with
+transient behavior.</li>
 </ul>
+<p>If these diagnostics suggest the chain was still settling, increase
+<code>warmup</code> and re-run the model. If diagnostics remain
+problematic after a substantial increase (for example, doubling or
+tripling <code>warmup</code>), consider re-fitting with
+<code>update_method = "adaptive-metropolis"</code> and comparing the
+posterior summaries. If the two samplers produce similar results, the
+estimates are likely trustworthy despite the warnings; if they differ
+substantially, that warrants further investigation of the model or
+data.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="next-steps">Next steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>

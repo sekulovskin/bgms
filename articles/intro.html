@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">bgms</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -116,9 +116,6 @@ analyze a subset of the first five items as a demonstration.</p>
 and <code><a href="../reference/bgmCompare.html">bgmCompare()</a></code> for multiple-group comparisons.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">=</span> <span class="fu"><a href="../reference/bgm.html">bgm</a></span><span class="op">(</span><span class="va">data</span>, seed <span class="op">=</span> <span class="fl">1234</span><span class="op">)</span></span></code></pre></div>
-<p>Note: During fitting, progress bars are shown in interactive
-sessions. In this vignette, they are suppressed for clarity. Sampling
-can take a while; the progress bars usually help track progress.</p>
 </div>
 <div class="section level2">
 <h2 id="posterior-summaries">Posterior summaries<a class="anchor" aria-label="anchor" href="#posterior-summaries"></a>
@@ -129,22 +126,22 @@ can take a while; the progress bars usually help track progress.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Category thresholds:</span></span>
 <span><span class="co">#&gt;                 mean  mcse    sd    n_eff  Rhat</span></span>
-<span><span class="co">#&gt; intrusion (1)  0.489 0.006 0.233 1596.771 1.010</span></span>
-<span><span class="co">#&gt; intrusion (2) -1.888 0.010 0.340 1053.243 1.024</span></span>
-<span><span class="co">#&gt; intrusion (3) -4.828 0.019 0.556  827.554 1.025</span></span>
-<span><span class="co">#&gt; intrusion (4) -9.490 0.031 0.897  860.034 1.023</span></span>
-<span><span class="co">#&gt; dreams (1)    -0.597 0.005 0.190 1610.037 1.002</span></span>
-<span><span class="co">#&gt; dreams (2)    -3.802 0.010 0.341 1174.409 1.003</span></span>
+<span><span class="co">#&gt; intrusion (1)  0.475 0.007 0.223 1157.788 1.001</span></span>
+<span><span class="co">#&gt; intrusion (2) -1.906 0.011 0.315  880.403 1.005</span></span>
+<span><span class="co">#&gt; intrusion (3) -4.846 0.017 0.514  875.204 1.007</span></span>
+<span><span class="co">#&gt; intrusion (4) -9.519 0.028 0.845  904.952 1.008</span></span>
+<span><span class="co">#&gt; dreams (1)    -0.588 0.006 0.192 1159.841 1.001</span></span>
+<span><span class="co">#&gt; dreams (2)    -3.782 0.012 0.353  871.629 1.000</span></span>
 <span><span class="co">#&gt; ... (use `summary(fit)$main` to see full output)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pairwise interactions:</span></span>
 <span><span class="co">#&gt;                    mean    sd  mcse    n_eff  Rhat</span></span>
-<span><span class="co">#&gt; intrusion-dreams  0.632 0.002 0.064 1716.164 1.000</span></span>
-<span><span class="co">#&gt; intrusion-flash   0.338 0.001 0.062 1823.683 1.000</span></span>
-<span><span class="co">#&gt; intrusion-upset   0.191 0.076 0.006  165.946 1.033</span></span>
-<span><span class="co">#&gt; intrusion-physior 0.198 0.066 0.004  323.018 1.005</span></span>
-<span><span class="co">#&gt; dreams-flash      0.498 0.001 0.060 2264.802 1.000</span></span>
-<span><span class="co">#&gt; dreams-upset      0.231 0.056 0.002  721.220 1.008</span></span>
+<span><span class="co">#&gt; intrusion-dreams  0.629 0.002 0.067 1382.782 1.005</span></span>
+<span><span class="co">#&gt; intrusion-flash   0.339 0.002 0.060 1444.285 1.002</span></span>
+<span><span class="co">#&gt; intrusion-upset   0.202 0.064 0.005  187.988 1.003</span></span>
+<span><span class="co">#&gt; intrusion-physior 0.189 0.071 0.006  137.040 1.000</span></span>
+<span><span class="co">#&gt; dreams-flash      0.500 0.002 0.060 1124.700 1.002</span></span>
+<span><span class="co">#&gt; dreams-upset      0.226 0.053 0.002 1128.334 1.000</span></span>
 <span><span class="co">#&gt; ... (use `summary(fit)$pairwise` to see full output)</span></span>
 <span><span class="co">#&gt; Note: NA values are suppressed in the print table. They occur here when an </span></span>
 <span><span class="co">#&gt; indicator was zero across all iterations, so mcse/n_eff/Rhat are undefined;</span></span>
@@ -152,19 +149,19 @@ can take a while; the progress bars usually help track progress.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Inclusion probabilities:</span></span>
 <span><span class="co">#&gt;                    mean    sd  mcse n0-&gt;0 n0-&gt;1 n1-&gt;0 n1-&gt;1   n_eff</span></span>
-<span><span class="co">#&gt; intrusion-dreams  1.000 0.000           0     0     0  3999        </span></span>
-<span><span class="co">#&gt; intrusion-flash   1.000 0.000           0     0     0  3999        </span></span>
-<span><span class="co">#&gt; intrusion-upset   0.925 0.263 0.028   287    12    12  3688  88.677</span></span>
-<span><span class="co">#&gt; intrusion-physior 0.966 0.182 0.016   129     8     8  3854 124.701</span></span>
-<span><span class="co">#&gt; dreams-flash      1.000 0.000           0     0     0  3999        </span></span>
-<span><span class="co">#&gt; dreams-upset      0.996 0.063 0.004    14     2     2  3981  267.81</span></span>
+<span><span class="co">#&gt; intrusion-dreams  1.000 0.000           0     0     0  1999        </span></span>
+<span><span class="co">#&gt; intrusion-flash   1.000 0.000           0     0     0  1999        </span></span>
+<span><span class="co">#&gt; intrusion-upset   0.979 0.143  0.02    40     2     2  1955  49.853</span></span>
+<span><span class="co">#&gt; intrusion-physior 0.941 0.237 0.029   112     7     7  1873  64.566</span></span>
+<span><span class="co">#&gt; dreams-flash      1.000 0.000           0     0     0  1999        </span></span>
+<span><span class="co">#&gt; dreams-upset      0.999 0.039 0.002     2     1     1  1995 400.722</span></span>
 <span><span class="co">#&gt;                    Rhat</span></span>
 <span><span class="co">#&gt; intrusion-dreams       </span></span>
 <span><span class="co">#&gt; intrusion-flash        </span></span>
-<span><span class="co">#&gt; intrusion-upset   1.173</span></span>
-<span><span class="co">#&gt; intrusion-physior 1.059</span></span>
+<span><span class="co">#&gt; intrusion-upset   1.311</span></span>
+<span><span class="co">#&gt; intrusion-physior 1.016</span></span>
 <span><span class="co">#&gt; dreams-flash           </span></span>
-<span><span class="co">#&gt; dreams-upset        1.3</span></span>
+<span><span class="co">#&gt; dreams-upset      1.292</span></span>
 <span><span class="co">#&gt; ... (use `summary(fit)$indicator` to see full output)</span></span>
 <span><span class="co">#&gt; Note: NA values are suppressed in the print table. They occur when an indicator</span></span>
 <span><span class="co">#&gt; was constant (all 0 or all 1) across all iterations, so sd/mcse/n_eff/Rhat</span></span>
@@ -178,27 +175,27 @@ directly:</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $main</span></span>
 <span><span class="co">#&gt;              cat (1)   cat (2)   cat (3)    cat (4)</span></span>
-<span><span class="co">#&gt; intrusion  0.4889848 -1.887789 -4.827802  -9.490176</span></span>
-<span><span class="co">#&gt; dreams    -0.5974490 -3.801634 -7.133124 -11.578501</span></span>
-<span><span class="co">#&gt; flash     -0.1063310 -2.567018 -5.359779  -9.659237</span></span>
-<span><span class="co">#&gt; upset      0.4144289 -1.303246 -3.365035  -7.015933</span></span>
-<span><span class="co">#&gt; physior   -0.6147997 -3.170385 -6.211313 -10.550982</span></span>
+<span><span class="co">#&gt; intrusion  0.4752393 -1.905757 -4.846385  -9.519480</span></span>
+<span><span class="co">#&gt; dreams    -0.5884216 -3.781525 -7.109964 -11.530285</span></span>
+<span><span class="co">#&gt; flash     -0.1051154 -2.566799 -5.365407  -9.674749</span></span>
+<span><span class="co">#&gt; upset      0.4216365 -1.308488 -3.370565  -7.037020</span></span>
+<span><span class="co">#&gt; physior   -0.6037679 -3.140033 -6.167547 -10.489248</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $pairwise</span></span>
 <span><span class="co">#&gt;           intrusion      dreams       flash       upset     physior</span></span>
-<span><span class="co">#&gt; intrusion 0.0000000 0.631924323 0.338297975 0.190695963 0.198176315</span></span>
-<span><span class="co">#&gt; dreams    0.6319243 0.000000000 0.498040695 0.230776860 0.005254907</span></span>
-<span><span class="co">#&gt; flash     0.3382980 0.498040695 0.000000000 0.006462176 0.307138582</span></span>
-<span><span class="co">#&gt; upset     0.1906960 0.230776860 0.006462176 0.000000000 0.707867139</span></span>
-<span><span class="co">#&gt; physior   0.1981763 0.005254907 0.307138582 0.707867139 0.000000000</span></span>
+<span><span class="co">#&gt; intrusion 0.0000000 0.629338089 0.338657791 0.202376428 0.188939686</span></span>
+<span><span class="co">#&gt; dreams    0.6293381 0.000000000 0.499816233 0.225595383 0.007497679</span></span>
+<span><span class="co">#&gt; flash     0.3386578 0.499816233 0.000000000 0.004566734 0.308420955</span></span>
+<span><span class="co">#&gt; upset     0.2023764 0.225595383 0.004566734 0.000000000 0.707339037</span></span>
+<span><span class="co">#&gt; physior   0.1889397 0.007497679 0.308420955 0.707339037 0.000000000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $indicator</span></span>
-<span><span class="co">#&gt;           intrusion  dreams   flash   upset physior</span></span>
-<span><span class="co">#&gt; intrusion   0.00000 1.00000 1.00000 0.96575  0.0560</span></span>
-<span><span class="co">#&gt; dreams      1.00000 0.00000 0.92525 1.00000  0.0655</span></span>
-<span><span class="co">#&gt; flash       1.00000 0.92525 0.00000 0.99600  1.0000</span></span>
-<span><span class="co">#&gt; upset       0.96575 1.00000 0.99600 0.00000  1.0000</span></span>
-<span><span class="co">#&gt; physior     0.05600 0.06550 1.00000 1.00000  0.0000</span></span></code></pre></div>
+<span><span class="co">#&gt;           intrusion dreams  flash  upset physior</span></span>
+<span><span class="co">#&gt; intrusion    0.0000 1.0000 1.0000 0.9790  0.9405</span></span>
+<span><span class="co">#&gt; dreams       1.0000 0.0000 1.0000 0.9985  0.0820</span></span>
+<span><span class="co">#&gt; flash        1.0000 1.0000 0.0000 0.0545  1.0000</span></span>
+<span><span class="co">#&gt; upset        0.9790 0.9985 0.0545 0.0000  1.0000</span></span>
+<span><span class="co">#&gt; physior      0.9405 0.0820 1.0000 1.0000  0.0000</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="network-plot">Network plot<a class="anchor" aria-label="anchor" href="#network-plot"></a>

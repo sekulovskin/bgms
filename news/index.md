@@ -2,6 +2,8 @@
 
 ## bgms 0.1.6.3
 
+CRAN release: 2026-02-14
+
 ### New features
 
 - [`extract_rhat()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md):
@@ -39,6 +41,12 @@
 
 ### Other changes
 
+- NUTS: implemented generalized U-turn criterion following
+  Betancourt (2017) and STAN
+- NUTS: fused log-posterior and gradient computation eliminates
+  redundant probability evaluations
+- bgmCompare: BLAS-vectorized gradient computation for improved
+  performance
 - expanded test suite: input validation, extractor functions, S3
   methods, simulation, and numerical sanity tests
 - improved warmup schedule: fixed buffers (75/25/50) with proportional

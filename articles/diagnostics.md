@@ -19,10 +19,6 @@ data = Wenchuan[, 1:5]
 fit = bgm(data, seed = 1234)
 ```
 
-Note: During fitting, progress bars are shown in interactive sessions.
-In this vignette, they are suppressed for clarity. Sampling can take a
-while; the progress bars usually help track progress.
-
 ## Convergence diagnostics
 
 The quality of the Markov chain can be assessed with common MCMC
@@ -31,27 +27,27 @@ diagnostics:
 ``` r
 summary(fit)$pairwise
 #>                          mean          sd        mcse     n_eff
-#> intrusion-dreams  0.631924323 0.001551325 0.064266150 1716.1643
-#> intrusion-flash   0.338297975 0.001448421 0.061854243 1823.6826
-#> intrusion-upset   0.190695963 0.076279341 0.005921381  165.9464
-#> intrusion-physior 0.198176315 0.065555747 0.003647515  323.0185
-#> dreams-flash      0.498040695 0.001270565 0.060466106 2264.8025
-#> dreams-upset      0.230776860 0.056205053 0.002092867  721.2197
-#> dreams-physior    0.005254907 0.021861327 0.000843593  671.5636
-#> flash-upset       0.006462176 0.024675968 0.001036232  567.0671
-#> flash-physior     0.307138582 0.001205035 0.053371694 1961.6559
-#> upset-physior     0.707867139 0.001478310 0.059720575 1631.9869
+#> intrusion-dreams  0.629338089 0.001804519 0.067102463 1382.7822
+#> intrusion-flash   0.338657791 0.001589875 0.060421205 1444.2846
+#> intrusion-upset   0.202376428 0.064014992 0.004668924  187.9879
+#> intrusion-physior 0.188939686 0.071198984 0.006082051  137.0400
+#> dreams-flash      0.499816233 0.001803795 0.060493065 1124.7000
+#> dreams-upset      0.225595383 0.053378801 0.001589095 1128.3344
+#> dreams-physior    0.007497679 0.025566651 0.001247486  420.0263
+#> flash-upset       0.004566734 0.019291950 0.001055790  333.8854
+#> flash-physior     0.308420955 0.001426490 0.053789058 1421.8396
+#> upset-physior     0.707339037 0.001706434 0.059781270 1227.3022
 #>                        Rhat
-#> intrusion-dreams  0.9998582
-#> intrusion-flash   0.9999985
-#> intrusion-upset   1.0325834
-#> intrusion-physior 1.0053426
-#> dreams-flash      0.9999931
-#> dreams-upset      1.0076821
-#> dreams-physior    1.0051407
-#> flash-upset       1.0115874
-#> flash-physior     1.0013808
-#> upset-physior     0.9999992
+#> intrusion-dreams  1.0047113
+#> intrusion-flash   1.0024625
+#> intrusion-upset   1.0026218
+#> intrusion-physior 1.0002991
+#> dreams-flash      1.0018317
+#> dreams-upset      0.9999766
+#> dreams-physior    1.0020293
+#> flash-upset       0.9999943
+#> flash-physior     0.9998950
+#> upset-physior     1.0047092
 ```
 
 - R-hat values close to 1 (typically below 1.01) suggest convergence
@@ -91,12 +87,12 @@ edges:
 
 ``` r
 coef(fit)$indicator
-#>           intrusion  dreams   flash   upset physior
-#> intrusion   0.00000 1.00000 1.00000 0.96575  0.0560
-#> dreams      1.00000 0.00000 0.92525 1.00000  0.0655
-#> flash       1.00000 0.92525 0.00000 0.99600  1.0000
-#> upset       0.96575 1.00000 0.99600 0.00000  1.0000
-#> physior     0.05600 0.06550 1.00000 1.00000  0.0000
+#>           intrusion dreams  flash  upset physior
+#> intrusion    0.0000 1.0000 1.0000 0.9790  0.9405
+#> dreams       1.0000 0.0000 1.0000 0.9985  0.0820
+#> flash        1.0000 1.0000 0.0000 0.0545  1.0000
+#> upset        0.9790 0.9985 0.0545 0.0000  1.0000
+#> physior      0.9405 0.0820 1.0000 1.0000  0.0000
 ```
 
 - Values near 1.0: strong evidence the edge is present.
@@ -116,7 +112,7 @@ vs absence:
 p = coef(fit)$indicator[1, 5]
 BF_10 = p / (1 - p)
 BF_10
-#> [1] 0.05932203
+#> [1] 15.80672
 ```
 
 Here the Bayes factor in favor of inclusion (H1) is small, meaning that
@@ -126,17 +122,135 @@ transitive, we can use it to express the evidence in favor of exclusion
 
 ``` r
 1 / BF_10
-#> [1] 16.85714
+#> [1] 0.06326422
 ```
 
 This Bayes factor shows that there is strong evidence for the absence of
 a network relation between the variables `intrusion` and `physior`.
 
-## Notes on runtime
+## NUTS diagnostics
 
-- Sampling with spike-and-slab priors can take longer.
-- In interactive sessions, progress bars are displayed. In this
-  vignette, they are suppressed for readability.
+When using `update_method = "nuts"` (the default), additional
+diagnostics are available to assess the quality of the Hamiltonian Monte
+Carlo sampling. These can be accessed via `fit$nuts_diag`:
+
+``` r
+fit$nuts_diag$summary
+#> $total_divergences
+#> [1] 0
+#> 
+#> $max_tree_depth_hits
+#> [1] 0
+#> 
+#> $min_ebfmi
+#> [1] 0.9600455
+#> 
+#> $warmup_incomplete
+#> [1] FALSE
+```
+
+### E-BFMI
+
+E-BFMI (Energy Bayesian Fraction of Missing Information) measures how
+efficiently the sampler explores the posterior. It compares the typical
+size of energy changes between successive samples to the overall spread
+of energies. Values close to 1 indicate that the sampler moves freely
+across the energy landscape; values below 0.3 suggest the sampler may be
+getting stuck or that the chain has not yet settled into its stationary
+distribution.
+
+A low E-BFMI does not necessarily mean your results are wrong, but it
+does warrant further investigation. In models with edge selection, the
+most common cause is that the warmup period was too short for the
+discrete graph structure to equilibrate. Increasing `warmup` often
+resolves this.
+
+### Divergent transitions
+
+Divergent transitions occur when the numerical integrator encounters
+regions of the posterior where the curvature changes too rapidly for the
+current step size. A small number of divergences (say, fewer than 0.1%
+of samples) is generally acceptable. However, many divergences indicate
+that the sampler may be missing important parts of the posterior.
+
+If you see a large number of divergences, consider increasing
+`target_accept` (which makes the sampler use a smaller step size) and,
+if this does not fix it, switching to
+`update_method = "adaptive-metropolis"`.
+
+### Tree depth
+
+NUTS builds trajectories by repeatedly doubling their length until a
+“U-turn” criterion is satisfied. If the trajectory frequently reaches
+the maximum allowed depth (`nuts_max_depth`, default 10), it suggests
+the sampler may benefit from longer trajectories to explore the
+posterior efficiently. Hitting the maximum depth occasionally is normal;
+hitting it on most iterations may indicate challenging posterior
+geometry. If this happens, consider increasing `nuts_max_depth`.
+
+### Warmup and equilibration
+
+Standard HMC/NUTS warmup is designed to tune the step size and mass
+matrix for the continuous parameters. In models with edge selection, the
+discrete graph structure may take longer to reach its stationary
+distribution than the continuous parameters. As a result, even after
+warmup completes, the first portion of the sampling phase may still show
+transient behavior (i.e., non-stationarity).
+
+The `warmup_check` component provides simple diagnostics that compare
+the first and second halves of the post-warmup samples:
+
+``` r
+fit$nuts_diag$warmup_check
+#> $warmup_incomplete
+#> [1] FALSE FALSE
+#> 
+#> $energy_slope
+#>     time_idx     time_idx 
+#> -0.001538370  0.001249026 
+#> 
+#> $slope_significant
+#> time_idx time_idx 
+#>    FALSE    FALSE 
+#> 
+#> $ebfmi_first_half
+#> [1] 1.007220 1.085859
+#> 
+#> $ebfmi_second_half
+#> [1] 0.9180415 0.9804561
+#> 
+#> $var_ratio
+#> [1] 1.0982277 0.8839425
+```
+
+The returned list contains the following fields (one value per chain):
+
+- **warmup_incomplete**: A logical flag that is `TRUE` when any of the
+  indicators below suggest the chain may not have reached stationarity.
+- **energy_slope**: The slope of a linear regression of energy against
+  iteration number. A slope near zero indicates stable energy; a
+  significant negative slope suggests the chain is still drifting toward
+  higher-probability regions.
+- **slope_significant**: `TRUE` if the energy slope is statistically
+  significant (p \< 0.01).
+- **ebfmi_first_half** and **ebfmi_second_half**: E-BFMI computed
+  separately for the first and second halves of the post-warmup samples.
+  If the first-half value is much lower (for example, below 0.3) while
+  the second-half value is healthy, the early samples were likely still
+  settling.
+- **var_ratio**: The ratio of energy variance in the first half to that
+  in the second half. A ratio much greater than 1 (for example, above 2)
+  indicates higher variability early on, consistent with transient
+  behavior.
+
+If these diagnostics suggest the chain was still settling, increase
+`warmup` and re-run the model. If diagnostics remain problematic after a
+substantial increase (for example, doubling or tripling `warmup`),
+consider re-fitting with `update_method = "adaptive-metropolis"` and
+comparing the posterior summaries. If the two samplers produce similar
+results, the estimates are likely trustworthy despite the warnings; if
+they differ substantially, that warrants further investigation of the
+model or data.
 
 ## Next steps
 
