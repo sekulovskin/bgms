@@ -1,10 +1,12 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/404.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/CONTRIBUTING.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/articles/comparison.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/articles/diagnostics.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/articles/index.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/articles/intro.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/authors.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/copilot-instructions.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/index.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/news/index.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/ADHD.html</loc></url>
@@ -15,7 +17,18 @@
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/bgms-package.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/coef.bgmCompare.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/coef.bgms.html</loc></url>
-<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_arguments.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_category_thresholds.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_edge_indicators.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_ess.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_group_params.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_indicator_priors.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_indicators.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_pairwise_interactions.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_pairwise_thresholds.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_posterior_inclusion_probabilities.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_rhat.html</loc></url>
+<url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_sbm.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/index.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/mrfSampler.html</loc></url>
 <url><loc>https://bayesian-graphical-modelling-lab.github.io/bgms/reference/predict.bgmCompare.html</loc></url>

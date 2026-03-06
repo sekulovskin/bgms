@@ -1,14 +1,43 @@
 # Changelog
 
+## bgms 0.1.6.4
+
+### New features
+
+- Gaussian graphical models (GGM):
+  `bgm(x, variable_type = "continuous")` fits a GGM with Bayesian edge
+  selection. Pairwise effects are partial correlations from the
+  precision matrix.
+- Missing data imputation: `na_action = "impute"` integrates over
+  missing values during MCMC sampling for both ordinal and continuous
+  models.
+
+### Bug fixes
+
+- fixed Blume-Capel imputation: zero-category probability had wrong sign
+  and was double-counted. Replaced with unified loop over all
+  categories, matching
+  [`simulate_mrf()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/simulate_mrf.md).
+- fixed stale gradient cache after missing data imputation:
+  `impute_missing()` updated sufficient statistics
+  (`counts_per_category_`, `blume_capel_stats_`, `pairwise_stats_`) but
+  did not invalidate the gradient cache, causing NUTS to use outdated
+  cached values for the leapfrog integration.
+- fixed stale observation transpose after missing data imputation: the
+  precomputed `observations_double_t_` matrix was set once in the
+  constructor but never refreshed after `impute_missing()` changed cells
+  in `observations_double_`, causing the pairwise gradient
+  (`observations_double_t_ * E`) to use stale data.
+
 ## bgms 0.1.6.3
 
 CRAN release: 2026-02-14
 
 ### New features
 
-- [`extract_rhat()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md):
+- [`extract_rhat()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_rhat.md):
   extract R-hat convergence diagnostics from fitted objects
-- [`extract_ess()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md):
+- [`extract_ess()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_ess.md):
   extract effective sample size estimates from fitted objects
 - `verbose` argument: control informational messages; set
   `options(bgms.verbose = FALSE)` to suppress globally
@@ -171,12 +200,12 @@ CRAN release: 2025-09-27
   - `burnin` → use `warmup`
   - `save` → no longer needed
 - Deprecated extractor functions:
-  - [`extract_edge_indicators()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md)
+  - [`extract_edge_indicators()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_edge_indicators.md)
     → use
-    [`extract_indicators()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md)
-  - [`extract_pairwise_thresholds()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md)
+    [`extract_indicators()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_indicators.md)
+  - [`extract_pairwise_thresholds()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_pairwise_thresholds.md)
     → use
-    [`extract_category_thresholds()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extractor_functions.md)
+    [`extract_category_thresholds()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_category_thresholds.md)
 - Deprecated object fields:
   - `$gamma` (pre-0.1.4) and `$indicator` (0.1.4–0.1.5) → replaced by
     `$raw_samples$indicator`
