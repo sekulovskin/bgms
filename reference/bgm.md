@@ -1,10 +1,11 @@
 # Bayesian Estimation or Edge Selection for Markov Random Fields
 
-The `bgm` function estimates the pseudoposterior distribution of
-category thresholds (main effects) and pairwise interaction parameters
-of a Markov Random Field (MRF) model for binary and/or ordinal
-variables. Optionally, it performs Bayesian edge selection using
-spike-and-slab priors to infer the network structure.
+The `bgm` function estimates the pseudoposterior distribution of the
+parameters of a Markov Random Field (MRF) for binary, ordinal,
+continuous, or mixed (discrete and continuous) variables. Depending on
+the variable types, the model is an ordinal MRF, a Gaussian graphical
+model (GGM), or a mixed MRF. Optionally, it performs Bayesian edge
+selection using spike-and-slab priors to infer the network structure.
 
 ## Usage
 
@@ -38,6 +39,7 @@ bgm(
   display_progress = c("per-chain", "total", "none"),
   seed = NULL,
   standardize = FALSE,
+  pseudolikelihood = c("conditional", "marginal"),
   verbose = getOption("bgms.verbose", TRUE),
   interaction_scale,
   burnin,
@@ -60,8 +62,11 @@ bgm(
 - variable_type:
 
   Character or character vector. Specifies the type of each variable in
-  `x`. Allowed values: `"ordinal"` or `"blume-capel"`. Binary variables
-  are automatically treated as `"ordinal"`. Default: `"ordinal"`.
+  `x`. Allowed values: `"ordinal"`, `"blume-capel"`, or `"continuous"`.
+  A single string applies to all variables. A per-variable vector that
+  mixes discrete (`"ordinal"` / `"blume-capel"`) and `"continuous"`
+  types fits a mixed MRF. Binary variables are automatically treated as
+  `"ordinal"`. Default: `"ordinal"`.
 
 - baseline_category:
 
@@ -222,6 +227,27 @@ bgm(
   \\(0, m)\\ and Blume-Capel variables use centered score endpoints
   \\(-b, m-b)\\. Default: `FALSE`.
 
+- pseudolikelihood:
+
+  Character. Specifies the pseudo-likelihood approximation used for
+  mixed MRF models (ignored for pure ordinal or pure continuous data).
+  Options:
+
+  `"conditional"`
+
+  :   Conditions on the observed continuous variables when computing the
+      discrete full conditionals. Faster because the discrete
+      pseudo-likelihood does not depend on the continuous precision
+      matrix.
+
+  `"marginal"`
+
+  :   Integrates out the continuous variables, giving discrete full
+      conditionals that account for induced interactions through the
+      continuous block. More expensive per iteration.
+
+  Default: `"conditional"`.
+
 - verbose:
 
   Logical. If `TRUE`, prints informational messages during data
@@ -231,9 +257,8 @@ bgm(
 
 - interaction_scale, burnin, save, threshold_alpha, threshold_beta:
 
-  \`r lifecycle::badge("deprecated")\` Deprecated arguments as of **bgms
-  0.1.6.0**. Use \`pairwise_scale\`, \`warmup\`, \`main_alpha\`, and
-  \`main_beta\` instead.
+  **\[deprecated\]** Deprecated arguments as of **bgms 0.1.6.0**. Use
+  `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.
 
 ## Value
 
@@ -246,7 +271,14 @@ matrices, and access to raw MCMC draws. The object can be passed to
 Main components include:
 
 - `posterior_summary_main`: Data frame with posterior summaries (mean,
-  sd, MCSE, ESS, Rhat) for category threshold parameters.
+  sd, MCSE, ESS, Rhat) for main-effect parameters. For OMRF models these
+  are category thresholds; for mixed MRF models these are discrete
+  thresholds and continuous means. `NULL` for GGM models (no main
+  effects).
+
+- `posterior_summary_quadratic`: Data frame with posterior summaries for
+  the precision matrix diagonal. Present for GGM and mixed MRF models;
+  `NULL` for OMRF models.
 
 - `posterior_summary_pairwise`: Data frame with posterior summaries for
   pairwise interaction parameters.
@@ -254,11 +286,14 @@ Main components include:
 - `posterior_summary_indicator`: Data frame with posterior summaries for
   edge inclusion indicators (if `edge_selection = TRUE`).
 
-- `posterior_mean_main`: Matrix of posterior mean thresholds (rows =
-  variables, cols = categories or parameters).
+- `posterior_mean_main`: Posterior mean of main-effect parameters.
+  `NULL` for GGM models. For OMRF: a matrix (p x max_categories) of
+  category thresholds. For mixed MRF: a list with `$discrete` (threshold
+  matrix) and `$continuous` (q x 1 matrix of means).
 
 - `posterior_mean_pairwise`: Symmetric matrix of posterior mean pairwise
-  interaction strengths.
+  interaction strengths. For GGM and mixed MRF models the precision
+  matrix diagonal is included on the matrix diagonal.
 
 - `posterior_mean_indicator`: Symmetric matrix of posterior mean
   inclusion probabilities (if edge selection was enabled).
@@ -330,14 +365,14 @@ in `fit$nuts_diag` if `update_method = "nuts"`.
 
 ## Details
 
-This function models the joint distribution of binary and ordinal
-variables using a Markov Random Field, with support for edge selection
-through Bayesian variable selection. The statistical foundation of the
-model is described in Marsman et al. (2025) , where the ordinal MRF
-model and its Bayesian estimation procedure were first introduced. While
-the implementation in bgms has since been extended and updated (e.g.,
-alternative priors, parallel chains, HMC/NUTS warmup), it builds on that
-original framework.
+This function models the joint distribution of binary, ordinal,
+continuous, or mixed variables using a Markov Random Field, with support
+for edge selection through Bayesian variable selection. The statistical
+foundation of the model is described in Marsman et al. (2025) , where
+the ordinal MRF model and its Bayesian estimation procedure were first
+introduced. While the implementation in bgms has since been extended and
+updated (e.g., alternative priors, parallel chains, HMC/NUTS warmup), it
+builds on that original framework.
 
 Key components of the model are described in the sections below.
 
@@ -518,36 +553,36 @@ fit = bgm(x = Wenchuan[, 1:5], chains = 2)
 #> 7 rows with missing values excluded (n = 355 remaining).
 #> To impute missing values instead, use na_action = "impute".
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 100/2000 (5.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 136/2000 (6.8%)
-#> Total   (Warmup): ⦗━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 236/4000 (5.9%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 132/2000 (6.6%)
+#> Total   (Warmup): ⦗━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 232/4000 (5.8%)
 #> Elapsed: 0s | ETA: 0s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 350/2000 (17.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 413/2000 (20.6%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 763/4000 (19.1%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 408/2000 (20.4%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 758/4000 (18.9%)
 #> Elapsed: 1s | ETA: 4s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 650/2000 (32.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 696/2000 (34.8%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1346/4000 (33.7%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 685/2000 (34.2%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1335/4000 (33.4%)
 #> Elapsed: 1s | ETA: 2s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 950/2000 (47.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 973/2000 (48.6%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 1923/4000 (48.1%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 957/2000 (47.9%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 1907/4000 (47.7%)
 #> Elapsed: 2s | ETA: 2s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1200/2000 (60.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━⦘ 1221/2000 (61.1%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━⦘ 2421/4000 (60.5%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1200/2000 (60.0%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2400/4000 (60.0%)
 #> Elapsed: 2s | ETA: 1s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1450/2000 (72.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1478/2000 (73.9%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━⦘ 2928/4000 (73.2%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━⦘ 1452/2000 (72.6%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━⦘ 2902/4000 (72.5%)
 #> Elapsed: 3s | ETA: 1s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1700/2000 (85.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1726/2000 (86.3%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━⦘ 3426/4000 (85.7%)
-#> Elapsed: 4s | ETA: 1s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━⦘ 1703/2000 (85.2%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━⦘ 3403/4000 (85.1%)
+#> Elapsed: 3s | ETA: 1s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1950/2000 (97.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺⦘ 1972/2000 (98.6%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺⦘ 3922/4000 (98.0%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1939/2000 (97.0%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3889/4000 (97.2%)
 #> Elapsed: 4s | ETA: 0s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)

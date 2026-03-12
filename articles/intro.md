@@ -63,7 +63,7 @@ fit = bgm(data, seed = 1234)
 summary(fit)
 #> Posterior summaries from Bayesian estimation:
 #> 
-#> Category thresholds:
+#> Category thresholds: 
 #>                 mean  mcse    sd    n_eff  Rhat
 #> intrusion (1)  0.486 0.008 0.234  955.016 1.000
 #> intrusion (2) -1.876 0.016 0.347  446.256 1.005
