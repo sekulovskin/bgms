@@ -24,7 +24,7 @@ bgmCompare(
   difference_probability = 0.5,
   beta_bernoulli_alpha = 1,
   beta_bernoulli_beta = 1,
-  pairwise_scale = 2.5,
+  pairwise_scale = 1,
   main_alpha = 0.5,
   main_beta = 0.5,
   iter = 1000,
@@ -127,7 +127,7 @@ bgmCompare(
 - pairwise_scale:
 
   Double. Scale of the Cauchy prior for baseline pairwise interactions.
-  Default: `2.5`.
+  Default: `1`.
 
 - main_alpha, main_beta:
 
@@ -149,17 +149,19 @@ bgmCompare(
 
 - update_method:
 
-  Character. Sampling algorithm: `"adaptive-metropolis"`,
-  `"hamiltonian-mc"`, or `"nuts"`. Default: `"nuts"`.
+  Character. Sampling algorithm: `"adaptive-metropolis"` or `"nuts"`.
+  `"hamiltonian-mc"` is accepted but deprecated; use `"nuts"` instead.
+  Default: `"nuts"`.
 
 - target_accept:
 
   Numeric between 0 and 1. Target acceptance rate. Defaults: 0.44
-  (Metropolis), 0.65 (HMC), 0.80 (NUTS).
+  (Metropolis), 0.80 (NUTS).
 
 - hmc_num_leapfrogs:
 
-  Integer. Leapfrog steps for HMC. Default: `100`.
+  **\[deprecated\]** Integer. Leapfrog steps for HMC (deprecated).
+  Default: `100`.
 
 - nuts_max_depth:
 
@@ -167,8 +169,8 @@ bgmCompare(
 
 - learn_mass_matrix:
 
-  Logical. If `TRUE`, adapts a diagonal mass matrix during warmup
-  (HMC/NUTS only). Default: `TRUE`.
+  Logical. If `TRUE`, adapts a diagonal mass matrix during warmup (NUTS
+  only). Default: `TRUE`.
 
 - chains:
 
@@ -260,8 +262,8 @@ multiple groups. The basic idea of modeling, analyzing, and testing
 group differences in MRFs was introduced in Marsman et al. (2025) ,
 where two–group comparisons were conducted using adaptive Metropolis
 sampling. The present implementation generalizes that approach to more
-than two groups and supports additional samplers (HMC and NUTS) with
-staged warmup adaptation.
+than two groups and supports additional samplers (NUTS) with staged
+warmup adaptation.
 
 Key components of the model:
 
@@ -299,19 +301,18 @@ algorithms and staged warmup scheme described in
 - **Adaptive Metropolis–Hastings**: componentwise random–walk proposals
   with Robbins–Monro adaptation of proposal SDs.
 
-- **Hamiltonian Monte Carlo (HMC)**: joint updates with fixed leapfrog
-  trajectories; step size and optionally the mass matrix are adapted
-  during warmup.
+- **Hamiltonian Monte Carlo (HMC)** (*deprecated*): joint updates with
+  fixed leapfrog trajectories. This method is deprecated; use NUTS
+  instead.
 
 - **No–U–Turn Sampler (NUTS)**: an adaptive HMC variant with dynamic
-  trajectory lengths; warmup uses the same staged adaptation schedule as
-  HMC.
+  trajectory lengths; warmup uses a staged adaptation schedule.
 
 For details on the staged adaptation schedule (fast–slow–fast phases),
 see
 [`bgm`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/bgm.md).
 In addition, when `difference_selection = TRUE`, updates of inclusion
-indicators are delayed until late warmup. In HMC/NUTS, this appends two
+indicators are delayed until late warmup. In NUTS, this appends two
 extra phases (Stage-3b and Stage-3c), so that the total number of warmup
 iterations exceeds the user-specified `warmup`.
 
@@ -347,65 +348,65 @@ y = Boredom[Boredom$language != "fr", 2:6]
 
 fit = bgmCompare(x, y, chains = 2)
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 50/2000 (2.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 77/2000 (3.9%)
-#> Total   (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 127/4000 (3.2%)
-#> Elapsed: 2s | ETA: 1m
+#> Chain 2 (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 64/2000 (3.2%)
+#> Total   (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 114/4000 (2.9%)
+#> Elapsed: 2s | ETA: 1m 8s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 100/2000 (5.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 316/2000 (15.8%)
-#> Total   (Warmup): ⦗━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 416/4000 (10.4%)
-#> Elapsed: 4s | ETA: 34s
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 145/2000 (7.2%)
+#> Total   (Warmup): ⦗━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 245/4000 (6.1%)
+#> Elapsed: 4s | ETA: 1m 1s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 200/2000 (10.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 456/2000 (22.8%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 656/4000 (16.4%)
-#> Elapsed: 5s | ETA: 25s
+#> Chain 2 (Warmup): ⦗━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 273/2000 (13.7%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 473/4000 (11.8%)
+#> Elapsed: 4s | ETA: 30s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 350/2000 (17.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 611/2000 (30.6%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 961/4000 (24.0%)
-#> Elapsed: 6s | ETA: 19s
+#> Chain 2 (Warmup): ⦗━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 422/2000 (21.1%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 772/4000 (19.3%)
+#> Elapsed: 5s | ETA: 21s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 500/2000 (25.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━⦘ 774/2000 (38.7%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1274/4000 (31.9%)
-#> Elapsed: 6s | ETA: 13s
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 569/2000 (28.4%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1069/4000 (26.7%)
+#> Elapsed: 6s | ETA: 16s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 650/2000 (32.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 883/2000 (44.1%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1532/4000 (38.3%)
-#> Elapsed: 7s | ETA: 11s
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 731/2000 (36.5%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1381/4000 (34.5%)
+#> Elapsed: 6s | ETA: 11s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 800/2000 (40.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 955/2000 (47.8%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1755/4000 (43.9%)
-#> Elapsed: 7s | ETA: 9s
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━⦘ 854/2000 (42.7%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1654/4000 (41.3%)
+#> Elapsed: 7s | ETA: 10s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 900/2000 (45.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1098/2000 (54.9%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1998/4000 (50.0%)
-#> Elapsed: 8s | ETA: 8s
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 931/2000 (46.6%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━⦘ 1831/4000 (45.8%)
+#> Elapsed: 7s | ETA: 8s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1000/2000 (50.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1246/2000 (62.3%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━⦘ 2246/4000 (56.1%)
-#> Elapsed: 9s | ETA: 7s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━⦘ 1055/2000 (52.8%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2055/4000 (51.4%)
+#> Elapsed: 8s | ETA: 8s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1150/2000 (57.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1399/2000 (70.0%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━⦘ 2549/4000 (63.7%)
-#> Elapsed: 9s | ETA: 5s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━⦘ 1205/2000 (60.2%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2355/4000 (58.9%)
+#> Elapsed: 9s | ETA: 6s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1300/2000 (65.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━⦘ 1552/2000 (77.6%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2852/4000 (71.3%)
-#> Elapsed: 10s | ETA: 4s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━⦘ 1355/2000 (67.8%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2655/4000 (66.4%)
+#> Elapsed: 9s | ETA: 5s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1450/2000 (72.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━⦘ 1701/2000 (85.0%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3151/4000 (78.8%)
-#> Elapsed: 11s | ETA: 3s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1500/2000 (75.0%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━⦘ 2950/4000 (73.8%)
+#> Elapsed: 10s | ETA: 4s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1600/2000 (80.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━⦘ 1851/2000 (92.5%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3451/4000 (86.3%)
-#> Elapsed: 11s | ETA: 2s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1645/2000 (82.2%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━⦘ 3245/4000 (81.1%)
+#> Elapsed: 11s | ETA: 3s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1750/2000 (87.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━⦘ 3750/4000 (93.8%)
-#> Elapsed: 12s | ETA: 1s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1791/2000 (89.5%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━⦘ 3541/4000 (88.5%)
+#> Elapsed: 11s | ETA: 1s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1900/2000 (95.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3900/4000 (97.5%)
-#> Elapsed: 13s | ETA: 0s
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1942/2000 (97.1%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━⦘ 3842/4000 (96.0%)
+#> Elapsed: 12s | ETA: 0s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
@@ -415,83 +416,83 @@ fit = bgmCompare(x, y, chains = 2)
 summary(fit)$indicator
 #>                            parameter   mean        mcse        sd
 #> 1                  loose_ends (main) 1.0000          NA 0.0000000
-#> 2    loose_ends-entertain (pairwise) 0.0185 0.002956821 0.1347507
-#> 3   loose_ends-repetitive (pairwise) 0.0370 0.005741624 0.1887618
-#> 4  loose_ends-stimulation (pairwise) 0.2000 0.021690292 0.4000000
-#> 5    loose_ends-motivated (pairwise) 0.0200 0.003485940 0.1400000
+#> 2    loose_ends-entertain (pairwise) 0.0215 0.003489648 0.1450440
+#> 3   loose_ends-repetitive (pairwise) 0.0290 0.004354162 0.1678064
+#> 4  loose_ends-stimulation (pairwise) 0.2550 0.033283978 0.4358612
+#> 5    loose_ends-motivated (pairwise) 0.0165 0.003169754 0.1273882
 #> 6                   entertain (main) 1.0000          NA 0.0000000
-#> 7    entertain-repetitive (pairwise) 0.0230 0.003743193 0.1499033
-#> 8   entertain-stimulation (pairwise) 0.1980 0.022924859 0.3984922
-#> 9     entertain-motivated (pairwise) 0.0375 0.005662001 0.1899836
+#> 7    entertain-repetitive (pairwise) 0.0280 0.004312348 0.1649727
+#> 8   entertain-stimulation (pairwise) 0.1580 0.017273299 0.3647410
+#> 9     entertain-motivated (pairwise) 0.0520 0.006999231 0.2220270
 #> 10                 repetitive (main) 1.0000          NA 0.0000000
-#> 11 repetitive-stimulation (pairwise) 0.0305 0.004735164 0.1719586
-#> 12   repetitive-motivated (pairwise) 0.0285 0.005046678 0.1663964
+#> 11 repetitive-stimulation (pairwise) 0.0345 0.005100878 0.1825096
+#> 12   repetitive-motivated (pairwise) 0.0250 0.004562882 0.1561249
 #> 13                stimulation (main) 1.0000          NA 0.0000000
-#> 14  stimulation-motivated (pairwise) 0.0205 0.003605506 0.1417030
+#> 14  stimulation-motivated (pairwise) 0.0200 0.003399099 0.1400000
 #> 15                  motivated (main) 1.0000          NA 0.0000000
 #>    n0->0 n0->1 n1->0 n1->1 n_eff_mixt      Rhat
 #> 1      0     0     0  1999         NA        NA
-#> 2   1925    37    37     0  2076.8831 1.0573250
-#> 3   1875    50    50    24  1080.8327 0.9995009
-#> 4   1506    93    93   307   340.0863 0.9997623
-#> 5   1924    35    35     5  1612.9330 1.0007730
+#> 2   1917    39    39     4  1727.5719 0.9997761
+#> 3   1893    48    48    10  1485.2791 1.0049718
+#> 4   1429    60    60   450   171.4849 1.0179388
+#> 5   1937    29    29     4  1615.1285 0.9999663
 #> 6      0     0     0  1999         NA        NA
-#> 7   1913    40    40     6  1603.7547 0.9995009
-#> 8   1520    84    83   312   302.1525 1.0003172
-#> 9   1872    52    52    23  1125.8800 1.0315051
+#> 7   1897    46    46    10  1463.5132 1.0303279
+#> 8   1586    97    97   219   445.8806 1.0003812
+#> 9   1829    66    66    38  1006.2618 0.9995009
 #> 10     0     0     0  1999         NA        NA
-#> 11  1891    47    47    14  1318.7959 0.9996385
-#> 12  1903    39    39    18  1087.1175 1.0009233
+#> 11  1878    52    52    17  1280.2108 1.0047965
+#> 12  1913    36    36    14  1170.7555 1.0376272
 #> 13     0     0     0  1999         NA        NA
-#> 14  1923    35    35     6  1544.6347 0.9998034
+#> 14  1924    35    36     4  1696.4008 0.9995009
 #> 15     0     0     0  1999         NA        NA
 
 # Bayesian model averaged main effects for the groups
 coef(fit)$main_effects_groups
-#>                     group1     group2
-#> loose_ends(c1)  -0.9475791 -0.9135918
-#> loose_ends(c2)  -2.7433852 -2.2468661
-#> loose_ends(c3)  -4.0182279 -3.5541040
-#> loose_ends(c4)  -5.3325414 -4.8356933
-#> loose_ends(c5)  -7.6364589 -7.4296408
-#> loose_ends(c6)  -9.8730519 -9.9545861
-#> entertain(c1)   -0.7481068 -1.0414976
-#> entertain(c2)   -2.1983734 -2.2809607
-#> entertain(c3)   -3.9939252 -3.6960293
-#> entertain(c4)   -5.0748095 -5.1814379
-#> entertain(c5)   -7.0503073 -6.9827679
-#> entertain(c6)   -9.7090672 -9.4659442
-#> repetitive(c1)  -0.0537370 -0.2750695
-#> repetitive(c2)  -0.5079299 -0.9174315
-#> repetitive(c3)  -1.0388124 -1.1418728
-#> repetitive(c4)  -1.9733119 -1.7372055
-#> repetitive(c5)  -3.5772722 -2.9778684
-#> repetitive(c6)  -5.3078966 -4.7003191
-#> stimulation(c1) -0.3556470 -0.8573140
-#> stimulation(c2) -1.7610083 -1.8584906
-#> stimulation(c3) -2.4522895 -2.6797113
-#> stimulation(c4) -3.4365378 -3.8585023
-#> stimulation(c5) -5.0700113 -5.3042951
-#> stimulation(c6) -6.7484919 -7.4095389
-#> motivated(c1)   -0.4660374 -0.7110986
-#> motivated(c2)   -1.7491246 -1.8718958
-#> motivated(c3)   -3.4339946 -3.1646310
-#> motivated(c4)   -5.0727649 -4.5952721
-#> motivated(c5)   -6.6488766 -6.6976942
-#> motivated(c6)   -9.3213461 -8.9187993
+#>                      group1     group2
+#> loose_ends(c1)  -0.94749741 -0.9078097
+#> loose_ends(c2)  -2.74015770 -2.2363366
+#> loose_ends(c3)  -4.00155075 -3.5422143
+#> loose_ends(c4)  -5.29531795 -4.8252482
+#> loose_ends(c5)  -7.59112519 -7.4120877
+#> loose_ends(c6)  -9.81837521 -9.9418410
+#> entertain(c1)   -0.75126205 -1.0319680
+#> entertain(c2)   -2.20333207 -2.2772569
+#> entertain(c3)   -4.00613843 -3.6923011
+#> entertain(c4)   -5.08333168 -5.1707334
+#> entertain(c5)   -7.06559066 -6.9685265
+#> entertain(c6)   -9.73372049 -9.4613830
+#> repetitive(c1)  -0.04881725 -0.2833148
+#> repetitive(c2)  -0.50343630 -0.9149375
+#> repetitive(c3)  -1.02928262 -1.1387459
+#> repetitive(c4)  -1.96209144 -1.7357067
+#> repetitive(c5)  -3.55642944 -2.9747981
+#> repetitive(c6)  -5.28213736 -4.6904034
+#> stimulation(c1) -0.36027459 -0.8554131
+#> stimulation(c2) -1.76769527 -1.8586010
+#> stimulation(c3) -2.45943330 -2.6891144
+#> stimulation(c4) -3.43538351 -3.8698947
+#> stimulation(c5) -5.06731008 -5.3167654
+#> stimulation(c6) -6.73734051 -7.4222496
+#> motivated(c1)   -0.45333135 -0.7035202
+#> motivated(c2)   -1.73572179 -1.8633783
+#> motivated(c3)   -3.41159418 -3.1456520
+#> motivated(c4)   -5.03654274 -4.5670413
+#> motivated(c5)   -6.60825120 -6.6666839
+#> motivated(c6)   -9.27110211 -8.8711729
 
 # Bayesian model averaged pairwise effects for the groups
 coef(fit)$pairwise_effects_groups
 #>                            group1     group2
-#> loose_ends-entertain   0.16943659 0.16964457
-#> loose_ends-repetitive  0.05721340 0.05825250
-#> loose_ends-stimulation 0.12318442 0.13235528
-#> loose_ends-motivated   0.14052370 0.14017466
-#> entertain-repetitive   0.06440024 0.06476270
-#> entertain-stimulation  0.10457727 0.11341365
-#> entertain-motivated    0.08451861 0.08549076
-#> repetitive-stimulation 0.05616135 0.05688373
-#> repetitive-motivated   0.13504574 0.13562027
-#> stimulation-motivated  0.10783501 0.10816324
+#> loose_ends-entertain   0.16962500 0.16988121
+#> loose_ends-repetitive  0.05681879 0.05741603
+#> loose_ends-stimulation 0.12119767 0.13414819
+#> loose_ends-motivated   0.13914615 0.13884864
+#> entertain-repetitive   0.06444417 0.06497918
+#> entertain-stimulation  0.10534333 0.11237296
+#> entertain-motivated    0.08447774 0.08609393
+#> repetitive-stimulation 0.05654703 0.05726295
+#> repetitive-motivated   0.13386754 0.13448555
+#> stimulation-motivated  0.10790065 0.10808664
 # }
 ```
