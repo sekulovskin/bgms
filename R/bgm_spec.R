@@ -3,9 +3,9 @@
 # ==============================================================================
 #
 # Central construction point for all bgm/bgmCompare models. Three layers:
-#   bgm_spec()          — user-facing: validates inputs, assembles sub-lists
-#   new_bgm_spec()      — low-level: type/presence assertions per field
-#   validate_bgm_spec() — cross-field invariant checks
+#   bgm_spec()          --- user-facing: validates inputs, assembles sub-lists
+#   new_bgm_spec()      --- low-level: type/presence assertions per field
+#   validate_bgm_spec() --- cross-field invariant checks
 #
 # The result is an S3 list of class "bgm_spec" consumed by run_sampler()
 # and build_output().
@@ -13,7 +13,7 @@
 
 
 # ==============================================================================
-# new_bgm_spec()  — low-level constructor
+# new_bgm_spec()  --- low-level constructor
 # ==============================================================================
 #
 # Asserts presence and type of every field. Does NOT validate values
@@ -89,17 +89,23 @@ new_bgm_spec = function(model_type, data, variables, missing, prior,
 
   # --- prior sub-list ---
   stopifnot(is.list(prior))
-  if(model_type %in% c("omrf", "compare")) {
-    stopifnot(is.numeric(prior$pairwise_scale), length(prior$pairwise_scale) == 1L)
-    stopifnot(is.numeric(prior$main_alpha), length(prior$main_alpha) == 1L)
-    stopifnot(is.numeric(prior$main_beta), length(prior$main_beta) == 1L)
+  # All model types now carry interaction_prior_type
+  stopifnot(
+    is.character(prior$interaction_prior_type),
+    length(prior$interaction_prior_type) == 1L
+  )
+  stopifnot(is.numeric(prior$pairwise_scale), length(prior$pairwise_scale) == 1L)
+  if(model_type %in% c("omrf", "compare", "mixed_mrf")) {
+    stopifnot(
+      is.character(prior$threshold_prior_type),
+      length(prior$threshold_prior_type) == 1L
+    )
     stopifnot(is.logical(prior$standardize), length(prior$standardize) == 1L)
+  }
+  if(model_type %in% c("omrf", "compare")) {
     stopifnot(is.matrix(prior$pairwise_scaling_factors))
   }
   if(model_type == "mixed_mrf") {
-    stopifnot(is.numeric(prior$pairwise_scale), length(prior$pairwise_scale) == 1L)
-    stopifnot(is.numeric(prior$main_alpha), length(prior$main_alpha) == 1L)
-    stopifnot(is.numeric(prior$main_beta), length(prior$main_beta) == 1L)
     stopifnot(is.logical(prior$standardize), length(prior$standardize) == 1L)
   }
   if(model_type %in% c("ggm", "omrf", "mixed_mrf")) {
@@ -159,7 +165,7 @@ new_bgm_spec = function(model_type, data, variables, missing, prior,
 
 
 # ==============================================================================
-# validate_bgm_spec()  — cross-field invariant checks
+# validate_bgm_spec()  --- cross-field invariant checks
 # ==============================================================================
 validate_bgm_spec = function(spec) {
   mt = spec$model_type
@@ -225,7 +231,7 @@ validate_bgm_spec = function(spec) {
 
 
 # ==============================================================================
-# bgm_spec()  — user-facing constructor
+# bgm_spec()  --- user-facing constructor
 # ==============================================================================
 #
 # Validates all user inputs via dedicated validators, assembles sub-lists,
@@ -243,19 +249,27 @@ bgm_spec = function(x,
                     group_indicator = NULL,
                     # Missing data
                     na_action = c("listwise", "impute"),
-                    # Priors (bgm / shared)
+                    # Priors (new: prior objects unpacked by bgm())
+                    interaction_prior_type = "cauchy",
                     pairwise_scale = 1,
+                    interaction_alpha = NA_real_,
+                    interaction_beta = NA_real_,
+                    threshold_prior_type = "beta-prime",
                     main_alpha = 0.5,
                     main_beta = 0.5,
+                    threshold_scale = NA_real_,
+                    means_prior_type = "normal",
+                    means_scale = 1,
+                    means_alpha = NA_real_,
+                    means_beta = NA_real_,
+                    scale_prior_type = "gamma",
+                    scale_shape = 1,
+                    scale_rate = 1,
                     standardize = FALSE,
                     edge_selection = TRUE,
-                    edge_prior = c(
-                      "Bernoulli", "Beta-Bernoulli",
-                      "Stochastic-Block"
-                    ),
+                    edge_prior = bernoulli_prior(0.5),
+                    # Legacy edge prior params (accepted for backward compat)
                     inclusion_probability = 0.5,
-                    beta_bernoulli_alpha = 1,
-                    beta_bernoulli_beta = 1,
                     beta_bernoulli_alpha_between = 1,
                     beta_bernoulli_beta_between = 1,
                     dirichlet_alpha = 1,
@@ -266,6 +280,9 @@ bgm_spec = function(x,
                     difference_prior = c("Bernoulli", "Beta-Bernoulli"),
                     difference_scale = 2.5,
                     difference_probability = 0.5,
+                    # Compare difference prior uses beta_bernoulli params
+                    beta_bernoulli_alpha = 1,
+                    beta_bernoulli_beta = 1,
                     # Sampler
                     update_method = c(
                       "nuts",
@@ -339,6 +356,43 @@ bgm_spec = function(x,
     progress_callback = progress_callback
   )
 
+  # --- Resolve edge prior object -----------------------------------------------
+  if(inherits(edge_prior, "bgms_indicator_prior")) {
+    ep_flat = unpack_indicator_prior(edge_prior, num_variables)
+  } else if(is.character(edge_prior)) {
+    # Legacy string path (tests and bgmCompare may call bgm_spec directly)
+    edge_prior_str = match.arg(edge_prior,
+      choices = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block")
+    )
+    ep_flat = validate_edge_prior(
+      edge_selection = edge_selection, edge_prior = edge_prior_str,
+      inclusion_probability = inclusion_probability,
+      num_variables = num_variables,
+      beta_bernoulli_alpha = beta_bernoulli_alpha,
+      beta_bernoulli_beta = beta_bernoulli_beta,
+      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
+      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
+      dirichlet_alpha = dirichlet_alpha, lambda = lambda
+    )
+    ep_flat$beta_bernoulli_alpha = beta_bernoulli_alpha
+    ep_flat$beta_bernoulli_beta = beta_bernoulli_beta
+    ep_flat$beta_bernoulli_alpha_between = beta_bernoulli_alpha_between
+    ep_flat$beta_bernoulli_beta_between = beta_bernoulli_beta_between
+    ep_flat$dirichlet_alpha = dirichlet_alpha
+    ep_flat$lambda = lambda
+  } else {
+    stop(
+      "'edge_prior' must be a bgms_indicator_prior object.",
+      " Use bernoulli_prior(), beta_bernoulli_prior(), or sbm_prior()."
+    )
+  }
+  # Override edge_selection if explicitly FALSE
+  if(!edge_selection) {
+    ep_flat$edge_selection = FALSE
+    ep_flat$edge_prior = "Not Applicable"
+    ep_flat$inclusion_probability = matrix(0.5, nrow = 1, ncol = 1)
+  }
+
   # --- Build by model type ----------------------------------------------------
   if(model_type == "ggm") {
     spec = build_spec_ggm(
@@ -348,16 +402,14 @@ bgm_spec = function(x,
       is_continuous = is_continuous,
       baseline_category = as.integer(rep(0L, num_variables)),
       na_action = na_action, sampler = sampler,
+      interaction_prior_type = interaction_prior_type,
       pairwise_scale = pairwise_scale,
-      edge_selection = edge_selection,
-      edge_prior = edge_prior,
-      inclusion_probability = inclusion_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta,
-      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-      dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      scale_prior_type = scale_prior_type,
+      scale_shape = scale_shape,
+      scale_rate = scale_rate,
+      edge_prior_flat = ep_flat
     )
   } else if(model_type == "mixed_mrf") {
     spec = build_spec_mixed_mrf(
@@ -366,17 +418,22 @@ bgm_spec = function(x,
       variable_type = variable_type, is_ordinal = is_ordinal,
       baseline_category = baseline_category,
       na_action = na_action, sampler = sampler,
-      pairwise_scale = pairwise_scale, main_alpha = main_alpha,
-      main_beta = main_beta, standardize = standardize,
-      edge_selection = edge_selection,
-      edge_prior = edge_prior,
-      inclusion_probability = inclusion_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta,
-      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-      dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      interaction_prior_type = interaction_prior_type,
+      pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      threshold_prior_type = threshold_prior_type,
+      main_alpha = main_alpha, main_beta = main_beta,
+      threshold_scale = threshold_scale,
+      means_prior_type = means_prior_type,
+      means_scale = means_scale,
+      means_alpha = means_alpha,
+      means_beta = means_beta,
+      scale_prior_type = scale_prior_type,
+      scale_shape = scale_shape,
+      scale_rate = scale_rate,
+      standardize = standardize,
+      edge_prior_flat = ep_flat
     )
   } else if(model_type == "omrf") {
     spec = build_spec_omrf(
@@ -386,17 +443,15 @@ bgm_spec = function(x,
       is_continuous = is_continuous,
       baseline_category = baseline_category,
       na_action = na_action, sampler = sampler,
-      pairwise_scale = pairwise_scale, main_alpha = main_alpha,
-      main_beta = main_beta, standardize = standardize,
-      edge_selection = edge_selection,
-      edge_prior = edge_prior,
-      inclusion_probability = inclusion_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta,
-      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-      dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      interaction_prior_type = interaction_prior_type,
+      pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      threshold_prior_type = threshold_prior_type,
+      main_alpha = main_alpha, main_beta = main_beta,
+      threshold_scale = threshold_scale,
+      standardize = standardize,
+      edge_prior_flat = ep_flat
     )
   } else {
     spec = build_spec_compare(
@@ -407,15 +462,21 @@ bgm_spec = function(x,
       is_continuous = is_continuous,
       baseline_category = baseline_category,
       na_action = na_action, sampler = sampler,
-      pairwise_scale = pairwise_scale, main_alpha = main_alpha,
-      main_beta = main_beta, standardize = standardize,
+      interaction_prior_type = interaction_prior_type,
+      pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      threshold_prior_type = threshold_prior_type,
+      main_alpha = main_alpha, main_beta = main_beta,
+      threshold_scale = threshold_scale,
+      standardize = standardize,
       difference_selection = difference_selection,
       main_difference_selection = main_difference_selection,
       difference_prior = difference_prior,
       difference_scale = difference_scale,
       difference_probability = difference_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta
+      beta_bernoulli_alpha = ep_flat$beta_bernoulli_alpha,
+      beta_bernoulli_beta = ep_flat$beta_bernoulli_beta
     )
   }
 
@@ -431,13 +492,10 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
                           variable_type, is_ordinal, is_continuous,
                           baseline_category,
                           na_action, sampler,
-                          pairwise_scale,
-                          edge_selection, edge_prior,
-                          inclusion_probability,
-                          beta_bernoulli_alpha, beta_bernoulli_beta,
-                          beta_bernoulli_alpha_between,
-                          beta_bernoulli_beta_between,
-                          dirichlet_alpha, lambda) {
+                          interaction_prior_type, pairwise_scale,
+                          interaction_alpha, interaction_beta,
+                          scale_prior_type, scale_shape, scale_rate,
+                          edge_prior_flat) {
   # Missing data
   md = validate_missing_data(
     x = x, na_action = na_action,
@@ -448,17 +506,7 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
   # Center continuous data (GGM likelihood assumes zero mean)
   x = center_continuous_data(x)
 
-  # Edge prior
-  ep = validate_edge_prior(
-    edge_selection = edge_selection, edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability,
-    num_variables = num_variables,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda
-  )
+  ep = edge_prior_flat
 
   new_bgm_spec(
     model_type = "ggm",
@@ -480,16 +528,22 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
       missing_index = md$missing_index
     ),
     prior = list(
+      interaction_prior_type = interaction_prior_type,
       pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      scale_prior_type = scale_prior_type,
+      scale_shape = scale_shape,
+      scale_rate = scale_rate,
       edge_selection = ep$edge_selection,
       edge_prior = ep$edge_prior,
       inclusion_probability = ep$inclusion_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta,
-      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-      dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      beta_bernoulli_alpha = ep$beta_bernoulli_alpha,
+      beta_bernoulli_beta = ep$beta_bernoulli_beta,
+      beta_bernoulli_alpha_between = ep$beta_bernoulli_alpha_between,
+      beta_bernoulli_beta_between = ep$beta_bernoulli_beta_between,
+      dirichlet_alpha = ep$dirichlet_alpha,
+      lambda = ep$lambda
     ),
     sampler = sampler_sublist(sampler),
     precomputed = list()
@@ -501,14 +555,12 @@ build_spec_omrf = function(x, data_columnnames, num_variables,
                            variable_type, is_ordinal, is_continuous,
                            baseline_category,
                            na_action, sampler,
-                           pairwise_scale, main_alpha, main_beta,
+                           interaction_prior_type, pairwise_scale,
+                           interaction_alpha, interaction_beta,
+                           threshold_prior_type, main_alpha, main_beta,
+                           threshold_scale,
                            standardize,
-                           edge_selection, edge_prior,
-                           inclusion_probability,
-                           beta_bernoulli_alpha, beta_bernoulli_beta,
-                           beta_bernoulli_alpha_between,
-                           beta_bernoulli_beta_between,
-                           dirichlet_alpha, lambda) {
+                           edge_prior_flat) {
   # Baseline category
   bc = validate_baseline_category(
     baseline_category = baseline_category,
@@ -533,17 +585,7 @@ build_spec_omrf = function(x, data_columnnames, num_variables,
 
   missing_index = md$missing_index
 
-  # Edge prior
-  ep = validate_edge_prior(
-    edge_selection = edge_selection, edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability,
-    num_variables = num_variables,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda
-  )
+  ep = edge_prior_flat
 
   # Scaling factors
   varnames = if(is.null(colnames(x))) {
@@ -583,20 +625,25 @@ build_spec_omrf = function(x, data_columnnames, num_variables,
       missing_index = missing_index
     ),
     prior = list(
+      interaction_prior_type = interaction_prior_type,
       pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      threshold_prior_type = threshold_prior_type,
       main_alpha = main_alpha,
       main_beta = main_beta,
+      threshold_scale = threshold_scale,
       standardize = standardize,
       pairwise_scaling_factors = psf,
       edge_selection = ep$edge_selection,
       edge_prior = ep$edge_prior,
       inclusion_probability = ep$inclusion_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta,
-      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-      dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      beta_bernoulli_alpha = ep$beta_bernoulli_alpha,
+      beta_bernoulli_beta = ep$beta_bernoulli_beta,
+      beta_bernoulli_alpha_between = ep$beta_bernoulli_alpha_between,
+      beta_bernoulli_beta_between = ep$beta_bernoulli_beta_between,
+      dirichlet_alpha = ep$dirichlet_alpha,
+      lambda = ep$lambda
     ),
     sampler = sampler_sublist(sampler),
     precomputed = list(
@@ -619,14 +666,15 @@ build_spec_mixed_mrf = function(x, data_columnnames, num_variables,
                                 variable_type, is_ordinal,
                                 baseline_category,
                                 na_action, sampler,
-                                pairwise_scale, main_alpha, main_beta,
+                                interaction_prior_type, pairwise_scale,
+                                interaction_alpha, interaction_beta,
+                                threshold_prior_type, main_alpha, main_beta,
+                                threshold_scale,
+                                means_prior_type, means_scale,
+                                means_alpha, means_beta,
+                                scale_prior_type, scale_shape, scale_rate,
                                 standardize,
-                                edge_selection, edge_prior,
-                                inclusion_probability,
-                                beta_bernoulli_alpha, beta_bernoulli_beta,
-                                beta_bernoulli_alpha_between,
-                                beta_bernoulli_beta_between,
-                                dirichlet_alpha, lambda) {
+                                edge_prior_flat) {
   # Identify discrete vs continuous columns
   cont_idx = which(variable_type == "continuous")
   disc_idx = which(variable_type != "continuous")
@@ -711,17 +759,7 @@ build_spec_mixed_mrf = function(x, data_columnnames, num_variables,
   num_categories = ord$num_categories
   bc_final = ord$baseline_category
 
-  # Edge prior (total variables = p + q)
-  ep = validate_edge_prior(
-    edge_selection = edge_selection, edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability,
-    num_variables = num_variables,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda
-  )
+  ep = edge_prior_flat
 
   num_thresholds = sum(ifelse(is_ordinal_disc, num_categories, 2L))
 
@@ -755,19 +793,31 @@ build_spec_mixed_mrf = function(x, data_columnnames, num_variables,
       missing_index_continuous = missing_index_continuous
     ),
     prior = list(
+      interaction_prior_type = interaction_prior_type,
       pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      threshold_prior_type = threshold_prior_type,
       main_alpha = main_alpha,
       main_beta = main_beta,
+      threshold_scale = threshold_scale,
+      means_prior_type = means_prior_type,
+      means_scale = means_scale,
+      means_alpha = means_alpha,
+      means_beta = means_beta,
+      scale_prior_type = scale_prior_type,
+      scale_shape = scale_shape,
+      scale_rate = scale_rate,
       standardize = standardize,
       edge_selection = ep$edge_selection,
       edge_prior = ep$edge_prior,
       inclusion_probability = ep$inclusion_probability,
-      beta_bernoulli_alpha = beta_bernoulli_alpha,
-      beta_bernoulli_beta = beta_bernoulli_beta,
-      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-      dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      beta_bernoulli_alpha = ep$beta_bernoulli_alpha,
+      beta_bernoulli_beta = ep$beta_bernoulli_beta,
+      beta_bernoulli_alpha_between = ep$beta_bernoulli_alpha_between,
+      beta_bernoulli_beta_between = ep$beta_bernoulli_beta_between,
+      dirichlet_alpha = ep$dirichlet_alpha,
+      lambda = ep$lambda
     ),
     sampler = sampler_sublist(sampler),
     precomputed = list(
@@ -782,7 +832,10 @@ build_spec_compare = function(x, y, group_indicator,
                               variable_type, is_ordinal, is_continuous,
                               baseline_category,
                               na_action, sampler,
-                              pairwise_scale, main_alpha, main_beta,
+                              interaction_prior_type, pairwise_scale,
+                              interaction_alpha, interaction_beta,
+                              threshold_prior_type, main_alpha, main_beta,
+                              threshold_scale,
                               standardize,
                               difference_selection, main_difference_selection,
                               difference_prior,
@@ -1031,9 +1084,14 @@ build_spec_compare = function(x, y, group_indicator,
       missing_index = missing_index
     ),
     prior = list(
+      interaction_prior_type = interaction_prior_type,
       pairwise_scale = pairwise_scale,
+      interaction_alpha = interaction_alpha,
+      interaction_beta = interaction_beta,
+      threshold_prior_type = threshold_prior_type,
       main_alpha = main_alpha,
       main_beta = main_beta,
+      threshold_scale = threshold_scale,
       standardize = standardize,
       pairwise_scaling_factors = psf,
       difference_selection = dp$difference_selection,
@@ -1058,7 +1116,7 @@ build_spec_compare = function(x, y, group_indicator,
 
 
 # ==============================================================================
-# sampler_sublist()  — extract validated sampler list for new_bgm_spec()
+# sampler_sublist()  --- extract validated sampler list for new_bgm_spec()
 # ==============================================================================
 sampler_sublist = function(s) {
   list(
@@ -1078,7 +1136,7 @@ sampler_sublist = function(s) {
 
 
 # ==============================================================================
-# build_arguments()  — convert spec → arguments list for fit object
+# build_arguments()  --- convert spec -> arguments list for fit object
 # ==============================================================================
 #
 # Produces the $arguments list stored in every bgms/bgmCompare fit object.
@@ -1250,7 +1308,7 @@ build_arguments_compare = function(spec) {
 
 
 # ==============================================================================
-# print.bgm_spec()  — debugging summary
+# print.bgm_spec()  --- debugging summary
 # ==============================================================================
 #' @export
 print.bgm_spec = function(x, ...) {

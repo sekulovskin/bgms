@@ -7,6 +7,7 @@
 #include "rng/rng_utils.h"
 #include "models/ggm/graph_constraint_structure.h"
 #include "models/ggm/ggm_gradient.h"
+#include "priors/parameter_prior.h"
 
 
 /**
@@ -41,7 +42,8 @@ public:
             const arma::mat& inclusion_probability,
             const arma::imat& initial_edge_indicators,
             const bool edge_selection,
-            const double pairwise_scale,
+            std::unique_ptr<BaseParameterPrior> interaction_prior,
+            std::unique_ptr<BaseParameterPrior> diagonal_prior,
             const bool na_impute = false
     ) : n_(observations.n_rows - 1),  // centered data has n-1 effective df
         p_(observations.n_cols),
@@ -49,7 +51,8 @@ public:
         suf_stat_(observations.t() * observations),
         inclusion_probability_(inclusion_probability),
         edge_selection_(edge_selection),
-        pairwise_scale_(pairwise_scale),
+        interaction_prior_(std::move(interaction_prior)),
+        diagonal_prior_(std::move(diagonal_prior)),
         precision_matrix_(arma::eye<arma::mat>(p_, p_)),
         cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
         inv_cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
@@ -80,6 +83,7 @@ public:
      * @param initial_edge_indicators Initial edge inclusion indicators
      * @param edge_selection        Enable edge selection (spike-and-slab)
      * @param pairwise_scale        Scale parameter of Cauchy slab prior
+     * @param interaction_prior_type Type of interaction prior (Cauchy or Normal)
      */
     GGMModel(
             const int n,
@@ -87,14 +91,16 @@ public:
             const arma::mat& inclusion_probability,
             const arma::imat& initial_edge_indicators,
             const bool edge_selection,
-            const double pairwise_scale
+            std::unique_ptr<BaseParameterPrior> interaction_prior,
+            std::unique_ptr<BaseParameterPrior> diagonal_prior
     ) : n_(n),
         p_(suf_stat.n_cols),
         dim_((p_ * (p_ + 1)) / 2),
         suf_stat_(suf_stat),
         inclusion_probability_(inclusion_probability),
         edge_selection_(edge_selection),
-        pairwise_scale_(pairwise_scale),
+        interaction_prior_(std::move(interaction_prior)),
+        diagonal_prior_(std::move(diagonal_prior)),
         precision_matrix_(arma::eye<arma::mat>(p_, p_)),
         cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
         inv_cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
@@ -122,7 +128,8 @@ public:
           inclusion_probability_(other.inclusion_probability_),
           edge_selection_(other.edge_selection_),
           has_sparse_graph_(other.has_sparse_graph_),
-          pairwise_scale_(other.pairwise_scale_),
+          interaction_prior_(other.interaction_prior_->clone()),
+          diagonal_prior_(other.diagonal_prior_->clone()),
           precision_matrix_(other.precision_matrix_),
           cholesky_of_precision_(other.cholesky_of_precision_),
           inv_cholesky_of_precision_(other.inv_cholesky_of_precision_),
@@ -463,8 +470,10 @@ private:
     bool edge_selection_active_ = false;
     /// Whether the initial graph excludes any edges (triggers RATTLE).
     bool has_sparse_graph_ = false;
-    /// Scale parameter of the Cauchy slab prior on off-diagonal elements.
-    double pairwise_scale_;
+    /// Prior on off-diagonal precision elements (interactions).
+    std::unique_ptr<BaseParameterPrior> interaction_prior_;
+    /// Prior on diagonal precision elements (scale).
+    std::unique_ptr<BaseParameterPrior> diagonal_prior_;
 
     /// Precision matrix Omega, its Cholesky factor R (Omega = R'R),
     /// inverse Cholesky factor, and covariance matrix.
@@ -718,6 +727,7 @@ GGMModel createGGMModelFromR(
     const arma::mat& inclusion_probability,
     const arma::imat& initial_edge_indicators,
     const bool edge_selection,
-    const double pairwise_scale,
+    std::unique_ptr<BaseParameterPrior> interaction_prior,
+    std::unique_ptr<BaseParameterPrior> diagonal_prior,
     const bool na_impute = false
 );

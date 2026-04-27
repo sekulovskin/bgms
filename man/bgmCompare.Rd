@@ -13,13 +13,10 @@ bgmCompare(
   variable_type = "ordinal",
   baseline_category,
   difference_scale = 1,
-  difference_prior = c("Bernoulli", "Beta-Bernoulli"),
-  difference_probability = 0.5,
-  beta_bernoulli_alpha = 1,
-  beta_bernoulli_beta = 1,
-  pairwise_scale = 1,
-  main_alpha = 0.5,
-  main_beta = 0.5,
+  difference_prior = bernoulli_prior(0.5),
+  difference_probability,
+  interaction_prior = cauchy_prior(scale = 1),
+  threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
   iter = 1000,
   warmup = 1000,
   na_action = c("listwise", "impute"),
@@ -34,6 +31,11 @@ bgmCompare(
   standardize = FALSE,
   verbose = getOption("bgms.verbose", TRUE),
   progress_callback = NULL,
+  pairwise_scale,
+  main_alpha,
+  main_beta,
+  beta_bernoulli_alpha,
+  beta_bernoulli_beta,
   main_difference_model,
   reference_category,
   main_difference_scale,
@@ -57,7 +59,7 @@ bgmCompare(
 \item{x}{A data frame or matrix of binary and ordinal responses for
 Group 1. Variables should be coded as nonnegative integers starting at
 0. For ordinal variables, unused categories are collapsed; for
-Blume–Capel variables, all categories are retained.}
+Blume--Capel variables, all categories are retained.}
 
 \item{y}{Optional data frame or matrix for Group 2 (two-group designs).
 Must have the same variables (columns) as \code{x}.}
@@ -79,28 +81,45 @@ pairwise selection under the Beta-Bernoulli prior, the default is
 \code{"ordinal"} (default) or \code{"blume-capel"}.}
 
 \item{baseline_category}{Integer or vector giving the baseline category
-for Blume–Capel variables.}
+for Blume--Capel variables.}
 
 \item{difference_scale}{Double. Scale of the Cauchy prior for difference
 parameters. Default: \code{1}.}
 
-\item{difference_prior}{Character. Prior for difference inclusion:
-\code{"Bernoulli"} or \code{"Beta-Bernoulli"}. Default: \code{"Bernoulli"}.}
+\item{difference_prior}{An indicator prior specification object for
+difference selection, created by one of:
+\itemize{
+\item \code{\link{bernoulli_prior}()}: Fixed inclusion probability (default).
+\item \code{\link{beta_bernoulli_prior}()}: Beta-distributed inclusion.
+\item \code{\link{sbm_prior}()}: Stochastic Block Model.
+}
+Legacy character strings \code{"Bernoulli"} and \code{"Beta-Bernoulli"}
+are still accepted but deprecated.
+Default: \code{bernoulli_prior(0.5)}.}
 
-\item{difference_probability}{Numeric. Prior inclusion probability for
-differences (Bernoulli prior). Default: \code{0.5}.}
+\item{difference_probability}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Numeric.
+Use \code{difference_prior = bernoulli_prior(probability)} instead.
+Default: \code{0.5}.}
 
-\item{beta_bernoulli_alpha, beta_bernoulli_beta}{Doubles. Shape parameters
-of the Beta prior for inclusion probabilities in the Beta–Bernoulli
-model. Defaults: \code{1}.}
+\item{interaction_prior}{A prior specification object for baseline pairwise
+interaction parameters, created by one of the prior constructor functions:
+\itemize{
+\item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior (default).
+\item \code{\link{normal_prior}()}: Normal(0, scale) prior.
+}
+When supplied, overrides \code{pairwise_scale}.
+Default: \code{cauchy_prior(scale = 1)}.}
 
-\item{pairwise_scale}{Double. Scale of the Cauchy prior for baseline
-pairwise interactions. Default: \code{1}.}
+\item{threshold_prior}{A prior specification object for threshold (main
+effect) parameters, created by one of the prior constructor functions:
+\itemize{
+\item \code{\link{beta_prime_prior}()}: Beta-prime prior (default).
+\item \code{\link{normal_prior}()}: Normal(0, scale) prior.
+}
+When supplied, overrides \code{main_alpha} and \code{main_beta}.
+Default: \code{beta_prime_prior(alpha = 0.5, beta = 0.5)}.}
 
-\item{main_alpha, main_beta}{Doubles. Shape parameters of the beta-prime
-prior for baseline threshold parameters. Defaults: \code{0.5}.}
-
-\item{iter}{Integer. Number of post–warmup iterations per chain.
+\item{iter}{Integer. Number of post--warmup iterations per chain.
 Default: \code{1e3}.}
 
 \item{warmup}{Integer. Number of warmup iterations before sampling.
@@ -153,6 +172,16 @@ completed across all chains and \code{total} is the total number of
 iterations. Useful for external front-ends (e.g., JASP) that supply
 their own progress reporting.
 When \code{NULL} (the default), no callback is invoked.}
+
+\item{pairwise_scale}{Double. Scale of the Cauchy prior for baseline
+pairwise interactions. Default: \code{1}.}
+
+\item{main_alpha, main_beta}{Doubles. Shape parameters of the beta-prime
+prior for baseline threshold parameters. Defaults: \code{0.5}.}
+
+\item{beta_bernoulli_alpha, beta_bernoulli_beta}{Doubles. Shape parameters
+of the Beta prior for inclusion probabilities in the Beta--Bernoulli
+model. Defaults: \code{1}.}
 
 \item{main_difference_model, reference_category, pairwise_difference_scale, main_difference_scale, pairwise_difference_prior, main_difference_prior, pairwise_difference_probability, main_difference_probability, pairwise_beta_bernoulli_alpha, pairwise_beta_bernoulli_beta, main_beta_bernoulli_alpha, main_beta_bernoulli_beta, interaction_scale, threshold_alpha, threshold_beta, burnin, save}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}}
 Deprecated arguments as of \strong{bgms 0.1.6.0}.
@@ -229,5 +258,8 @@ coef(fit)$pairwise_effects_groups
 }
 \seealso{
 \code{vignette("comparison", package = "bgms")} for a worked example.
+
+Other model-fitting: 
+\code{\link{bgm}()}
 }
 \concept{model-fitting}

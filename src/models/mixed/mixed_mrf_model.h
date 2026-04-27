@@ -8,6 +8,7 @@
 #include "math/cholesky_helpers.h"
 #include "math/cholupdate.h"
 #include "rng/rng_utils.h"
+#include "priors/parameter_prior.h"
 
 /**
  * MixedMRFModel - Mixed Markov Random Field Model
@@ -26,8 +27,8 @@
  * Internally the Cholesky decomposition and covariance
  * cache operate on Precision.
  *
- * Supports both conditional and marginal pseudo-likelihood, with and
- * without edge selection via spike-and-slab priors.
+ * Uses the marginal pseudo-likelihood, with and without edge selection
+ * via spike-and-slab priors.
  *
  * Discrete variables are either ordinal (free category thresholds, category
  * 0 as reference) or Blume-Capel (linear α + quadratic β, user-specified
@@ -55,9 +56,10 @@ public:
      * @param inclusion_probability Prior inclusion probabilities ((p+q) × (p+q))
      * @param initial_edge_indicators Initial edge inclusion matrix ((p+q) × (p+q))
      * @param edge_selection       Enable edge selection (spike-and-slab)
-     * @param main_alpha           Beta prior hyperparameter α for main effects
-     * @param main_beta            Beta prior hyperparameter β for main effects
-     * @param pairwise_scale       Scale parameter of Cauchy prior on interactions
+     * @param interaction_prior     Polymorphic prior on pairwise interactions
+     * @param threshold_prior      Polymorphic prior on main effects / thresholds
+     * @param means_prior          Polymorphic prior on continuous means
+     * @param diagonal_prior       Polymorphic prior on precision diagonal
      * @param seed                 RNG seed for reproducibility
      */
     MixedMRFModel(
@@ -69,9 +71,10 @@ public:
         const arma::mat& inclusion_probability,
         const arma::imat& initial_edge_indicators,
         bool edge_selection,
-        double main_alpha,
-        double main_beta,
-        double pairwise_scale,
+        std::unique_ptr<BaseParameterPrior> interaction_prior,
+        std::unique_ptr<BaseParameterPrior> threshold_prior,
+        std::unique_ptr<BaseParameterPrior> means_prior,
+        std::unique_ptr<BaseParameterPrior> diagonal_prior,
         int seed
     );
 
@@ -342,9 +345,10 @@ private:
     // Priors
     // =========================================================================
 
-    double main_alpha_;                 ///< Beta prior alpha for main effects
-    double main_beta_;                  ///< Beta prior beta for main effects
-    double pairwise_scale_;             ///< Cauchy scale for interaction priors
+    std::unique_ptr<BaseParameterPrior> interaction_prior_;   ///< Prior on pairwise interactions
+    std::unique_ptr<BaseParameterPrior> threshold_prior_;    ///< Prior on main effects / thresholds
+    std::unique_ptr<BaseParameterPrior> means_prior_;        ///< Prior on continuous means
+    std::unique_ptr<BaseParameterPrior> diagonal_prior_;     ///< Prior on precision diagonal
 
     // =========================================================================
     // Proposal SDs (Robbins-Monro adapted)

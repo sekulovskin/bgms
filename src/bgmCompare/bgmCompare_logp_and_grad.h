@@ -14,6 +14,7 @@
  */
 
 #include <RcppArmadillo.h>
+#include "priors/parameter_prior.h"
 
 
 /**
@@ -104,14 +105,13 @@ arma::vec gradient_observed_active(
  * @param inclusion_indicator      Edge inclusion indicators (V x V)
  * @param is_ordinal_variable      1 = ordinal, 0 = Blume-Capel
  * @param baseline_category        Reference categories for Blume-Capel variables
- * @param main_alpha               Beta prior alpha for baseline main effects
- * @param main_beta                Beta prior beta for baseline main effects
- * @param interaction_scale        Cauchy scale for baseline pairwise effects
- * @param pairwise_scaling_factors Per-pair scaling factors for the Cauchy prior
- * @param difference_scale         Cauchy scale for group-difference parameters
+ * @param pairwise_scaling_factors Per-pair scaling factors for the interaction prior
  * @param main_index               Main-effect index map from build_index_maps()
  * @param pair_index               Pairwise index map from build_index_maps()
  * @param grad_obs                 Pre-computed observed-data gradient
+ * @param interaction_prior        Prior on baseline pairwise effects
+ * @param difference_prior         Prior on group-difference parameters
+ * @param threshold_prior          Prior on baseline main effects
  * @return Full gradient vector
  */
 arma::vec gradient(
@@ -130,14 +130,13 @@ arma::vec gradient(
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double main_alpha,
-    const double main_beta,
-    const double interaction_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
     const arma::imat& main_index,
     const arma::imat& pair_index,
-    const arma::vec& grad_obs
+    const arma::vec& grad_obs,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 );
 
 /**
@@ -165,14 +164,13 @@ std::pair<double, arma::vec> logp_and_gradient(
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double main_alpha,
-    const double main_beta,
-    const double interaction_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
     const arma::imat& main_index,
     const arma::imat& pair_index,
-    const arma::vec& grad_obs
+    const arma::vec& grad_obs,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 );
 
 /**
@@ -202,13 +200,12 @@ double log_pseudoposterior_main_component(
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double main_alpha,
-    const double main_beta,
-    const double difference_scale,
     int variable,
     int category,
     int par,
-    int h
+    int h,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 );
 
 /**
@@ -239,13 +236,13 @@ double log_pseudoposterior_pair_component(
     const arma::imat& inclusion_indicator,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double interaction_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
     int variable1,
     int variable2,
     int h,
-    double delta
+    double delta,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior
 );
 
 

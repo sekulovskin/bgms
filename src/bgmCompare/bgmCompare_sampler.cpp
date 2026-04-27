@@ -14,6 +14,7 @@
 #include <string>
 #include "utils/progress_manager.h"
 #include "utils/common_helpers.h"
+#include "priors/parameter_prior.h"
 
 
 
@@ -251,13 +252,12 @@ void update_main_effects_metropolis_bgmcompare (
     const std::vector<arma::imat>& blume_capel_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double difference_scale,
-    const double main_alpha,
-    const double main_beta,
     const int iteration,
     MetropolisAdaptationController& metropolis_adapt,
     SafeRNG& rng,
-    arma::mat& proposal_sd_main
+    arma::mat& proposal_sd_main,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 ) {
   const int num_vars = observations.n_cols;
   arma::umat index_mask_main = arma::zeros<arma::umat>(proposal_sd_main.n_rows,
@@ -279,8 +279,8 @@ void update_main_effects_metropolis_bgmcompare (
         group_indices, num_categories, counts_per_category,
         blume_capel_stats, num_groups, inclusion_indicator,
         is_ordinal_variable, baseline_category,
-        main_alpha, main_beta, difference_scale,
-        variable, category, par, h
+        variable, category, par, h,
+        difference_prior, threshold_prior
       );
     };
 
@@ -383,13 +383,13 @@ void update_pairwise_effects_metropolis_bgmcompare (
     const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
     const int iteration,
     MetropolisAdaptationController& metropolis_adapt,
     SafeRNG& rng,
-    arma::mat& proposal_sd_pair
+    arma::mat& proposal_sd_pair,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior
 ) {
   int num_variables = observations.n_cols;
   int num_pairs = num_variables * (num_variables - 1) / 2;
@@ -439,7 +439,8 @@ void update_pairwise_effects_metropolis_bgmcompare (
         pairwise_effect_indices, projection, observations, group_indices,
         num_categories, pairwise_stats, residual_matrices, num_groups,
         inclusion_indicator, is_ordinal_variable, baseline_category,
-        pairwise_scale, pairwise_scaling_factors, difference_scale, var1, var2, h, delta
+        pairwise_scaling_factors, var1, var2, h, delta,
+        interaction_prior, difference_prior
       );
     };
 
@@ -545,13 +546,12 @@ double find_initial_stepsize_bgmcompare(
     const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
-    const double main_alpha,
-    const double main_beta,
     const double target_acceptance,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 ) {
   arma::vec theta = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator, main_effect_indices,
@@ -592,9 +592,10 @@ double find_initial_stepsize_bgmcompare(
       projection, obs_double, group_indices, num_categories,
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
-      is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
-      grad_obs_act
+      is_ordinal_variable, baseline_category,
+      pairwise_scaling_factors, main_index, pair_index,
+      grad_obs_act,
+      interaction_prior, difference_prior, threshold_prior
     );
   };
 
@@ -610,9 +611,10 @@ double find_initial_stepsize_bgmcompare(
       projection, obs_double, group_indices, num_categories,
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
-      is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, pairwise_scaling_factors, difference_scale,
-      main_index, pair_index, grad_obs_act
+      is_ordinal_variable, baseline_category,
+      pairwise_scaling_factors,
+      main_index, pair_index, grad_obs_act,
+      interaction_prior, difference_prior, threshold_prior
     );
   };
 
@@ -680,17 +682,16 @@ StepResult update_nuts_bgmcompare(
     const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
-    const double main_alpha,
-    const double main_beta,
     const int nuts_max_depth,
     const int iteration,
     NUTSAdaptationController& nuts_adapt,
     const bool learn_mass_matrix,
     const bool selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 ) {
   // Pre-convert observations to double once (avoids repeated conversion in gradient evaluations)
   const arma::mat obs_double = arma::conv_to<arma::mat>::from(observations);
@@ -733,9 +734,10 @@ StepResult update_nuts_bgmcompare(
       projection, obs_double, group_indices, num_categories,
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
-      is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
-      grad_obs_act
+      is_ordinal_variable, baseline_category,
+      pairwise_scaling_factors, main_index, pair_index,
+      grad_obs_act,
+      interaction_prior, difference_prior, threshold_prior
     );
   };
 
@@ -751,9 +753,10 @@ StepResult update_nuts_bgmcompare(
       projection, obs_double, group_indices, num_categories,
       counts_per_category, blume_capel_stats,
       pairwise_stats, num_groups, inclusion_indicator,
-      is_ordinal_variable, baseline_category, main_alpha, main_beta,
-      pairwise_scale, pairwise_scaling_factors, difference_scale,
-      main_index, pair_index, grad_obs_act
+      is_ordinal_variable, baseline_category,
+      pairwise_scaling_factors,
+      main_index, pair_index, grad_obs_act,
+      interaction_prior, difference_prior, threshold_prior
     );
   };
 
@@ -865,14 +868,13 @@ void tune_proposal_sd_bgmcompare(
     const std::vector<arma::mat>& pairwise_stats,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
-    double difference_scale,
-    double main_alpha,
-    double main_beta,
     int iteration,
     SafeRNG& rng,
     const WarmupSchedule& sched,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior,
     double target_accept = 0.44,
     double rm_decay = 0.75)
 {
@@ -907,8 +909,9 @@ void tune_proposal_sd_bgmcompare(
               projection, observations, group_indices,
               num_categories, counts_per_category, blume_capel_stats,
               num_groups, inclusion_indicator, is_ordinal_variable,
-              baseline_category, main_alpha, main_beta, difference_scale,
-              var, c, -1, h
+              baseline_category,
+              var, c, -1, h,
+              difference_prior, threshold_prior
             );
           };
 
@@ -935,8 +938,9 @@ void tune_proposal_sd_bgmcompare(
               projection, observations, group_indices,
               num_categories, counts_per_category, blume_capel_stats,
               num_groups, inclusion_indicator, is_ordinal_variable,
-              baseline_category, main_alpha, main_beta, difference_scale,
-              var, -1, par, h
+              baseline_category,
+              var, -1, par, h,
+              difference_prior, threshold_prior
             );
           };
 
@@ -995,7 +999,8 @@ void tune_proposal_sd_bgmcompare(
             projection, observations, group_indices,
             num_categories, pairwise_stats, residual_matrices, num_groups,
             inclusion_indicator, is_ordinal_variable, baseline_category,
-            pairwise_scale, pairwise_scaling_factors, difference_scale, v1, v2, h, delta
+            pairwise_scaling_factors, v1, v2, h, delta,
+            interaction_prior, difference_prior
           );
         };
 
@@ -1091,14 +1096,14 @@ void update_indicator_differences_metropolis_bgmcompare (
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const arma::mat& proposal_sd_main,
-    const double difference_scale,
     const arma::mat& pairwise_scaling_factors,
     const arma::mat& proposal_sd_pairwise,
     const std::vector<arma::imat>& counts_per_category,
     const std::vector<arma::imat>& blume_capel_stats,
     const std::vector<arma::mat>& pairwise_stats,
     const bool main_difference_selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const BaseParameterPrior& difference_prior
 ) {
   const int num_variables = observations.n_cols;
 
@@ -1151,9 +1156,7 @@ void update_indicator_differences_metropolis_bgmcompare (
       if(proposed_ind == 1) {
         // Propose to set difference to non-zero
         for(int h = 1; h < num_groups; h++) {
-          log_accept += R::dcauchy(
-            proposed_main_effects(row, h), 0.0, difference_scale, true
-          );
+          log_accept += difference_prior.logp(proposed_main_effects(row, h));
           log_accept -= R::dnorm(
             proposed_main_effects(row, h), current_main_effects(row, h),
             proposal_sd_main(row, h), true
@@ -1162,9 +1165,7 @@ void update_indicator_differences_metropolis_bgmcompare (
       } else {
         // Propose to set difference to zero
         for(int h = 1; h < num_groups; h++) {
-          log_accept -= R::dcauchy(
-            current_main_effects(row, h), 0.0, difference_scale, true
-          );
+          log_accept -= difference_prior.logp(current_main_effects(row, h));
           log_accept += R::dnorm(
             current_main_effects(row, h), proposed_main_effects(row, h),
             proposal_sd_main(row, h), true
@@ -1225,12 +1226,11 @@ void update_indicator_differences_metropolis_bgmcompare (
     }
 
     // Add parameter prior contribution
-    const double scaled_difference_scale = difference_scale * pairwise_scaling_factors(var1, var2);
     if(proposed_ind == 1) {
       // Propose to set difference to non-zero
       for(int h = 1; h < num_groups; h++) {
-        log_accept += R::dcauchy(
-          proposed_pairwise_effects(int_index, h), 0.0, scaled_difference_scale, true
+        log_accept += difference_prior.logp(
+          proposed_pairwise_effects(int_index, h), pairwise_scaling_factors(var1, var2)
         );
         log_accept -= R::dnorm(
           proposed_pairwise_effects(int_index, h),
@@ -1242,8 +1242,8 @@ void update_indicator_differences_metropolis_bgmcompare (
     } else {
       // Propose to set difference to zero
       for(int h = 1; h < num_groups; h++) {
-        log_accept -= R::dcauchy(
-          current_pairwise_effects(int_index, h), 0.0, scaled_difference_scale, true
+        log_accept -= difference_prior.logp(
+          current_pairwise_effects(int_index, h), pairwise_scaling_factors(var1, var2)
         );
         log_accept += R::dnorm(
           current_pairwise_effects(int_index, h),
@@ -1328,12 +1328,9 @@ void update_indicator_differences_metropolis_bgmcompare (
 void gibbs_update_step_bgmcompare (
     const arma::imat& observations,
     const arma::ivec& num_categories,
-    const double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
     const std::vector<arma::imat>& counts_per_category,
     const std::vector<arma::imat>& blume_capel_stats,
-    const double main_alpha,
-    const double main_beta,
     arma::imat& inclusion_indicator,
     arma::mat& pairwise_effects,
     arma::mat& main_effects,
@@ -1356,14 +1353,16 @@ void gibbs_update_step_bgmcompare (
     const arma::mat& projection,
     const int num_groups,
     const arma::imat group_indices,
-    double difference_scale,
     SafeRNG& rng,
     arma::mat& inclusion_probability,
     const UpdateMethod update_method,
     arma::mat& proposal_sd_main,
     arma::mat& proposal_sd_pair,
     const arma::imat& index,
-    const bool main_difference_selection
+    const bool main_difference_selection,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
@@ -1381,8 +1380,9 @@ void gibbs_update_step_bgmcompare (
         main_effect_indices, pairwise_effect_indices, projection, observations,
         num_groups, group_indices, num_categories, inclusion_indicator,
         is_ordinal_variable, baseline_category, proposal_sd_main,
-        difference_scale, pairwise_scaling_factors, proposal_sd_pair, counts_per_category,
-        blume_capel_stats, pairwise_stats, main_difference_selection, rng
+        pairwise_scaling_factors, proposal_sd_pair, counts_per_category,
+        blume_capel_stats, pairwise_stats, main_difference_selection, rng,
+        difference_prior
     );
   }
 
@@ -1393,8 +1393,9 @@ void gibbs_update_step_bgmcompare (
         pairwise_effect_indices, inclusion_indicator, projection,
         num_categories, observations, num_groups, group_indices,
         counts_per_category, blume_capel_stats, is_ordinal_variable,
-        baseline_category, difference_scale, main_alpha, main_beta, iteration,
-        metropolis_adapt_main, rng, proposal_sd_main
+        baseline_category, iteration,
+        metropolis_adapt_main, rng, proposal_sd_main,
+        difference_prior, threshold_prior
     );
 
     update_pairwise_effects_metropolis_bgmcompare (
@@ -1402,8 +1403,9 @@ void gibbs_update_step_bgmcompare (
         pairwise_effect_indices, inclusion_indicator, projection,
         num_categories, observations, num_groups, group_indices,
         pairwise_stats, is_ordinal_variable, baseline_category,
-        pairwise_scale, pairwise_scaling_factors, difference_scale, iteration, metropolis_adapt_pair, rng,
-        proposal_sd_pair
+        pairwise_scaling_factors, iteration, metropolis_adapt_pair, rng,
+        proposal_sd_pair,
+        interaction_prior, difference_prior
     );
   } else if (update_method == nuts) {
     StepResult result = update_nuts_bgmcompare(
@@ -1411,9 +1413,10 @@ void gibbs_update_step_bgmcompare (
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
       observations, num_groups, group_indices, counts_per_category,
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
-      baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha,
-      main_beta, nuts_max_depth, iteration, nuts_adapt, learn_mass_matrix,
-      schedule.selection_enabled(iteration), rng
+      baseline_category, pairwise_scaling_factors,
+      nuts_max_depth, iteration, nuts_adapt, learn_mass_matrix,
+      schedule.selection_enabled(iteration), rng,
+      interaction_prior, difference_prior, threshold_prior
     );
 
     if (iteration >= schedule.total_warmup) {
@@ -1433,8 +1436,9 @@ void gibbs_update_step_bgmcompare (
     pairwise_effects, main_effect_indices, pairwise_effect_indices,
     inclusion_indicator, projection, num_categories, observations, num_groups,
     group_indices, counts_per_category, blume_capel_stats,
-    pairwise_stats, is_ordinal_variable, baseline_category, pairwise_scale,
-    pairwise_scaling_factors, difference_scale, main_alpha, main_beta, iteration, rng, schedule
+    pairwise_stats, is_ordinal_variable, baseline_category,
+    pairwise_scaling_factors, iteration, rng, schedule,
+    interaction_prior, difference_prior, threshold_prior
   );
 }
 
@@ -1511,14 +1515,10 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     std::vector<arma::imat>& blume_capel_stats,
     std::vector<arma::mat>& pairwise_stats,
     const arma::ivec& num_categories,
-    const double main_alpha,
-    const double main_beta,
-    const double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
     const double difference_selection_alpha,
     const double difference_selection_beta,
-    const std::string& difference_prior,
+    const std::string& difference_prior_type,
     const int iter,
     const int warmup,
     const bool na_impute,
@@ -1539,7 +1539,10 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     arma::mat inclusion_probability,
     SafeRNG& rng,
     const UpdateMethod update_method,
-    ProgressManager& pm
+    ProgressManager& pm,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -1585,8 +1588,9 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
       pairwise_effect_indices, inclusion_indicator, projection, num_categories,
       observations, num_groups, group_indices, counts_per_category,
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
-      baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha, main_beta,
-      target_accept, rng
+      baseline_category, pairwise_scaling_factors,
+      target_accept, rng,
+      interaction_prior, difference_prior, threshold_prior
     );
   }
 
@@ -1637,23 +1641,24 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
 
     // Main Gibbs update step for parameters
     gibbs_update_step_bgmcompare (
-        observations, num_categories, pairwise_scale, pairwise_scaling_factors, counts_per_category,
-        blume_capel_stats, main_alpha, main_beta, inclusion_indicator,
+        observations, num_categories, pairwise_scaling_factors, counts_per_category,
+        blume_capel_stats, inclusion_indicator,
         pairwise_effects, main_effects, is_ordinal_variable, baseline_category,
         iteration, pairwise_effect_indices, pairwise_stats, nuts_max_depth,
         nuts_adapt, metropolis_adapt_main, metropolis_adapt_pair, learn_mass_matrix,
         warmup_schedule, treedepth_samples, divergent_samples, energy_samples,
         accept_prob_samples, main_effect_indices, projection, num_groups, group_indices,
-        difference_scale, rng, inclusion_probability,
+        rng, inclusion_probability,
         update_method, proposal_sd_main, proposal_sd_pair, index,
-        main_difference_selection
+        main_difference_selection,
+        interaction_prior, difference_prior, threshold_prior
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)
     if (warmup_schedule.selection_enabled(iteration)) {
       int sumG = 0;
 
-      if (difference_prior == "Beta-Bernoulli") {
+      if (difference_prior_type == "Beta-Bernoulli") {
         // Count pairwise inclusion indicators
         for (int i = 0; i < num_variables - 1; ++i) {
           for (int j = i + 1; j < num_variables; ++j) {

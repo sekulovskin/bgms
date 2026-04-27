@@ -8,14 +8,21 @@
 // log_marginal_omrf
 // =============================================================================
 // Marginal OMRF pseudolikelihood for discrete variable s:
-//   log f(x_s | x_{-s}) using marginal_interactions = A_xx + 2 A_xy Σ_yy A_xy'
+//   log f(x_s | x_{-s}) using M = A_xx + 2 A_xy Σ_yy A_xy'
+//
+// After integrating y out of the joint density L(x,y) = m_x(x) + x'A_xx x
+// + 2 x'A_xy y + b_y' y + y'A_yy y with A_yy = -Λ/2, the marginal log-density
+// is m_x(x) + x'M x + 2 (A_xy μ_y)' x + const.  Reading off the x_s-conditional:
+//
+//   log p(x_s=c | x_{-s}) ∝ main_x_s(c) + c² M_ss + c · rest_s,
+//   rest_s = 2 Σ_{j≠s} M_{sj} x_j + 2 (A_xy μ_y)_s.
 // =============================================================================
 
 double MixedMRFModel::log_marginal_omrf(int s) const {
     int C_s = num_categories_(s);
 
     // Rest score: 2 · M · x minus self-interaction, plus cross-bias.
-    // Factor 2 mirrors the conditional PL structure (from x'Mx derivative).
+    // Factor 2 from x'Mx derivative.
     double precision_ss = marginal_interactions_(s, s);
     arma::vec rest = 2.0 * (discrete_observations_dbl_ * marginal_interactions_.col(s)
                           - discrete_observations_dbl_.col(s) * precision_ss)

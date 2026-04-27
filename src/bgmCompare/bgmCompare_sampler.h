@@ -8,6 +8,7 @@
 #include <RcppArmadillo.h>
 #include "utils/common_helpers.h"
 #include "bgmCompare/bgmCompare_output.h"
+#include "priors/parameter_prior.h"
 #include <string>
 
 struct SafeRNG;
@@ -68,14 +69,10 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     std::vector<arma::imat>& blume_capel_stats,
     std::vector<arma::mat>& pairwise_stats,
     const arma::ivec& num_categories,
-    const double main_alpha,
-    const double main_beta,
-    const double pairwise_scale,
     const arma::mat& pairwise_scaling_factors,
-    const double difference_scale,
     const double difference_selection_alpha,
     const double difference_selection_beta,
-    const std::string& difference_prior,
+    const std::string& difference_prior_type,
     const int iter,
     const int warmup,
     const bool na_impute,
@@ -96,5 +93,8 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     arma::mat inclusion_probability,
     SafeRNG& rng,
     const UpdateMethod update_method,
-    ProgressManager& pm
+    ProgressManager& pm,
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& difference_prior,
+    const BaseParameterPrior& threshold_prior
 );

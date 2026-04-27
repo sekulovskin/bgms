@@ -8,29 +8,29 @@
 #' mixed MRF. Optionally, it performs Bayesian edge selection using
 #' spike-and-slab priors to infer the network structure.
 #'
-# ’ @details
-# ’ Depending on the variable types, the model is an ordinal MRF, a Gaussian
-# ’ graphical model (GGM), or a mixed MRF. Both regular ordinal variables and
-# ’ Blume--Capel ordinal variables (with a baseline category) are supported.
-# ’
-# ’ Edge selection uses spike-and-slab priors with Bernoulli, Beta-Bernoulli,
-# ’ or Stochastic-Block inclusion priors. Parameters are sampled with NUTS
-# ’ (default) or adaptive Metropolis--Hastings, with a multi-stage warmup
-# ’ schedule. Missing data can be handled via listwise deletion or Gibbs
-# ’ imputation.
-# ’
-# ’ For full details on model specification, prior choices, warmup, and
-# ’ output interpretation, see the package website at
-# ’ \url{https://bayesian-graphical-modelling-lab.github.io/bgms-docs/}.
-# ’
-# ’ @seealso \code{vignette(“intro”, package = “bgms”)} for a worked example.
-# ’ @family model-fitting
+#' @details
+#' Depending on the variable types, the model is an ordinal MRF, a Gaussian
+#' graphical model (GGM), or a mixed MRF. Both regular ordinal variables and
+#' Blume--Capel ordinal variables (with a baseline category) are supported.
+#'
+#' Edge selection uses spike-and-slab priors with Bernoulli, Beta-Bernoulli,
+#' or Stochastic-Block inclusion priors. Parameters are sampled with NUTS
+#' (default) or adaptive Metropolis--Hastings, with a multi-stage warmup
+#' schedule. Missing data can be handled via listwise deletion or Gibbs
+#' imputation.
+#'
+#' For full details on model specification, prior choices, warmup, and
+#' output interpretation, see the package website at
+#' \url{https://bayesian-graphical-modelling-lab.github.io/bgms-docs/}.
+#'
+#' @seealso \code{vignette("intro", package = "bgms")} for a worked example.
+#' @family model-fitting
 #'
 #' @param x A data frame or matrix with \code{n} rows and \code{p} columns.
 #'   Columns may contain binary, ordinal, or continuous variables (see
 #'   \code{variable_type}). Discrete variables are automatically recoded to
 #'   non-negative integers (\code{0, 1, ..., m}); for regular ordinal
-#'   variables, unobserved categories are collapsed, while Blume–Capel
+#'   variables, unobserved categories are collapsed, while Blume--Capel
 #'   variables retain all categories. Continuous variables are column-centered
 #'   internally so that the GGM likelihood is formulated with a zero-mean
 #'   assumption.
@@ -44,21 +44,63 @@
 #'   \code{"ordinal"}. Default: \code{"ordinal"}.
 #'
 #' @param baseline_category Integer or vector. Baseline category used in
-#'   Blume–Capel variables. Can be a single integer (applied to all) or a
+#'   Blume--Capel variables. Can be a single integer (applied to all) or a
 #'   vector of length \code{p}. Required if at least one variable is of type
 #'   \code{"blume-capel"}.
 #'
-#' @param iter Integer. Number of post–burn-in iterations (per chain).
+#' @param iter Integer. Number of post--burn-in iterations (per chain).
 #'   Default: \code{1e3}.
 #'
 #' @param warmup Integer. Number of warmup iterations before collecting
 #'   samples. A minimum of 1000 iterations is enforced, with a warning if a
 #'   smaller value is requested. Default: \code{1e3}.
 #'
-#' @param pairwise_scale Double. Scale of the Cauchy prior for pairwise
-#'   interaction parameters. Default: \code{1}.
+#' @param interaction_prior A prior specification object for pairwise
+#'   interaction parameters, created by one of the prior constructor functions:
+#'   \itemize{
+#'     \item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior (default).
+#'     \item \code{\link{normal_prior}()}: Normal(0, scale) prior.
+#'     \item \code{\link{beta_prime_prior}()}: Beta-prime prior.
+#'   }
+#'   Default: \code{cauchy_prior(scale = 1)}.
 #'
-#' @param standardize Logical. If \code{TRUE}, the Cauchy prior scale for each
+#' @param threshold_prior A prior specification object for threshold (main
+#'   effect) parameters, created by one of the prior constructor functions:
+#'   \itemize{
+#'     \item \code{\link{beta_prime_prior}()}: Beta-prime prior (default).
+#'     \item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior.
+#'     \item \code{\link{normal_prior}()}: Normal(0, scale) prior.
+#'   }
+#'   Default: \code{beta_prime_prior(alpha = 0.5, beta = 0.5)}.
+#'
+#' @param means_prior A prior specification object for continuous variable
+#'   means (mixed MRF models only), created by one of the prior constructor
+#'   functions:
+#'   \itemize{
+#'     \item \code{\link{normal_prior}()}: Normal(0, scale) prior (default).
+#'     \item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior.
+#'     \item \code{\link{beta_prime_prior}()}: Beta-prime prior.
+#'   }
+#'   Only used when the model includes continuous variables. Ignored for
+#'   pure ordinal or pure continuous (GGM) models.
+#'   Default: \code{normal_prior(scale = 1)}.
+#'
+#' @param precision_scale_prior A prior specification object for the diagonal
+#'   elements of the precision matrix, created by one of:
+#'   \itemize{
+#'     \item \code{\link{gamma_prior}()}: Gamma(shape, rate) prior (default).
+#'     \item \code{\link{exponential_prior}()}: Exponential(rate) prior.
+#'   }
+#'   Only used for models with continuous variables (GGM and mixed MRF).
+#'   Ignored for pure ordinal models.
+#'   Default: \code{gamma_prior(shape = 1, rate = 1)}.
+#'
+#' @param pairwise_scale `r lifecycle::badge("deprecated")` Double.
+#'   Scale of the Cauchy prior for pairwise
+#'   interaction parameters. Use \code{interaction_prior} instead.
+#'   Default: \code{1}.
+#'
+#' @param standardize Logical. If \code{TRUE}, the prior scale for each
 #'   pairwise interaction is adjusted based on the range of response scores.
 #'   Variables with more response categories have larger score products
 #'   \eqn{x_i \cdot x_j}, which typically correspond to smaller interaction
@@ -79,38 +121,47 @@
 #'   score endpoints \eqn{(-b, m-b)}.
 #'   Default: \code{FALSE}.
 #'
-#' @param main_alpha,main_beta Double. Shape parameters of the
-#'   beta-prime prior for threshold parameters. Must be positive. If equal,
-#'   the prior is symmetric. Defaults: \code{main_alpha = 0.5} and
-#'   \code{main_beta = 0.5}.
+#' @param main_alpha,main_beta `r lifecycle::badge("deprecated")` Double.
+#'   Shape parameters of the beta-prime prior for threshold parameters.
+#'   Use \code{threshold_prior} instead. Defaults: \code{main_alpha = 0.5}
+#'   and \code{main_beta = 0.5}.
 #'
 #' @param edge_selection Logical. Whether to perform Bayesian edge selection.
 #'   If \code{FALSE}, the model estimates all edges. Default: \code{TRUE}.
 #'
-#' @param edge_prior Character. Specifies the prior for edge inclusion.
-#'   Options: \code{"Bernoulli"}, \code{"Beta-Bernoulli"}, or
-#'   \code{"Stochastic-Block"}. Default: \code{"Bernoulli"}.
+#' @param edge_prior An edge prior specification object, or a character string
+#'   (deprecated). Specifies the prior for edge inclusion.
+#'   Preferred: pass an object from one of:
+#'   \itemize{
+#'     \item \code{\link{bernoulli_prior}()}: Fixed inclusion probability (default).
+#'     \item \code{\link{beta_bernoulli_prior}()}: Beta-distributed inclusion.
+#'     \item \code{\link{sbm_prior}()}: Stochastic Block Model.
+#'   }
+#'   Legacy character strings \code{"Bernoulli"}, \code{"Beta-Bernoulli"},
+#'   \code{"Stochastic-Block"} are still accepted but deprecated.
+#'   Default: \code{bernoulli_prior(0.5)}.
 #'
-#' @param inclusion_probability Numeric scalar. Prior inclusion probability
-#'   of each edge (used with the Bernoulli prior). Default: \code{0.5}.
+#' @param inclusion_probability `r lifecycle::badge("deprecated")` Numeric
+#'   scalar. Use \code{edge_prior = bernoulli_prior(inclusion_probability)}
+#'   instead. Default: \code{0.5}.
 #'
-#' @param beta_bernoulli_alpha,beta_bernoulli_beta Double. Shape parameters
-#'   for the beta distribution in the Beta–Bernoulli and the Stochastic-Block
-#'   priors. Must be positive. For the Stochastic-Block prior these are the shape
-#'   parameters for the within-cluster edge inclusion probabilities.
-#'   Defaults: \code{beta_bernoulli_alpha = 1} and \code{beta_bernoulli_beta = 1}.
+#' @param beta_bernoulli_alpha,beta_bernoulli_beta
+#'   `r lifecycle::badge("deprecated")` Double. Use
+#'   \code{edge_prior = beta_bernoulli_prior(alpha, beta)} instead.
+#'   Defaults: \code{1}.
 #'
-#' @param beta_bernoulli_alpha_between,beta_bernoulli_beta_between Double.
-#' Shape parameters for the between-cluster edge inclusion probabilities in the
-#' Stochastic-Block prior. Must be positive.
-#' Default: \code{beta_bernoulli_alpha_between = 1} and \code{beta_bernoulli_beta_between = 1}
+#' @param beta_bernoulli_alpha_between,beta_bernoulli_beta_between
+#'   `r lifecycle::badge("deprecated")` Double. Use
+#'   \code{edge_prior = sbm_prior(alpha_between, beta_between)} instead.
+#'   Defaults: \code{1}.
 #'
-#' @param dirichlet_alpha Double. Concentration parameter of the Dirichlet
-#'   prior on block assignments (used with the Stochastic Block model).
+#' @param dirichlet_alpha `r lifecycle::badge("deprecated")` Double. Use
+#'   \code{edge_prior = sbm_prior(dirichlet_alpha = ...)} instead.
 #'   Default: \code{1}.
 #'
-#' @param lambda Double. Rate of the zero-truncated Poisson prior on the
-#'   number of clusters in the Stochastic Block Model. Default: \code{1}.
+#' @param lambda `r lifecycle::badge("deprecated")` Double. Use
+#'   \code{edge_prior = sbm_prior(lambda = ...)} instead.
+#'   Default: \code{1}.
 #'
 #' @param na_action Character. Specifies missing data handling. Either
 #'   \code{"listwise"} (drop rows with missing values) or \code{"impute"}
@@ -137,8 +188,8 @@
 #' @param update_method Character. Specifies how the MCMC sampler updates
 #'   the model parameters:
 #'   \describe{
-#'     \item{"adaptive-metropolis"}{Componentwise adaptive Metropolis–Hastings
-#'       with Robbins–Monro proposal adaptation.}
+#'     \item{"adaptive-metropolis"}{Componentwise adaptive Metropolis--Hastings
+#'       with Robbins--Monro proposal adaptation.}
 #'     \item{"nuts"}{The No-U-Turn Sampler with RATTLE constrained integration
 #'       for Gaussian models with edge selection.}
 #'   }
@@ -235,7 +286,7 @@
 #'       \item{\code{allocations}}{List of cluster allocations
 #'         (if SBM prior used).}
 #'       \item{\code{nchains}}{Number of chains.}
-#'       \item{\code{niter}}{Number of post–warmup iterations per chain.}
+#'       \item{\code{niter}}{Number of post--warmup iterations per chain.}
 #'       \item{\code{parameter_names}}{Named lists of parameter labels.}
 #'     }
 #'
@@ -271,18 +322,12 @@ bgm = function(
   baseline_category,
   iter = 1e3,
   warmup = 1e3,
-  pairwise_scale = 1,
-  main_alpha = 0.5,
-  main_beta = 0.5,
+  interaction_prior = cauchy_prior(scale = 1),
+  threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
+  means_prior = normal_prior(scale = 1),
+  precision_scale_prior = gamma_prior(shape = 1, rate = 1),
   edge_selection = TRUE,
-  edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
-  inclusion_probability = 0.5,
-  beta_bernoulli_alpha = 1,
-  beta_bernoulli_beta = 1,
-  beta_bernoulli_alpha_between = 1,
-  beta_bernoulli_beta_between = 1,
-  dirichlet_alpha = 1,
-  lambda = 1,
+  edge_prior = bernoulli_prior(0.5),
   na_action = c("listwise", "impute"),
   update_method = c("nuts", "adaptive-metropolis"),
   target_accept,
@@ -295,6 +340,18 @@ bgm = function(
   standardize = FALSE,
   verbose = getOption("bgms.verbose", TRUE),
   progress_callback = NULL,
+  # Deprecated prior arguments (v0.1.6.0 and earlier)
+  pairwise_scale,
+  main_alpha,
+  main_beta,
+  inclusion_probability,
+  beta_bernoulli_alpha,
+  beta_bernoulli_beta,
+  beta_bernoulli_alpha_between,
+  beta_bernoulli_beta_between,
+  dirichlet_alpha,
+  lambda,
+  # Deprecated arguments (v0.1.6.0)
   interaction_scale,
   burnin,
   save,
@@ -307,18 +364,21 @@ bgm = function(
   options(bgms.verbose = verbose)
   on.exit(options(bgms.verbose = old_verbose), add = TRUE)
 
+  # --- Legacy deprecation: v0.1.6.0 renames -----------------------------------
   if(hasArg(interaction_scale)) {
-    lifecycle::deprecate_warn("0.1.6.0", "bgm(interaction_scale =)", "bgm(pairwise_scale =)")
-    if(!hasArg(pairwise_scale)) {
-      pairwise_scale = interaction_scale
+    lifecycle::deprecate_warn(
+      "0.1.6.0", "bgm(interaction_scale =)",
+      "bgm(interaction_prior =)"
+    )
+    if(!hasArg(pairwise_scale) &&
+      identical(interaction_prior, cauchy_prior(scale = 1))) {
+      interaction_prior = cauchy_prior(scale = interaction_scale)
     }
   }
 
   if(hasArg(burnin)) {
     lifecycle::deprecate_warn("0.1.6.0", "bgm(burnin =)", "bgm(warmup =)")
-    if(!hasArg(warmup)) {
-      warmup = burnin
-    }
+    if(!hasArg(warmup)) warmup = burnin
   }
 
   if(hasArg(save)) {
@@ -329,11 +389,87 @@ bgm = function(
     lifecycle::deprecate_warn(
       "0.1.6.0",
       "bgm(threshold_alpha =, threshold_beta =)",
-      "bgm(main_alpha =, main_beta =)"
+      "bgm(threshold_prior =)"
     )
-    if(!hasArg(main_alpha)) main_alpha = threshold_alpha
-    if(!hasArg(main_beta)) main_beta = threshold_beta
+    if(identical(threshold_prior, beta_prime_prior(0.5, 0.5))) {
+      ta = if(hasArg(threshold_alpha)) threshold_alpha else 0.5
+      tb = if(hasArg(threshold_beta)) threshold_beta else 0.5
+      threshold_prior = beta_prime_prior(alpha = ta, beta = tb)
+    }
   }
+
+  # --- Legacy deprecation: scalar prior parameters ----------------------------
+  if(hasArg(pairwise_scale)) {
+    lifecycle::deprecate_warn(
+      "0.3.0", "bgm(pairwise_scale =)",
+      "bgm(interaction_prior =)"
+    )
+    if(identical(interaction_prior, cauchy_prior(scale = 1))) {
+      interaction_prior = cauchy_prior(scale = pairwise_scale)
+    }
+  }
+
+  if(hasArg(main_alpha) || hasArg(main_beta)) {
+    lifecycle::deprecate_warn(
+      "0.3.0",
+      "bgm(main_alpha =)",
+      "bgm(threshold_prior =)"
+    )
+    if(identical(threshold_prior, beta_prime_prior(0.5, 0.5))) {
+      ma = if(hasArg(main_alpha)) main_alpha else 0.5
+      mb = if(hasArg(main_beta)) main_beta else 0.5
+      threshold_prior = beta_prime_prior(alpha = ma, beta = mb)
+    }
+  }
+
+  # Handle edge_prior: accept both string (deprecated) and object (new)
+  if(is.character(edge_prior)) {
+    lifecycle::deprecate_warn(
+      "0.3.0", "bgm(edge_prior = 'must be a prior object')",
+      "bgm(edge_prior = 'bernoulli_prior()')"
+    )
+    edge_prior_str = match.arg(edge_prior,
+      choices = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block")
+    )
+
+    ip = if(hasArg(inclusion_probability)) inclusion_probability else 0.5
+    bba = if(hasArg(beta_bernoulli_alpha)) beta_bernoulli_alpha else 1
+    bbb = if(hasArg(beta_bernoulli_beta)) beta_bernoulli_beta else 1
+    bbab = if(hasArg(beta_bernoulli_alpha_between)) beta_bernoulli_alpha_between else 1
+    bbbb = if(hasArg(beta_bernoulli_beta_between)) beta_bernoulli_beta_between else 1
+    da = if(hasArg(dirichlet_alpha)) dirichlet_alpha else 1
+    lam = if(hasArg(lambda)) lambda else 1
+
+    edge_prior = switch(edge_prior_str,
+      "Bernoulli" = bernoulli_prior(inclusion_probability = ip),
+      "Beta-Bernoulli" = beta_bernoulli_prior(alpha = bba, beta = bbb),
+      "Stochastic-Block" = sbm_prior(
+        alpha = bba, beta = bbb,
+        alpha_between = bbab, beta_between = bbbb,
+        dirichlet_alpha = da, lambda = lam
+      )
+    )
+  } else {
+    # Warn if loose edge params are also supplied alongside an object
+    if(hasArg(inclusion_probability)) {
+      lifecycle::deprecate_warn(
+        "0.3.0", "bgm(inclusion_probability =)",
+        "bgm(edge_prior = 'bernoulli_prior()')"
+      )
+    }
+    if(hasArg(beta_bernoulli_alpha)) {
+      lifecycle::deprecate_warn(
+        "0.3.0", "bgm(beta_bernoulli_alpha =)",
+        "bgm(edge_prior = 'beta_bernoulli_prior()')"
+      )
+    }
+  }
+
+  # --- Unpack prior objects to flat parameters for bgm_spec -------------------
+  ip = unpack_interaction_prior(interaction_prior)
+  tp = unpack_threshold_prior(threshold_prior)
+  mp = unpack_parameter_prior(means_prior)
+  sp = unpack_scale_prior(precision_scale_prior)
 
   # --- Build spec, sample, build output ----------------------------------------
   spec = bgm_spec(
@@ -342,19 +478,24 @@ bgm = function(
     variable_type = variable_type,
     baseline_category = if(hasArg(baseline_category)) baseline_category else 0L,
     na_action = na_action,
-    pairwise_scale = pairwise_scale,
-    main_alpha = main_alpha,
-    main_beta = main_beta,
+    interaction_prior_type = ip$interaction_prior_type,
+    pairwise_scale = ip$pairwise_scale,
+    interaction_alpha = ip$interaction_alpha,
+    interaction_beta = ip$interaction_beta,
+    threshold_prior_type = tp$threshold_prior_type,
+    main_alpha = tp$main_alpha,
+    main_beta = tp$main_beta,
+    threshold_scale = tp$threshold_scale,
+    means_prior_type = mp$prior_type,
+    means_scale = mp$scale,
+    means_alpha = mp$alpha,
+    means_beta = mp$beta,
+    scale_prior_type = sp$scale_prior_type,
+    scale_shape = sp$scale_shape,
+    scale_rate = sp$scale_rate,
     standardize = standardize,
     edge_selection = edge_selection,
     edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha,
-    lambda = lambda,
     update_method = update_method,
     target_accept = if(hasArg(target_accept)) target_accept else NULL,
     iter = iter,

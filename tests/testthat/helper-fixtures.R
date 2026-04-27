@@ -240,9 +240,7 @@ get_bgmcompare_fit_beta_bernoulli = function() {
       x = x, y = y,
       difference_selection = TRUE,
       main_difference_selection = TRUE,
-      difference_prior = "Beta-Bernoulli",
-      beta_bernoulli_alpha = 1,
-      beta_bernoulli_beta = 4,
+      difference_prior = beta_bernoulli_prior(alpha = 1, beta = 4),
       iter = 25, warmup = 50, chains = 1,
       seed = 55555,
       display_progress = "none"
@@ -257,9 +255,7 @@ get_bgms_fit_beta_bernoulli = function() {
     data("ADHD", package = "bgms")
     .test_cache$bgms_fit_bb = bgm(
       ADHD[1:50, 2:5], # 4 binary symptom variables
-      edge_prior = "Beta-Bernoulli",
-      beta_bernoulli_alpha = 1,
-      beta_bernoulli_beta = 4,
+      edge_prior = beta_bernoulli_prior(alpha = 1, beta = 4),
       iter = 50, warmup = 100, chains = 2,
       seed = 22222,
       display_progress = "none"
@@ -275,10 +271,7 @@ get_bgms_fit_sbm = function() {
     data("ADHD", package = "bgms")
     .test_cache$bgms_fit_sbm = bgm(
       ADHD[1:50, 2:5], # 4 binary symptom variables
-      edge_prior = "Stochastic-Block",
-      beta_bernoulli_alpha = 1,
-      beta_bernoulli_beta = 1,
-      dirichlet_alpha = 1,
+      edge_prior = sbm_prior(alpha = 1, beta = 1, dirichlet_alpha = 1),
       iter = 50, warmup = 100, chains = 2,
       seed = 33333,
       display_progress = "none"
@@ -669,7 +662,7 @@ get_bgms_fit_mixed_mrf_beta_bernoulli = function() {
         "continuous", "ordinal"
       ),
       edge_selection = TRUE,
-      edge_prior = "Beta-Bernoulli",
+      edge_prior = beta_bernoulli_prior(alpha = 1, beta = 1),
       iter = 50, warmup = 100, chains = 1,
       seed = 77777,
       display_progress = "none"
@@ -697,7 +690,7 @@ get_bgms_fit_mixed_mrf_sbm = function() {
         "continuous", "ordinal"
       ),
       edge_selection = TRUE,
-      edge_prior = "Stochastic-Block",
+      edge_prior = sbm_prior(),
       iter = 50, warmup = 100, chains = 1,
       seed = 77778,
       display_progress = "none"

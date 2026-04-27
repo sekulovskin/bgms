@@ -55,9 +55,9 @@
 #' @section Vignettes:
 #' For tutorials and worked examples, see:
 #' \itemize{
-#'   \item \code{vignette("intro", package = "bgms")} — Getting started.
-#'   \item \code{vignette("comparison", package = "bgms")} — Model comparison.
-#'   \item \code{vignette("diagnostics", package = "bgms")} — Diagnostics and
+#'   \item \code{vignette("intro", package = "bgms")} --- Getting started.
+#'   \item \code{vignette("comparison", package = "bgms")} --- Model comparison.
+#'   \item \code{vignette("diagnostics", package = "bgms")} --- Diagnostics and
 #'         spike-and-slab summaries.
 #' }
 #'

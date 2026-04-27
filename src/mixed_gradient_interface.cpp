@@ -5,6 +5,7 @@
 
 #include <RcppArmadillo.h>
 #include "models/mixed/mixed_mrf_model.h"
+#include "priors/parameter_prior.h"
 #include "mcmc/algorithms/leapfrog.h"
 
 // [[Rcpp::export]]
@@ -16,7 +17,17 @@ Rcpp::List mixed_test_logp_and_gradient(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const arma::imat& edge_indicators,
-    double pairwise_scale)
+    double pairwise_scale,
+    double main_alpha = 1.0,
+    double main_beta = 1.0,
+    std::string interaction_prior_type = "cauchy",
+    std::string threshold_prior_type = "beta-prime",
+    double threshold_scale = 1.0,
+    std::string means_prior_type = "normal",
+    double means_scale = 1.0,
+    std::string diagonal_prior_type = "gamma",
+    double diagonal_shape = 1.0,
+    double diagonal_rate = 1.0)
 {
     size_t p = discrete_observations.n_cols;
     size_t q = continuous_observations.n_cols;
@@ -29,9 +40,11 @@ Rcpp::List mixed_test_logp_and_gradient(
         discrete_observations, continuous_observations,
         num_categories, is_ordinal_variable, baseline_category,
         inc_prob, edge_indicators, edge_selection,
-        1.0, 1.0,   // main_alpha, main_beta
-        pairwise_scale,
-        42           // seed
+        create_parameter_prior(interaction_prior_type, pairwise_scale),
+        create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+        create_parameter_prior(means_prior_type, means_scale),
+        create_scale_prior(diagonal_prior_type, diagonal_shape, diagonal_rate),
+        42
     );
 
     auto result = model.logp_and_gradient(params);
@@ -52,7 +65,17 @@ Rcpp::List mixed_test_logp_and_gradient_full(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const arma::imat& edge_indicators,
-    double pairwise_scale)
+    double pairwise_scale,
+    double main_alpha = 1.0,
+    double main_beta = 1.0,
+    std::string interaction_prior_type = "cauchy",
+    std::string threshold_prior_type = "beta-prime",
+    double threshold_scale = 1.0,
+    std::string means_prior_type = "normal",
+    double means_scale = 1.0,
+    std::string diagonal_prior_type = "gamma",
+    double diagonal_shape = 1.0,
+    double diagonal_rate = 1.0)
 {
     size_t p = discrete_observations.n_cols;
     size_t q = continuous_observations.n_cols;
@@ -65,8 +88,10 @@ Rcpp::List mixed_test_logp_and_gradient_full(
         discrete_observations, continuous_observations,
         num_categories, is_ordinal_variable, baseline_category,
         inc_prob, edge_indicators, edge_selection,
-        1.0, 1.0,
-        pairwise_scale,
+        create_parameter_prior(interaction_prior_type, pairwise_scale),
+        create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+        create_parameter_prior(means_prior_type, means_scale),
+        create_scale_prior(diagonal_prior_type, diagonal_shape, diagonal_rate),
         42
     );
 
@@ -89,7 +114,12 @@ Rcpp::List mixed_test_project_position(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const arma::imat& edge_indicators,
-    double pairwise_scale)
+    double pairwise_scale,
+    double main_alpha = 1.0,
+    double main_beta = 1.0,
+    std::string interaction_prior_type = "cauchy",
+    std::string threshold_prior_type = "beta-prime",
+    double threshold_scale = 1.0)
 {
     size_t p = discrete_observations.n_cols;
     size_t q = continuous_observations.n_cols;
@@ -102,8 +132,10 @@ Rcpp::List mixed_test_project_position(
         discrete_observations, continuous_observations,
         num_categories, is_ordinal_variable, baseline_category,
         inc_prob, edge_indicators, edge_selection,
-        1.0, 1.0,
-        pairwise_scale,
+        create_parameter_prior(interaction_prior_type, pairwise_scale),
+        create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+        std::make_unique<NormalPrior>(1.0),
+        std::make_unique<GammaScalePrior>(1.0, 1.0),
         42
     );
 
@@ -127,7 +159,12 @@ Rcpp::List mixed_test_project_momentum(
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const arma::imat& edge_indicators,
-    double pairwise_scale)
+    double pairwise_scale,
+    double main_alpha = 1.0,
+    double main_beta = 1.0,
+    std::string interaction_prior_type = "cauchy",
+    std::string threshold_prior_type = "beta-prime",
+    double threshold_scale = 1.0)
 {
     size_t p = discrete_observations.n_cols;
     size_t q = continuous_observations.n_cols;
@@ -140,8 +177,10 @@ Rcpp::List mixed_test_project_momentum(
         discrete_observations, continuous_observations,
         num_categories, is_ordinal_variable, baseline_category,
         inc_prob, edge_indicators, edge_selection,
-        1.0, 1.0,
-        pairwise_scale,
+        create_parameter_prior(interaction_prior_type, pairwise_scale),
+        create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+        std::make_unique<NormalPrior>(1.0),
+        std::make_unique<GammaScalePrior>(1.0, 1.0),
         42
     );
 
@@ -167,7 +206,12 @@ Rcpp::List mixed_test_leapfrog_constrained(
     const arma::ivec& baseline_category,
     const arma::imat& edge_indicators,
     double pairwise_scale,
-    Rcpp::Nullable<Rcpp::NumericVector> inv_mass_in = R_NilValue)
+    Rcpp::Nullable<Rcpp::NumericVector> inv_mass_in = R_NilValue,
+    double main_alpha = 1.0,
+    double main_beta = 1.0,
+    std::string interaction_prior_type = "cauchy",
+    std::string threshold_prior_type = "beta-prime",
+    double threshold_scale = 1.0)
 {
     size_t p = discrete_observations.n_cols;
     size_t q = continuous_observations.n_cols;
@@ -180,8 +224,10 @@ Rcpp::List mixed_test_leapfrog_constrained(
         discrete_observations, continuous_observations,
         num_categories, is_ordinal_variable, baseline_category,
         inc_prob, edge_indicators, edge_selection,
-        1.0, 1.0,
-        pairwise_scale,
+        create_parameter_prior(interaction_prior_type, pairwise_scale),
+        create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+        std::make_unique<NormalPrior>(1.0),
+        std::make_unique<GammaScalePrior>(1.0, 1.0),
         42
     );
 
@@ -230,4 +276,83 @@ Rcpp::List mixed_test_leapfrog_constrained(
         Rcpp::Named("H_final") = H_final,
         Rcpp::Named("dH") = H_final - H0
     );
+}
+
+
+// [[Rcpp::export]]
+arma::mat mixed_per_obs_scores(
+    const arma::vec& params,
+    const arma::imat& discrete_observations,
+    const arma::mat& continuous_observations,
+    const arma::ivec& num_categories,
+    const arma::uvec& is_ordinal_variable,
+    const arma::ivec& baseline_category,
+    const arma::imat& edge_indicators,
+    double pairwise_scale,
+    double main_alpha = 1.0,
+    double main_beta = 1.0,
+    std::string interaction_prior_type = "cauchy",
+    std::string threshold_prior_type = "beta-prime",
+    double threshold_scale = 1.0)
+{
+    size_t n = discrete_observations.n_rows;
+    size_t p = discrete_observations.n_cols;
+    size_t q = continuous_observations.n_cols;
+    size_t total = p + q;
+    size_t d = params.n_elem;
+
+    arma::mat inc_prob(total, total, arma::fill::value(0.5));
+    bool edge_selection = true;  // full-space parameterization
+
+    // Compute prior gradient by evaluating with full data, then single obs.
+    // grad_total = sum_k score_k + grad_prior
+    // grad_1obs_k = score_k + grad_prior
+    // So: score_k = grad_1obs_k - grad_prior
+    // And: grad_prior = (sum_k grad_1obs_k - grad_total) / (n - 1)
+
+    // Full-data gradient
+    MixedMRFModel model_full(
+        discrete_observations, continuous_observations,
+        num_categories, is_ordinal_variable, baseline_category,
+        inc_prob, edge_indicators, edge_selection,
+        create_parameter_prior(interaction_prior_type, pairwise_scale),
+        create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+        std::make_unique<NormalPrior>(1.0),
+        std::make_unique<GammaScalePrior>(1.0, 1.0),
+        42
+    );
+    auto full_result = model_full.logp_and_gradient_full(params);
+    arma::vec grad_total = full_result.second;
+
+    // Per-observation gradients
+    arma::mat per_obs_grads(n, d);
+    arma::vec sum_per_obs(d, arma::fill::zeros);
+
+    for(size_t k = 0; k < n; ++k) {
+        arma::imat x_k = discrete_observations.row(k);
+        arma::mat y_k = continuous_observations.row(k);
+
+        MixedMRFModel model_k(
+            x_k, y_k,
+            num_categories, is_ordinal_variable, baseline_category,
+            inc_prob, edge_indicators, edge_selection,
+            create_parameter_prior(interaction_prior_type, pairwise_scale),
+            create_parameter_prior(threshold_prior_type, threshold_scale, main_alpha, main_beta),
+            std::make_unique<NormalPrior>(1.0),
+            std::make_unique<GammaScalePrior>(1.0, 1.0),
+            42
+        );
+        auto result_k = model_k.logp_and_gradient_full(params);
+        per_obs_grads.row(k) = result_k.second.t();
+        sum_per_obs += result_k.second;
+    }
+
+    // Recover prior gradient and subtract from each observation
+    arma::vec grad_prior = (sum_per_obs - grad_total) / static_cast<double>(n - 1);
+
+    for(size_t k = 0; k < n; ++k) {
+        per_obs_grads.row(k) -= grad_prior.t();
+    }
+
+    return per_obs_grads;
 }

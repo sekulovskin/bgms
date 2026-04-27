@@ -18,9 +18,10 @@ MixedMRFModel::MixedMRFModel(
     const arma::mat& inclusion_probability,
     const arma::imat& initial_edge_indicators,
     bool edge_selection,
-    double main_alpha,
-    double main_beta,
-    double pairwise_scale,
+    std::unique_ptr<BaseParameterPrior> interaction_prior,
+    std::unique_ptr<BaseParameterPrior> threshold_prior,
+    std::unique_ptr<BaseParameterPrior> means_prior,
+    std::unique_ptr<BaseParameterPrior> diagonal_prior,
     int seed
 ) :
     n_(discrete_observations.n_rows),
@@ -35,9 +36,10 @@ MixedMRFModel::MixedMRFModel(
     inclusion_probability_(inclusion_probability),
     edge_selection_(edge_selection),
     edge_selection_active_(false),
-    main_alpha_(main_alpha),
-    main_beta_(main_beta),
-    pairwise_scale_(pairwise_scale),
+    interaction_prior_(std::move(interaction_prior)),
+    threshold_prior_(std::move(threshold_prior)),
+    means_prior_(std::move(means_prior)),
+    diagonal_prior_(std::move(diagonal_prior)),
     rng_(seed)
 {
     // Dimension counts
@@ -150,9 +152,10 @@ MixedMRFModel::MixedMRFModel(const MixedMRFModel& other)
       inclusion_probability_(other.inclusion_probability_),
       edge_selection_(other.edge_selection_),
       edge_selection_active_(other.edge_selection_active_),
-      main_alpha_(other.main_alpha_),
-      main_beta_(other.main_beta_),
-      pairwise_scale_(other.pairwise_scale_),
+      interaction_prior_(other.interaction_prior_->clone()),
+      threshold_prior_(other.threshold_prior_->clone()),
+      means_prior_(other.means_prior_->clone()),
+      diagonal_prior_(other.diagonal_prior_->clone()),
       proposal_sd_main_discrete_(other.proposal_sd_main_discrete_),
       proposal_sd_main_continuous_(other.proposal_sd_main_continuous_),
       proposal_sd_pairwise_discrete_(other.proposal_sd_pairwise_discrete_),

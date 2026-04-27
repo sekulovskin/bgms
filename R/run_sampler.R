@@ -22,7 +22,7 @@ bb_between_default = function(value) {
 
 
 # ==============================================================================
-# run_sampler()  — main dispatcher
+# run_sampler()  --- main dispatcher
 # ==============================================================================
 run_sampler = function(spec) {
   stopifnot(inherits(spec, "bgm_spec"))
@@ -71,7 +71,16 @@ run_sampler_ggm = function(spec) {
   bb_beta_between = bb_between_default(p$beta_bernoulli_beta_between)
 
   out_raw = sample_ggm(
-    inputFromR = list(X = d$x, pairwise_scale = p$pairwise_scale),
+    inputFromR = list(
+      X = d$x,
+      pairwise_scale = p$pairwise_scale,
+      interaction_prior_type = p$interaction_prior_type,
+      interaction_alpha = p$interaction_alpha,
+      interaction_beta = p$interaction_beta,
+      scale_prior_type = p$scale_prior_type,
+      scale_shape = p$scale_shape,
+      scale_rate = p$scale_rate
+    ),
     prior_inclusion_prob = p$inclusion_probability,
     initial_edge_indicators = matrix(1L,
       nrow = d$num_variables,
@@ -116,13 +125,18 @@ run_sampler_omrf = function(spec) {
   bb_beta_between = bb_between_default(p$beta_bernoulli_beta_between)
 
   input_list = list(
-    observations        = d$x,
-    num_categories      = d$num_categories,
-    is_ordinal_variable = v$is_ordinal,
-    baseline_category   = v$baseline_category,
-    main_alpha          = p$main_alpha,
-    main_beta           = p$main_beta,
-    pairwise_scale      = p$pairwise_scale
+    observations           = d$x,
+    num_categories         = d$num_categories,
+    is_ordinal_variable    = v$is_ordinal,
+    baseline_category      = v$baseline_category,
+    interaction_prior_type = p$interaction_prior_type,
+    pairwise_scale         = p$pairwise_scale,
+    interaction_alpha      = p$interaction_alpha,
+    interaction_beta       = p$interaction_beta,
+    threshold_prior_type   = p$threshold_prior_type,
+    main_alpha             = p$main_alpha,
+    main_beta              = p$main_beta,
+    threshold_scale        = p$threshold_scale
   )
 
   out_raw = sample_omrf(
@@ -178,9 +192,21 @@ run_sampler_mixed_mrf = function(spec) {
     num_categories          = d$num_categories,
     is_ordinal_variable     = as.integer(v$is_ordinal),
     baseline_category       = v$baseline_category,
+    interaction_prior_type  = p$interaction_prior_type,
+    pairwise_scale          = p$pairwise_scale,
+    interaction_alpha       = p$interaction_alpha,
+    interaction_beta        = p$interaction_beta,
+    threshold_prior_type    = p$threshold_prior_type,
     main_alpha              = p$main_alpha,
     main_beta               = p$main_beta,
-    pairwise_scale          = p$pairwise_scale
+    threshold_scale         = p$threshold_scale,
+    means_prior_type        = p$means_prior_type,
+    means_scale             = p$means_scale,
+    means_alpha             = p$means_alpha,
+    means_beta              = p$means_beta,
+    scale_prior_type        = p$scale_prior_type,
+    scale_shape             = p$scale_shape,
+    scale_rate              = p$scale_rate
   )
 
   out_raw = sample_mixed_mrf(
@@ -266,6 +292,9 @@ run_sampler_compare = function(spec) {
     seed = s$seed,
     update_method = s$update_method,
     progress_type = s$progress_type,
+    interaction_prior_type_str = p$interaction_prior_type,
+    threshold_prior_type_str = p$threshold_prior_type,
+    threshold_scale = if(is.na(p$threshold_scale)) 1.0 else p$threshold_scale,
     progress_callback = s$progress_callback
   )
 }

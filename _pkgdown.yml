@@ -21,13 +21,30 @@ reference:
       - coef.bgmCompare
 
   - title: Simulation and prediction
-    desc: Simulate from Markov random fields and predict new observations.
+    desc: >
+      Generate observations or predict new ones. `simulate_*` functions
+      draw data given known parameters (forward simulation, exact draws);
+      `sample_*` functions run an MCMC sampler to draw from a target
+      distribution (e.g. the prior on the precision matrix).
     contents:
       - simulate_mrf
       - simulate.bgms
       - simulate.bgmCompare
       - predict.bgms
       - predict.bgmCompare
+      - sample_precision_prior
+
+  - title: Prior constructors
+    desc: Specify priors for model parameters, precision scale, and edge inclusion.
+    contents:
+      - cauchy_prior
+      - normal_prior
+      - beta_prime_prior
+      - gamma_prior
+      - exponential_prior
+      - bernoulli_prior
+      - beta_bernoulli_prior
+      - sbm_prior
 
   - title: Extractors
     desc: Extract specific components from fitted model objects.

@@ -12,13 +12,15 @@ void GGMGradientEngine::rebuild(
     const GraphConstraintStructure& structure,
     size_t n,
     const arma::mat& suf_stat,
-    double pairwise_scale)
+    const BaseParameterPrior& interaction_prior,
+    const BaseParameterPrior& diagonal_prior)
 {
     structure_ = &structure;
     n_ = n;
     p_ = structure.p;
     suf_stat_ = &suf_stat;
-    pairwise_scale_ = pairwise_scale;
+    interaction_prior_ = &interaction_prior;
+    diagonal_prior_ = &diagonal_prior;
 }
 
 // =====================================================================
@@ -246,7 +248,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient(
     const arma::mat& K = fm.K;
     const arma::mat& S = *suf_stat_;
     double n = static_cast<double>(n_);
-    double scale2 = pairwise_scale_ * pairwise_scale_;
+
 
     // Check for degenerate Phi (extreme theta pushed by leapfrog).
     double min_diag = Phi.diag().min();
@@ -264,18 +266,21 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient(
     double log_det_K = 2.0 * arma::accu(fm.psi);
     double log_lik = (n / 2.0) * log_det_K - 0.5 * arma::accu(Phi % P);
 
-    // Cauchy slab prior on included off-diagonal K entries
+    // Interaction prior on included off-diagonal K entries.
+    // Applied on the K_yy = -K/2 scale to match the mixed-MRF convention,
+    // so that `interaction_prior` refers to the same quantity across all
+    // bgms model families (pure GGM and mixed MRF continuous blocks).
     double log_slab = 0.0;
     for (size_t q = 1; q < p_; ++q) {
         for (size_t i : structure_->columns[q].included_indices) {
-            log_slab += R::dcauchy(K(i, q), 0.0, pairwise_scale_, 1);
+            log_slab += interaction_prior_->logp(-0.5 * K(i, q));
         }
     }
 
-    // Gamma(1,1) prior on diagonal K entries
+    // Prior on diagonal K entries
     double log_diag_prior = 0.0;
     for (size_t i = 0; i < p_; ++i) {
-        log_diag_prior += R::dgamma(K(i, i), 1.0, 1.0, 1);
+        log_diag_prior += diagonal_prior_->logp(K(i, i));
     }
 
     double lp = log_lik + log_slab + log_diag_prior + fm.log_det_jacobian;
@@ -288,14 +293,20 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient(
 
     // Phase 1: Phi_bar from data + priors (direct Phi-space, no K^{-1})
     // Data:  d/dPhi [-0.5 tr(Phi^T Phi S)] = -Phi S = -P
-    // Gamma: d/dPhi [-K_ii] = -2 Phi  (since K_ii = ||Phi(:,i)||^2)
-    arma::mat Phi_bar = -(P + 2.0 * Phi);
+    // Diagonal prior: d/dPhi [log p(K_ii)] = grad(K_ii) * 2 Phi(:,i)
+    arma::mat Phi_bar = -P;
+    for (size_t i = 0; i < p_; ++i) {
+        double dg = diagonal_prior_->grad(K(i, i));
+        Phi_bar.col(i).head(i + 1) += 2.0 * dg * Phi.col(i).head(i + 1);
+    }
 
-    // Cauchy prior adjoint on included edges
+    // Interaction prior adjoint on included edges.
+    // Prior is on K_yy_{ij} = -0.5 * K_{ij}, so the chain rule gives
+    //   d/dK_{ij} log p(-0.5 K_{ij}) = -0.5 * prior'(-0.5 K_{ij})
     for (size_t q = 1; q < p_; ++q) {
         for (size_t i : structure_->columns[q].included_indices) {
-            double kij = K(i, q);
-            double d = -2.0 * kij / (scale2 + kij * kij);
+            double kyy_ij = -0.5 * K(i, q);
+            double d = -0.5 * interaction_prior_->grad(kyy_ij);
             Phi_bar.col(q).head(i + 1) += d * Phi.col(i).head(i + 1);
             Phi_bar.col(i).head(i + 1) += d * Phi.col(q).head(i + 1);
         }
@@ -473,7 +484,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
     arma::mat P = arma::trimatu(Phi) * S;
 
     double n = static_cast<double>(n_);
-    double scale2 = pairwise_scale_ * pairwise_scale_;
+
 
     // --- Log-posterior value ---
 
@@ -483,26 +494,25 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
     double log_det_K = 2.0 * arma::accu(psi);
     double log_lik = (n / 2.0) * log_det_K - 0.5 * tr_KS;
 
-    // Cauchy slab prior on included off-diagonal K entries
-    // K_ij = dot(Phi(:,i), Phi(:,j)) for i < j, via column dot products
+    // Interaction prior on included off-diagonal K entries.
+    // Applied on the K_yy = -K/2 scale to match the mixed-MRF convention.
     double log_slab = 0.0;
     for (size_t q = 1; q < p_; ++q) {
         for (size_t i : structure_->columns[q].included_indices) {
             double kij = arma::dot(
                 Phi.col(i).head(i + 1),
                 Phi.col(q).head(i + 1));
-            log_slab += R::dcauchy(kij, 0.0, pairwise_scale_, 1);
+            log_slab += interaction_prior_->logp(-0.5 * kij);
         }
     }
 
-    // Gamma(1,1) prior on diagonal K entries
-    // K_ii = ||Phi(:,i)||^2
+    // Prior on diagonal K entries
     double log_diag_prior = 0.0;
     for (size_t i = 0; i < p_; ++i) {
         double kii = arma::dot(
             Phi.col(i).head(i + 1),
             Phi.col(i).head(i + 1));
-        log_diag_prior += R::dgamma(kii, 1.0, 1.0, 1);
+        log_diag_prior += diagonal_prior_->logp(kii);
     }
 
     // Jacobian: Cholesky-to-K + log-diagonal (NO QR terms)
@@ -523,19 +533,26 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
     // --- Backward pass: direct Phi-space gradient ---
 
     // Data term: d/dPhi[-0.5 tr(Phi^T Phi S)] = -Phi S = -P
-    // Gamma prior: d/dK_ii[-K_ii] → Phi_bar -= 2 Phi
     // Repurpose P as Phi_bar to avoid a p×p allocation
-    P += 2.0 * Phi;
     P *= -1.0;
-    // P now holds -(Phi*S + 2*Phi) = Phi_bar
+    // P now holds -Phi*S = data part of Phi_bar
 
-    // Cauchy prior adjoint on included edges
+    // Diagonal prior adjoint: d/dK_ii[log p(K_ii)] → grad(K_ii) * 2 Phi(:,i)
+    for (size_t i = 0; i < p_; ++i) {
+        double kii = arma::dot(
+            Phi.col(i).head(i + 1),
+            Phi.col(i).head(i + 1));
+        double dg = diagonal_prior_->grad(kii);
+        P.col(i).head(i + 1) += 2.0 * dg * Phi.col(i).head(i + 1);
+    }
+
+    // Interaction prior adjoint on included edges (K_yy scale).
     for (size_t q = 1; q < p_; ++q) {
         for (size_t i : structure_->columns[q].included_indices) {
             double kij = arma::dot(
                 Phi.col(i).head(i + 1),
                 Phi.col(q).head(i + 1));
-            double d = -2.0 * kij / (scale2 + kij * kij);
+            double d = -0.5 * interaction_prior_->grad(-0.5 * kij);
             P.col(q).head(i + 1) += d * Phi.col(i).head(i + 1);
             P.col(i).head(i + 1) += d * Phi.col(q).head(i + 1);
         }
