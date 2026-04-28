@@ -402,29 +402,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// mixed_per_obs_scores
-arma::mat mixed_per_obs_scores(const arma::vec& params, const arma::imat& discrete_observations, const arma::mat& continuous_observations, const arma::ivec& num_categories, const arma::uvec& is_ordinal_variable, const arma::ivec& baseline_category, const arma::imat& edge_indicators, double pairwise_scale, double main_alpha, double main_beta, std::string interaction_prior_type, std::string threshold_prior_type, double threshold_scale);
-RcppExport SEXP _bgms_mixed_per_obs_scores(SEXP paramsSEXP, SEXP discrete_observationsSEXP, SEXP continuous_observationsSEXP, SEXP num_categoriesSEXP, SEXP is_ordinal_variableSEXP, SEXP baseline_categorySEXP, SEXP edge_indicatorsSEXP, SEXP pairwise_scaleSEXP, SEXP main_alphaSEXP, SEXP main_betaSEXP, SEXP interaction_prior_typeSEXP, SEXP threshold_prior_typeSEXP, SEXP threshold_scaleSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type params(paramsSEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type discrete_observations(discrete_observationsSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type continuous_observations(continuous_observationsSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type num_categories(num_categoriesSEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type is_ordinal_variable(is_ordinal_variableSEXP);
-    Rcpp::traits::input_parameter< const arma::ivec& >::type baseline_category(baseline_categorySEXP);
-    Rcpp::traits::input_parameter< const arma::imat& >::type edge_indicators(edge_indicatorsSEXP);
-    Rcpp::traits::input_parameter< double >::type pairwise_scale(pairwise_scaleSEXP);
-    Rcpp::traits::input_parameter< double >::type main_alpha(main_alphaSEXP);
-    Rcpp::traits::input_parameter< double >::type main_beta(main_betaSEXP);
-    Rcpp::traits::input_parameter< std::string >::type interaction_prior_type(interaction_prior_typeSEXP);
-    Rcpp::traits::input_parameter< std::string >::type threshold_prior_type(threshold_prior_typeSEXP);
-    Rcpp::traits::input_parameter< double >::type threshold_scale(threshold_scaleSEXP);
-    rcpp_result_gen = Rcpp::wrap(mixed_per_obs_scores(params, discrete_observations, continuous_observations, num_categories, is_ordinal_variable, baseline_category, edge_indicators, pairwise_scale, main_alpha, main_beta, interaction_prior_type, threshold_prior_type, threshold_scale));
-    return rcpp_result_gen;
-END_RCPP
-}
 // compute_conditional_ggm
 Rcpp::List compute_conditional_ggm(const arma::mat& observations, const arma::ivec& predict_vars, const arma::mat& precision);
 RcppExport SEXP _bgms_compute_conditional_ggm(SEXP observationsSEXP, SEXP predict_varsSEXP, SEXP precisionSEXP) {
@@ -824,7 +801,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bgms_mixed_test_project_position", (DL_FUNC) &_bgms_mixed_test_project_position, 14},
     {"_bgms_mixed_test_project_momentum", (DL_FUNC) &_bgms_mixed_test_project_momentum, 15},
     {"_bgms_mixed_test_leapfrog_constrained", (DL_FUNC) &_bgms_mixed_test_leapfrog_constrained, 17},
-    {"_bgms_mixed_per_obs_scores", (DL_FUNC) &_bgms_mixed_per_obs_scores, 13},
     {"_bgms_compute_conditional_ggm", (DL_FUNC) &_bgms_compute_conditional_ggm, 3},
     {"_bgms_compute_conditional_probs", (DL_FUNC) &_bgms_compute_conditional_probs, 7},
     {"_bgms_compute_conditional_mixed", (DL_FUNC) &_bgms_compute_conditional_mixed, 11},
