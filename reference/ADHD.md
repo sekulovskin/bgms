@@ -1,7 +1,7 @@
 # ADHD Symptom Checklist for Children Aged 6–8 Years
 
 This dataset includes ADHD symptom ratings for 355 children aged 6 to 8
-years from the Children’s Attention Project (CAP) cohort (Silk et al.
+years from the Children's Attention Project (CAP) cohort (Silk et al.
 2019) . The sample consists of 146 children diagnosed with ADHD and 209
 without a diagnosis. Symptoms were assessed through structured
 interviews with parents using the NIMH Diagnostic Interview Schedule for
@@ -117,7 +117,7 @@ description, differences from previous versions, and reliability of some
 common diagnoses.” *Journal of the American Academy of Child &
 Adolescent Psychiatry*, **39**, 28–38.
 [doi:10.1097/00004583-200001000-00014](https://doi.org/10.1097/00004583-200001000-00014)
-, PMID: 10638065.  
+. PMID: 10638065.  
   
 Silk TJ, Malpas CB, Beare R, Efron D, Anderson V, Hazell P, Jongeling B,
 Nicholson JM, Sciberras E (2019). “A network analysis approach to ADHD

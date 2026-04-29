@@ -16,22 +16,15 @@ bgm(
   baseline_category,
   iter = 1000,
   warmup = 1000,
-  pairwise_scale = 1,
-  main_alpha = 0.5,
-  main_beta = 0.5,
+  interaction_prior = cauchy_prior(scale = 1),
+  threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
+  means_prior = normal_prior(scale = 1),
+  precision_scale_prior = gamma_prior(shape = 1, rate = 1),
   edge_selection = TRUE,
-  edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
-  inclusion_probability = 0.5,
-  beta_bernoulli_alpha = 1,
-  beta_bernoulli_beta = 1,
-  beta_bernoulli_alpha_between = 1,
-  beta_bernoulli_beta_between = 1,
-  dirichlet_alpha = 1,
-  lambda = 1,
+  edge_prior = bernoulli_prior(0.5),
   na_action = c("listwise", "impute"),
-  update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
+  update_method = c("nuts", "adaptive-metropolis"),
   target_accept,
-  hmc_num_leapfrogs = 100,
   nuts_max_depth = 10,
   learn_mass_matrix = TRUE,
   chains = 4,
@@ -39,9 +32,18 @@ bgm(
   display_progress = c("per-chain", "total", "none"),
   seed = NULL,
   standardize = FALSE,
-  pseudolikelihood = c("conditional", "marginal"),
   verbose = getOption("bgms.verbose", TRUE),
   progress_callback = NULL,
+  pairwise_scale,
+  main_alpha,
+  main_beta,
+  inclusion_probability,
+  beta_bernoulli_alpha,
+  beta_bernoulli_beta,
+  beta_bernoulli_alpha_between,
+  beta_bernoulli_beta_between,
+  dirichlet_alpha,
+  lambda,
   interaction_scale,
   burnin,
   save,
@@ -54,11 +56,14 @@ bgm(
 
 - x:
 
-  A data frame or matrix with `n` rows and `p` columns containing binary
-  and ordinal responses. Variables are automatically recoded to
-  non-negative integers (`0, 1, ..., m`). For regular ordinal variables,
-  unobserved categories are collapsed; for Blume–Capel variables, all
-  categories are retained.
+  A data frame or matrix with `n` rows and `p` columns. Columns may
+  contain binary, ordinal, or continuous variables (see
+  `variable_type`). Discrete variables are automatically recoded to
+  non-negative integers (`0, 1, ..., m`); for regular ordinal variables,
+  unobserved categories are collapsed, while Blume–Capel variables
+  retain all categories. Continuous variables are column-centered
+  internally so that the GGM likelihood is formulated with a zero-mean
+  assumption.
 
 - variable_type:
 
@@ -86,16 +91,70 @@ bgm(
   minimum of 1000 iterations is enforced, with a warning if a smaller
   value is requested. Default: `1e3`.
 
-- pairwise_scale:
+- interaction_prior:
 
-  Double. Scale of the Cauchy prior for pairwise interaction parameters.
-  Default: `1`.
+  A prior specification object for pairwise interaction parameters,
+  created by one of the prior constructor functions:
 
-- main_alpha, main_beta:
+  - [`cauchy_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/cauchy_prior.md):
+    Cauchy(0, scale) prior (default).
 
-  Double. Shape parameters of the beta-prime prior for threshold
-  parameters. Must be positive. If equal, the prior is symmetric.
-  Defaults: `main_alpha = 0.5` and `main_beta = 0.5`.
+  - [`normal_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/normal_prior.md):
+    Normal(0, scale) prior.
+
+  - [`beta_prime_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/beta_prime_prior.md):
+    Beta-prime prior.
+
+  Default: `cauchy_prior(scale = 1)`.
+
+- threshold_prior:
+
+  A prior specification object for threshold (main effect) parameters,
+  created by one of the prior constructor functions:
+
+  - [`beta_prime_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/beta_prime_prior.md):
+    Beta-prime prior (default).
+
+  - [`cauchy_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/cauchy_prior.md):
+    Cauchy(0, scale) prior.
+
+  - [`normal_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/normal_prior.md):
+    Normal(0, scale) prior.
+
+  Default: `beta_prime_prior(alpha = 0.5, beta = 0.5)`.
+
+- means_prior:
+
+  A prior specification object for continuous variable means (mixed MRF
+  models only), created by one of the prior constructor functions:
+
+  - [`normal_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/normal_prior.md):
+    Normal(0, scale) prior (default).
+
+  - [`cauchy_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/cauchy_prior.md):
+    Cauchy(0, scale) prior.
+
+  - [`beta_prime_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/beta_prime_prior.md):
+    Beta-prime prior.
+
+  Only used when the model includes continuous variables. Ignored for
+  pure ordinal or pure continuous (GGM) models. Default:
+  `normal_prior(scale = 1)`.
+
+- precision_scale_prior:
+
+  A prior specification object for the diagonal elements of the
+  precision matrix, created by one of:
+
+  - [`gamma_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/gamma_prior.md):
+    Gamma(shape, rate) prior (default).
+
+  - [`exponential_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/exponential_prior.md):
+    Exponential(rate) prior.
+
+  Only used for models with continuous variables (GGM and mixed MRF).
+  Ignored for pure ordinal models. Default:
+  `gamma_prior(shape = 1, rate = 1)`.
 
 - edge_selection:
 
@@ -104,39 +163,22 @@ bgm(
 
 - edge_prior:
 
-  Character. Specifies the prior for edge inclusion. Options:
-  `"Bernoulli"`, `"Beta-Bernoulli"`, or `"Stochastic-Block"`. Default:
-  `"Bernoulli"`.
+  An edge prior specification object, or a character string
+  (deprecated). Specifies the prior for edge inclusion. Preferred: pass
+  an object from one of:
 
-- inclusion_probability:
+  - [`bernoulli_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/bernoulli_prior.md):
+    Fixed inclusion probability (default).
 
-  Numeric scalar. Prior inclusion probability of each edge (used with
-  the Bernoulli prior). Default: `0.5`.
+  - [`beta_bernoulli_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/beta_bernoulli_prior.md):
+    Beta-distributed inclusion.
 
-- beta_bernoulli_alpha, beta_bernoulli_beta:
+  - [`sbm_prior()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/sbm_prior.md):
+    Stochastic Block Model.
 
-  Double. Shape parameters for the beta distribution in the
-  Beta–Bernoulli and the Stochastic-Block priors. Must be positive. For
-  the Stochastic-Block prior these are the shape parameters for the
-  within-cluster edge inclusion probabilities. Defaults:
-  `beta_bernoulli_alpha = 1` and `beta_bernoulli_beta = 1`.
-
-- beta_bernoulli_alpha_between, beta_bernoulli_beta_between:
-
-  Double. Shape parameters for the between-cluster edge inclusion
-  probabilities in the Stochastic-Block prior. Must be positive.
-  Default: `beta_bernoulli_alpha_between = 1` and
-  `beta_bernoulli_beta_between = 1`
-
-- dirichlet_alpha:
-
-  Double. Concentration parameter of the Dirichlet prior on block
-  assignments (used with the Stochastic Block model). Default: `1`.
-
-- lambda:
-
-  Double. Rate of the zero-truncated Poisson prior on the number of
-  clusters in the Stochastic Block Model. Default: `1`.
+  Legacy character strings `"Bernoulli"`, `"Beta-Bernoulli"`,
+  `"Stochastic-Block"` are still accepted but deprecated. Default:
+  `bernoulli_prior(0.5)`.
 
 - na_action:
 
@@ -154,12 +196,6 @@ bgm(
   :   Componentwise adaptive Metropolis–Hastings with Robbins–Monro
       proposal adaptation.
 
-  "hamiltonian-mc"
-
-  :   **Deprecated.** Hamiltonian Monte Carlo with fixed path length.
-      Use `"nuts"` instead. This option will be removed in a future
-      release.
-
   "nuts"
 
   :   The No-U-Turn Sampler with RATTLE constrained integration for
@@ -172,12 +208,6 @@ bgm(
   Numeric between 0 and 1. Target acceptance rate for the sampler.
   Defaults are set automatically if not supplied: `0.44` for adaptive
   Metropolis and `0.80` for NUTS.
-
-- hmc_num_leapfrogs:
-
-  **\[deprecated\]** Integer. Number of leapfrog steps for Hamiltonian
-  Monte Carlo. Only relevant when `update_method = "hamiltonian-mc"`,
-  which is deprecated.
 
 - nuts_max_depth:
 
@@ -210,18 +240,18 @@ bgm(
 
 - standardize:
 
-  Logical. If `TRUE`, the Cauchy prior scale for each pairwise
-  interaction is adjusted based on the range of response scores.
-  Variables with more response categories have larger score products
-  \\x_i \cdot x_j\\, which typically correspond to smaller interaction
-  effects \\\sigma\_{ij}\\. Without standardization, a fixed prior scale
-  is relatively wide for these smaller effects, resulting in less
-  shrinkage for high-category pairs and more shrinkage for low-category
-  pairs. Standardization scales the prior proportionally to the maximum
-  score product, ensuring equivalent relative shrinkage across all
-  pairs. After internal recoding, regular ordinal variables have scores
-  \\0, 1, \ldots, m\\. The adjusted scale for the interaction between
-  variables \\i\\ and \\j\\ is `pairwise_scale * m_i * m_j`, so that
+  Logical. If `TRUE`, the prior scale for each pairwise interaction is
+  adjusted based on the range of response scores. Variables with more
+  response categories have larger score products \\x_i \cdot x_j\\,
+  which typically correspond to smaller interaction effects
+  \\\sigma\_{ij}\\. Without standardization, a fixed prior scale is
+  relatively wide for these smaller effects, resulting in less shrinkage
+  for high-category pairs and more shrinkage for low-category pairs.
+  Standardization scales the prior proportionally to the maximum score
+  product, ensuring equivalent relative shrinkage across all pairs.
+  After internal recoding, regular ordinal variables have scores \\0, 1,
+  \ldots, m\\. The adjusted scale for the interaction between variables
+  \\i\\ and \\j\\ is `pairwise_scale * m_i * m_j`, so that
   `pairwise_scale` itself applies to the unit interval case (binary
   variables where \\m_i = m_j = 1\\). For Blume-Capel variables with
   reference category \\b\\, scores are centered as \\-b, \ldots, m-b\\,
@@ -229,27 +259,6 @@ bgm(
   endpoints. For mixed pairs, ordinal variables use raw score endpoints
   \\(0, m)\\ and Blume-Capel variables use centered score endpoints
   \\(-b, m-b)\\. Default: `FALSE`.
-
-- pseudolikelihood:
-
-  Character. Specifies the pseudo-likelihood approximation used for
-  mixed MRF models (ignored for pure ordinal or pure continuous data).
-  Options:
-
-  `"conditional"`
-
-  :   Conditions on the observed continuous variables when computing the
-      discrete full conditionals. Faster because the discrete
-      pseudo-likelihood does not depend on the continuous precision
-      matrix.
-
-  `"marginal"`
-
-  :   Integrates out the continuous variables, giving discrete full
-      conditionals that account for induced interactions through the
-      continuous block. More expensive per iteration.
-
-  Default: `"conditional"`.
 
 - verbose:
 
@@ -260,10 +269,51 @@ bgm(
 
 - progress_callback:
 
-  An optional R function (taking no arguments) that is called at regular
-  intervals during sampling. Useful for external front-ends (e.g., JASP)
-  that supply their own progress reporting. When `NULL` (the default),
-  no callback is invoked.
+  An optional R function with signature `function(completed, total)`
+  that is called at regular intervals during sampling, where `completed`
+  is the number of iterations completed across all chains and `total` is
+  the total number of iterations. Useful for external front-ends (e.g.,
+  JASP) that supply their own progress reporting. When `NULL` (the
+  default), no callback is invoked.
+
+- pairwise_scale:
+
+  **\[deprecated\]** Double. Scale of the Cauchy prior for pairwise
+  interaction parameters. Use `interaction_prior` instead. Default: `1`.
+
+- main_alpha, main_beta:
+
+  **\[deprecated\]** Double. Shape parameters of the beta-prime prior
+  for threshold parameters. Use `threshold_prior` instead. Defaults:
+  `main_alpha = 0.5` and `main_beta = 0.5`.
+
+- inclusion_probability:
+
+  **\[deprecated\]** Numeric scalar. Use
+  `edge_prior = bernoulli_prior(inclusion_probability)` instead.
+  Default: `0.5`.
+
+- beta_bernoulli_alpha, beta_bernoulli_beta:
+
+  **\[deprecated\]** Double. Use
+  `edge_prior = beta_bernoulli_prior(alpha, beta)` instead. Defaults:
+  `1`.
+
+- beta_bernoulli_alpha_between, beta_bernoulli_beta_between:
+
+  **\[deprecated\]** Double. Use
+  `edge_prior = sbm_prior(alpha_between, beta_between)` instead.
+  Defaults: `1`.
+
+- dirichlet_alpha:
+
+  **\[deprecated\]** Double. Use
+  `edge_prior = sbm_prior(dirichlet_alpha = ...)` instead. Default: `1`.
+
+- lambda:
+
+  **\[deprecated\]** Double. Use `edge_prior = sbm_prior(lambda = ...)`
+  instead. Default: `1`.
 
 - interaction_scale, burnin, save, threshold_alpha, threshold_beta:
 
@@ -301,10 +351,10 @@ Main components include:
   category thresholds. For mixed MRF: a list with `$discrete` (threshold
   matrix) and `$continuous` (q x 1 matrix of means).
 
-- `posterior_mean_associations`: Symmetric matrix of posterior mean
-  partial associations (zero diagonal). For continuous variables these
-  are unstandardized partial correlations; for discrete variables these
-  are half the log adjacent-category odds ratio. Use
+- `posterior_mean_pairwise`: Symmetric matrix of posterior mean partial
+  associations (zero diagonal). For continuous variables these are
+  unstandardized partial correlations; for discrete variables these are
+  half the log adjacent-category odds ratio. Use
   [`extract_precision()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_precision.md),
   [`extract_partial_correlations()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_partial_correlations.md),
   or
@@ -385,157 +435,20 @@ in `fit$nuts_diag` if `update_method = "nuts"`.
 
 ## Details
 
-This function models the joint distribution of binary, ordinal,
-continuous, or mixed variables using a Markov Random Field, with support
-for edge selection through Bayesian variable selection. The statistical
-foundation of the model is described in Marsman et al. (2025) , where
-the ordinal MRF model and its Bayesian estimation procedure were first
-introduced. While the implementation in bgms has since been extended and
-updated (e.g., alternative priors, parallel chains, NUTS warmup), it
-builds on that original framework.
+Depending on the variable types, the model is an ordinal MRF, a Gaussian
+graphical model (GGM), or a mixed MRF. Both regular ordinal variables
+and Blume–Capel ordinal variables (with a baseline category) are
+supported.
 
-Key components of the model are described in the sections below.
+Edge selection uses spike-and-slab priors with Bernoulli,
+Beta-Bernoulli, or Stochastic-Block inclusion priors. Parameters are
+sampled with NUTS (default) or adaptive Metropolis–Hastings, with a
+multi-stage warmup schedule. Missing data can be handled via listwise
+deletion or Gibbs imputation.
 
-## Ordinal Variables
-
-The function supports two types of ordinal variables:
-
-**Regular ordinal variables**: Assigns a category threshold parameter to
-each response category except the lowest. The model imposes no
-additional constraints on the distribution of category responses.
-
-**Blume-Capel ordinal variables**: Assume a baseline category (e.g., a
-“neutral” response) and score responses by distance from this baseline.
-Category thresholds are modeled as:
-
-\$\$\mu\_{c} = \alpha \cdot (c-b) + \beta \cdot (c - b)^2\$\$
-
-where:
-
-- \\\mu\_{c}\\: category threshold for category \\c\\
-
-- \\\alpha\\: linear trend across categories
-
-- \\\beta\\: preference toward or away from the baseline
-
-  - If \\\beta \< 0\\, the model favors responses near the baseline
-    category;
-
-  - if \\\beta \> 0\\, it favors responses farther away (i.e.,
-    extremes).
-
-- \\b\\: baseline category
-
-Accordingly, pairwise interactions between Blume-Capel variables are
-modeled in terms of \\c-b\\ scores.
-
-## Edge Selection
-
-When `edge_selection = TRUE`, the function performs Bayesian variable
-selection on the pairwise interactions (edges) in the MRF using
-spike-and-slab priors.
-
-Supported priors for edge inclusion:
-
-- **Bernoulli**: Fixed inclusion probability across edges.
-
-- **Beta-Bernoulli**: Inclusion probability is assigned a Beta prior
-  distribution.
-
-- **Stochastic-Block**: Cluster-based edge priors with Beta, Dirichlet,
-  and Poisson hyperpriors.
-
-All priors operate via binary indicator variables controlling the
-inclusion or exclusion of each edge in the MRF.
-
-## Prior Distributions
-
-- **Pairwise effects**: Modeled with a Cauchy (slab) prior.
-
-- **Main effects**: Modeled using a beta-prime distribution.
-
-- **Edge indicators**: Use either a Bernoulli, Beta-Bernoulli, or
-  Stochastic-Block prior (as above).
-
-## Sampling Algorithms and Warmup
-
-Parameters are updated within a Gibbs framework, but the conditional
-updates can be carried out using different algorithms:
-
-- **Adaptive Metropolis–Hastings**: Componentwise random–walk updates
-  for main effects and pairwise effects. Proposal standard deviations
-  are adapted during burn–in via Robbins–Monro updates toward a target
-  acceptance rate.
-
-- **Hamiltonian Monte Carlo (HMC)** (*deprecated*): Joint updates of all
-  parameters using fixed–length leapfrog trajectories. This method is
-  deprecated; use NUTS instead.
-
-- **No–U–Turn Sampler (NUTS)**: An adaptive extension of HMC that
-  dynamically chooses trajectory lengths. Warmup uses a staged
-  adaptation schedule (fast–slow–fast) to stabilize step size and, if
-  enabled, the mass matrix.
-
-When `edge_selection = TRUE`, updates of edge–inclusion indicators are
-carried out with Metropolis–Hastings steps. These are switched on after
-the core warmup phase, ensuring that graph updates occur only once the
-samplers’ tuning parameters (step size, mass matrix, proposal SDs) have
-stabilized.
-
-After warmup, adaptation is disabled. Step size and mass matrix are
-fixed at their learned values, and proposal SDs remain constant.
-
-## Warmup and Adaptation
-
-The warmup procedure in `bgm` uses a multi-stage adaptation schedule
-(Stan Development Team 2023) . Warmup iterations are split into several
-phases:
-
-- **Stage 1 (fast adaptation)**: A short initial interval where only
-  step size (for NUTS) is adapted, allowing the chain to move quickly
-  toward the typical set.
-
-- **Stage 2 (slow windows)**: A sequence of expanding, memoryless
-  windows where both step size and, if `learn_mass_matrix = TRUE`, the
-  diagonal mass matrix are adapted. Each window ends with a reset of the
-  dual–averaging scheme for improved stability.
-
-- **Stage 3a (final fast interval)**: A short interval at the end of the
-  core warmup where the step size is adapted one final time.
-
-- **Stage 3b (proposal–SD tuning)**: Only active when
-  `edge_selection = TRUE` under NUTS. In this phase, Robbins–Monro
-  adaptation of proposal standard deviations is performed for the
-  Metropolis steps used in edge–selection moves.
-
-- **Stage 3c (graph selection warmup)**: Also only relevant when
-  `edge_selection = TRUE`. At the start of this phase, a random graph
-  structure is initialized, and Metropolis–Hastings updates for edge
-  inclusion indicators are switched on.
-
-When `edge_selection = FALSE`, the total number of warmup iterations
-equals the user–specified `burnin`. When `edge_selection = TRUE` and
-`update_method` is `"nuts"`, the schedule automatically appends
-additional Stage-3b and Stage-3c intervals, so the total warmup is
-strictly greater than the requested `burnin`.
-
-After all warmup phases, the sampler transitions to the sampling phase
-with adaptation disabled. Step size and mass matrix (for NUTS) are fixed
-at their learned values, and proposal SDs remain constant.
-
-This staged design improves stability of proposals and ensures that both
-local parameters (step size) and global parameters (mass matrix,
-proposal SDs) are tuned before collecting posterior samples.
-
-For adaptive Metropolis–Hastings runs, step size and mass matrix
-adaptation are not relevant. Proposal SDs are tuned continuously during
-burn–in using Robbins–Monro updates, without staged fast/slow intervals.
-
-## Missing Data
-
-If `na_action = "listwise"`, rows with missing values are removed. If
-`na_action = "impute"`, missing values are imputed within the MCMC loop
-via Gibbs sampling.
+For full details on model specification, prior choices, warmup, and
+output interpretation, see the package website at
+<https://bayesian-graphical-modelling-lab.github.io/bgms-docs/>.
 
 ## References
 
@@ -543,17 +456,10 @@ Dahl DB (2009). “Modal clustering in a class of product partition
 models.” *Bayesian Analysis*, **4**(2), 243–264.
 [doi:10.1214/09-BA409](https://doi.org/10.1214/09-BA409) .  
   
-Marsman M, van den Bergh D, Haslbeck JMB (2025). “Bayesian analysis of
-the ordinal Markov random field.” *Psychometrika*, **90**(1), 146–182.
-[doi:10.1017/psy.2024.4](https://doi.org/10.1017/psy.2024.4) .  
-  
 Sekulovski N, Arena G, Haslbeck JMB, Huth KBS, Friel N, Marsman M
 (2025). “A Stochastic Block Prior for Clustering in Graphical Models.”
 *Retrieved from <https://osf.io/preprints/psyarxiv/29p3m_v1>*. OSF
-preprint.  
-  
-Stan Development Team (2023). *Stan Modeling Language Users Guide and
-Reference Manual*. Version 2.33, <https://mc-stan.org/docs/>.
+preprint.
 
 ## See also
 
@@ -572,41 +478,41 @@ fit = bgm(x = Wenchuan[, 1:5], chains = 2)
 #> 7 rows with missing values excluded (n = 355 remaining).
 #> To impute missing values instead, use na_action = "impute".
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 50/2000 (2.5%)
-#> Chain 2 (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 57/2000 (2.9%)
-#> Total   (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 107/4000 (2.7%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 48/2000 (2.4%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 98/4000 (2.5%)
 #> Elapsed: 0s | ETA: 0s
-#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 150/2000 (7.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 182/2000 (9.1%)
-#> Total   (Warmup): ⦗━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 332/4000 (8.3%)
-#> Elapsed: 1s | ETA: 11s
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 100/2000 (5.0%)
+#> Chain 2 (Warmup): ⦗━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 118/2000 (5.9%)
+#> Total   (Warmup): ⦗━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 218/4000 (5.5%)
+#> Elapsed: 1s | ETA: 17s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 300/2000 (15.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 347/2000 (17.3%)
-#> Total   (Warmup): ⦗━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 647/4000 (16.2%)
-#> Elapsed: 2s | ETA: 10s
-#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 600/2000 (30.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 666/2000 (33.3%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1266/4000 (31.6%)
-#> Elapsed: 2s | ETA: 4s
-#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 900/2000 (45.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━⦘ 805/2000 (40.2%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━⦘ 1705/4000 (42.6%)
-#> Elapsed: 3s | ETA: 4s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1150/2000 (57.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━⦘ 865/2000 (43.2%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━⦘ 2015/4000 (50.4%)
+#> Chain 2 (Warmup): ⦗━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 253/2000 (12.7%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 553/4000 (13.8%)
+#> Elapsed: 2s | ETA: 12s
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 550/2000 (27.5%)
+#> Chain 2 (Warmup): ⦗━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 264/2000 (13.2%)
+#> Total   (Warmup): ⦗━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 814/4000 (20.3%)
+#> Elapsed: 2s | ETA: 8s
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 850/2000 (42.5%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 547/2000 (27.4%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1397/4000 (34.9%)
+#> Elapsed: 3s | ETA: 6s
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1100/2000 (55.0%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 827/2000 (41.3%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 1927/4000 (48.2%)
 #> Elapsed: 4s | ETA: 4s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1400/2000 (70.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━⦘ 1109/2000 (55.5%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━⦘ 2509/4000 (62.7%)
-#> Elapsed: 4s | ETA: 2s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1650/2000 (82.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━⦘ 1373/2000 (68.7%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━⦘ 3023/4000 (75.6%)
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1350/2000 (67.5%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━⦘ 1071/2000 (53.5%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━⦘ 2421/4000 (60.5%)
+#> Elapsed: 4s | ETA: 3s
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1600/2000 (80.0%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1336/2000 (66.8%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━⦘ 2936/4000 (73.4%)
 #> Elapsed: 5s | ETA: 2s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1900/2000 (95.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1643/2000 (82.2%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━⦘ 3543/4000 (88.6%)
-#> Elapsed: 5s | ETA: 1s
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1850/2000 (92.5%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━⦘ 1601/2000 (80.0%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3451/4000 (86.3%)
+#> Elapsed: 6s | ETA: 1s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
@@ -614,52 +520,52 @@ fit = bgm(x = Wenchuan[, 1:5], chains = 2)
 
 # Posterior inclusion probabilities
 summary(fit)$indicator
-#>                     mean       mcse        sd n0->0 n0->1 n1->0 n1->1
-#> intrusion-dreams  1.0000         NA 0.0000000     0     0     0  1999
-#> intrusion-flash   1.0000         NA 0.0000000     0     0     0  1999
-#> intrusion-upset   0.9540 0.02298423 0.2094851    85     7     7  1900
-#> intrusion-physior 0.9185 0.03305255 0.2736014   153    10     9  1827
-#> dreams-flash      1.0000         NA 0.0000000     0     0     0  1999
-#> dreams-upset      0.9815 0.02574408 0.1347507    36     1     0  1962
-#> dreams-physior    0.1170 0.02132303 0.3214203  1724    42    42   191
-#> flash-upset       0.0575 0.01147401 0.2327955  1847    37    37    78
-#> flash-physior     1.0000         NA 0.0000000     0     0     0  1999
-#> upset-physior     1.0000         NA 0.0000000     0     0     0  1999
+#>                     mean       mcse         sd n0->0 n0->1 n1->0 n1->1
+#> intrusion-dreams  1.0000         NA 0.00000000     0     0     0  1999
+#> intrusion-flash   1.0000         NA 0.00000000     0     0     0  1999
+#> intrusion-upset   0.9785 0.01686819 0.14504396    40     3     3  1953
+#> intrusion-physior 0.9310 0.03161494 0.25345414   130     8     8  1853
+#> dreams-flash      1.0000         NA 0.00000000     0     0     0  1999
+#> dreams-upset      0.9905 0.01312940 0.09700387    18     1     1  1979
+#> dreams-physior    0.1070 0.01967130 0.30911325  1743    42    42   172
+#> flash-upset       0.0705 0.01150602 0.25598779  1806    52    52    89
+#> flash-physior     1.0000         NA 0.00000000     0     0     0  1999
+#> upset-physior     1.0000         NA 0.00000000     0     0     0  1999
 #>                   n_eff_mixt     Rhat
 #> intrusion-dreams          NA       NA
 #> intrusion-flash           NA       NA
-#> intrusion-upset     83.07039 1.065542
-#> intrusion-physior   68.52148 1.143399
+#> intrusion-upset     73.93709 1.158511
+#> intrusion-physior   64.27084 1.000519
 #> dreams-flash              NA       NA
-#> dreams-upset        27.39726 1.308565
-#> dreams-physior     227.22118 1.016150
-#> flash-upset        411.64079 1.010976
+#> dreams-upset        54.58691 1.299312
+#> dreams-physior     246.92731 1.023105
+#> flash-upset        494.98105 1.000179
 #> flash-physior             NA       NA
 #> upset-physior             NA       NA
 
 # Posterior pairwise effects
 summary(fit)$pairwise
 #>                          mean         mcse         sd     n_eff
-#> intrusion-dreams  0.316091188 0.0009207400 0.03363827 1334.7294
-#> intrusion-flash   0.170496230 0.0009964013 0.03241721 1058.4799
-#> intrusion-upset   0.100996153 0.0029442042 0.03736531  215.8338
-#> intrusion-physior 0.093135616 0.0034446039 0.03827903  186.8540
-#> dreams-flash      0.250608795 0.0008072341 0.03181161 1553.0031
-#> dreams-upset      0.112852114 0.0030903160 0.03183222  522.4515
-#> dreams-physior    0.006170262 0.0013585886 0.01731002  174.0403
-#> flash-upset       0.002607102 0.0005614051 0.01070372  455.6379
-#> flash-physior     0.154464967 0.0009377004 0.02702355  830.5322
-#> upset-physior     0.356159368 0.0010673644 0.03255318  930.1681
-#>                   n_eff_mixt     Rhat
-#> intrusion-dreams          NA 1.002469
-#> intrusion-flash           NA 1.004393
-#> intrusion-upset     161.0651 1.020760
-#> intrusion-physior   123.4933 1.057581
-#> dreams-flash              NA 1.000438
-#> dreams-upset        106.1031 1.043795
-#> dreams-physior      162.3376 1.073383
-#> flash-upset         363.5107 1.097162
-#> flash-physior             NA 1.003966
-#> upset-physior             NA 1.002040
+#> intrusion-dreams  0.314503857 0.0007346667 0.03277968 1990.8048
+#> intrusion-flash   0.168737949 0.0007595850 0.03218127 1794.9545
+#> intrusion-upset   0.100814888 0.0020004680 0.03220720  512.8043
+#> intrusion-physior 0.094454205 0.0032675270 0.03653265  156.3676
+#> dreams-flash      0.249154680 0.0005951231 0.03007591 2554.0180
+#> dreams-upset      0.111944591 0.0016570651 0.02891952  610.7461
+#> dreams-physior    0.005161725 0.0009817649 0.01519639  208.5053
+#> flash-upset       0.002813570 0.0004886639 0.01040716  475.4309
+#> flash-physior     0.153835523 0.0005817084 0.02690679 2139.5038
+#> upset-physior     0.354728946 0.0007122993 0.02942063 1706.0001
+#>                   n_eff_mixt      Rhat
+#> intrusion-dreams          NA 1.0016355
+#> intrusion-flash           NA 0.9995401
+#> intrusion-upset     259.2047 1.0090286
+#> intrusion-physior   125.0040 1.0003540
+#> dreams-flash              NA 1.0004376
+#> dreams-upset        304.5812 1.0043932
+#> dreams-physior      239.5884 1.0151082
+#> flash-upset         453.5695 0.9997131
+#> flash-physior             NA 0.9997872
+#> upset-physior             NA 0.9996597
 # }
 ```
