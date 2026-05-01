@@ -470,7 +470,24 @@ void GGMModel::project_momentum(arma::vec& r, const arma::vec& x,
                 Gq(e, e) += diag_add;
             }
 
-            prec_blocks.push_back({arma::inv_sympd(Gq), offset, col.m_q});
+            // Robustly invert Gq with a small ridge if needed. NUTS leapfrog
+            // can transiently push Phi diagonals near zero, making Gq nearly
+            // singular; a small Tikhonov ridge keeps the preconditioner valid
+            // without changing the stationary distribution materially.
+            arma::mat Gq_inv;
+            bool ok = arma::inv_sympd(Gq_inv, Gq);
+            if (!ok) {
+                double ridge = 1e-10 * arma::trace(Gq) /
+                               static_cast<double>(col.m_q);
+                if (ridge < 1e-12) ridge = 1e-12;
+                arma::mat Gq_reg = Gq + ridge * arma::eye(col.m_q, col.m_q);
+                ok = arma::inv_sympd(Gq_inv, Gq_reg);
+                if (!ok) {
+                    // Last resort: pseudo-inverse for graceful degradation.
+                    Gq_inv = arma::pinv(Gq_reg);
+                }
+            }
+            prec_blocks.push_back({Gq_inv, offset, col.m_q});
             offset += col.m_q;
         }
     }

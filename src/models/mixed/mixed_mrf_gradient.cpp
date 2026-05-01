@@ -630,19 +630,28 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient(
     arma::mat Omega_bar_sym = Omega_bar + Omega_bar.t();
     arma::mat R_bar = temp_cholesky * Omega_bar_sym;
 
-    // Cholesky Jacobian: log|det J| = q log 2 + Σ_j (q − j + 1) ψ_j
-    // where (q − j + 1) = (q − j) from Bartlett + 1 from exp(ψ_j).
+    // Roverato graph-constrained Cholesky Jacobian for the Kyy block:
+    //   log|det J| = q log 2 + Σ_j (deg_higher_yy(j) + 2) ψ_j
+    // where deg_higher_yy(j) = number of active Kyy edges (j, qq) with qq > j.
+    // For the full Kyy graph deg_higher_yy(j) = q - 1 - j, so this reduces to
+    // (q - j + 1) — the original formula. For sparse Kyy graphs, the
+    // graph-aware count is required for the prior to integrate correctly
+    // (Marsman/Claude, 2026-05-01).
     size_t gidx = static_cast<size_t>(chol_grad_offset_);
     for(size_t j = 0; j < q_; ++j) {
         double psi_j = std::log(temp_cholesky(j, j));
-        double jac_weight = static_cast<double>(q_ - j + 1);
+        size_t deg_higher_yy = 0;
+        for(size_t qq = j + 1; qq < q_; ++qq) {
+            if(edge_indicators_(p_ + j, p_ + qq) == 1) ++deg_higher_yy;
+        }
+        double jac_weight = static_cast<double>(deg_higher_yy + 2);
         logp += jac_weight * psi_j;
 
         // Off-diagonal Cholesky entries: ∂ℓ/∂R_{ij} = R̄_{ij}
         for(size_t i = 0; i < j; ++i) {
             grad(gidx++) = R_bar(i, j);
         }
-        // Diagonal (log-scale): ∂ℓ/∂ψ_j = R̄_{jj} R_{jj} + (q − j + 1)
+        // Diagonal (log-scale): ∂ℓ/∂ψ_j = R̄_{jj} R_{jj} + (deg_higher_yy + 2)
         grad(gidx++) = R_bar(j, j) * temp_cholesky(j, j) + jac_weight;
     }
     // Add constant Jacobian term to logp
@@ -1084,11 +1093,16 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient_full(
     arma::mat Omega_bar_sym = Omega_bar + Omega_bar.t();
     arma::mat R_bar = temp_cholesky * Omega_bar_sym;
 
-    // Cholesky Jacobian and gradient extraction
+    // Roverato graph-constrained Cholesky Jacobian for the Kyy block.
+    // jac_weight = deg_higher_yy(j) + 2; reduces to q - j + 1 for full graph.
     size_t gidx = chol_offset;
     for(size_t j = 0; j < q_; ++j) {
         double psi_j = std::log(temp_cholesky(j, j));
-        double jac_weight = static_cast<double>(q_ - j + 1);
+        size_t deg_higher_yy = 0;
+        for(size_t qq = j + 1; qq < q_; ++qq) {
+            if(edge_indicators_(p_ + j, p_ + qq) == 1) ++deg_higher_yy;
+        }
+        double jac_weight = static_cast<double>(deg_higher_yy + 2);
         logp += jac_weight * psi_j;
 
         for(size_t i = 0; i < j; ++i) {

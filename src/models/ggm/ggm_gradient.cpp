@@ -515,13 +515,26 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
         log_diag_prior += diagonal_prior_->logp(kii);
     }
 
-    // Jacobian: Cholesky-to-K + log-diagonal (NO QR terms)
+    // Roverato graph-constrained Cholesky Jacobian:
+    //   log|det J(x_full -> K_active)| = p*log(2)
+    //                                  + sum_k (deg_higher(k) + 2) * psi_k
+    // where deg_higher(k) = number of active edges (k, q) with q > k.
+    // For the full graph deg_higher(k) = p - 1 - k, so this reduces to the
+    // earlier "p*log(2) + 2*sum(psi) + sum_{i<p-1}(p-1-i)*psi_i" form.
+    // RATTLE/SHAKE handles the surface measure of the constraint manifold;
+    // the prior's Jacobian must use the graph-aware degree-higher count
+    // so that the implied conditional density on the manifold matches the
+    // intended K | G prior.
     double ldj = static_cast<double>(p_) * std::log(2.0);
-    for (size_t q = 0; q < p_; ++q) {
-        ldj += 2.0 * psi(q);
-    }
-    for (size_t i = 0; i + 1 < p_; ++i) {
-        ldj += static_cast<double>(p_ - 1 - i) * psi(i);
+    arma::uvec deg_higher_vec(p_, arma::fill::zeros);
+    for (size_t k = 0; k < p_; ++k) {
+        for (size_t q = k + 1; q < p_; ++q) {
+            const auto& inc = structure_->columns[q].included_indices;
+            if (std::find(inc.begin(), inc.end(), k) != inc.end()) {
+                ++deg_higher_vec(k);
+            }
+        }
+        ldj += static_cast<double>(deg_higher_vec(k) + 2) * psi(k);
     }
 
     double lp = log_lik + log_slab + log_diag_prior + ldj;
@@ -570,11 +583,9 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
         }
 
         // Diagonal (psi_q): chain rule through exp + log-det + Jacobian
+        // (deg_higher(q) + 2) is the graph-aware Roverato Jacobian coefficient.
         double psi_bar = P(q, q) * Phi(q, q);
-        psi_bar += n + 2.0;
-        if (q + 1 < p_) {
-            psi_bar += static_cast<double>(p_ - 1 - q);
-        }
+        psi_bar += n + static_cast<double>(deg_higher_vec(q) + 2);
         gradient(offset + q) = psi_bar;
     }
 
