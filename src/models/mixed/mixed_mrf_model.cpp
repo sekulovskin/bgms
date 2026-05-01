@@ -123,6 +123,7 @@ MixedMRFModel::MixedMRFModel(
 
 MixedMRFModel::MixedMRFModel(const MixedMRFModel& other)
     : BaseModel(other),
+      target_accept_(other.target_accept_),
       n_(other.n_),
       p_(other.p_),
       q_(other.q_),
