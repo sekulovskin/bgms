@@ -702,8 +702,13 @@ void GGMModel::update_edge_parameter(size_t i, size_t j, int iteration) {
     ln_alpha += interaction_prior_->logp(-0.5 * precision_proposal_(i, j));
     ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j));
 
-    // Gamma(1,1) prior on K_jj cancels: constrained diagonal is a
-    // deterministic function of phi_{q-1,q} with phi_{q,q} fixed.
+    // Diagonal prior on K_jj. K_jj is a deterministic function of K_ij via
+    // constrained_diagonal, so its change must enter the MH ratio. This was
+    // previously claimed to "cancel under Gamma(1,1)", but that cancellation
+    // is incorrect for any non-Gamma(1,1) precision_scale_prior and shows up
+    // as edge-selection SBC failure.
+    ln_alpha += diagonal_prior_->logp(precision_proposal_(j, j));
+    ln_alpha -= diagonal_prior_->logp(precision_matrix_(j, j));
 
     if (MY_LOG(runif(rng_)) < ln_alpha) {
         double omega_ij_old = precision_matrix_(i, j);
@@ -858,7 +863,12 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         // Interaction prior on K_yy_{ij} = -0.5 * Omega_{ij}
         ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j));
 
-        // Gamma(1,1) prior on K_jj cancels: constrained parameterization.
+        // Diagonal prior on K_jj: changes from precision_matrix_(j, j)
+        // (edge ON) to precision_proposal_(j, j) = constrained_diagonal(0)
+        // (edge OFF). The earlier "cancels under Gamma(1,1)" claim is wrong
+        // for general precision_scale_prior.
+        ln_alpha += diagonal_prior_->logp(precision_proposal_(j, j));
+        ln_alpha -= diagonal_prior_->logp(precision_matrix_(j, j));
 
         if (MY_LOG(runif(rng_)) < ln_alpha) {
 
@@ -911,7 +921,12 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         // Prior change: add slab (interaction prior on K_yy_{ij} = -0.5 * Omega_{ij})
         ln_alpha += interaction_prior_->logp(-0.5 * omega_prop_ij);
 
-        // Gamma(1,1) prior on K_jj cancels: constrained parameterization.
+        // Diagonal prior on K_jj: changes from constants_[5] (edge OFF) to
+        // omega_prop_jj (edge ON via constrained parameterization). The
+        // earlier "cancels under Gamma(1,1)" claim is wrong for general
+        // precision_scale_prior.
+        ln_alpha += diagonal_prior_->logp(omega_prop_jj);
+        ln_alpha -= diagonal_prior_->logp(precision_matrix_(j, j));
 
         // Proposal term: proposed edge value given it was generated from truncated normal
         ln_alpha -= R::dnorm(omega_prop_ij / constants_[3], 0.0, proposal_sd, true) - MY_LOG(constants_[3]);
@@ -1016,7 +1031,7 @@ void GGMModel::tune_proposal_sd(int iteration, const WarmupSchedule& schedule) {
             ln_alpha += interaction_prior_->logp(-0.5 * precision_proposal_(i, j));
             ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j));
 
-            // Gamma(1,1) prior on changed diagonal K_jj
+            // Diagonal prior on changed K_jj (constrained-diagonal coupling)
             ln_alpha += diagonal_prior_->logp(precision_proposal_(j, j));
             ln_alpha -= diagonal_prior_->logp(precision_matrix_(j, j));
 
