@@ -89,9 +89,9 @@
 #' @param main_alpha,main_beta Doubles. Shape parameters of the beta-prime
 #'   prior for baseline threshold parameters. Defaults: \code{0.5}.
 #' @param iter Integer. Number of post--warmup iterations per chain.
-#'   Default: \code{1e3}.
+#'   Default: \code{2e3}.
 #' @param warmup Integer. Number of warmup iterations before sampling.
-#'   Default: \code{1e3}.
+#'   Default: \code{2e3}.
 #' @param na_action Character. How to handle missing data:
 #'   \code{"listwise"} (drop rows) or \code{"impute"} (impute within Gibbs).
 #'   Default: \code{"listwise"}.
@@ -187,8 +187,8 @@ bgmCompare = function(
   difference_probability,
   interaction_prior = cauchy_prior(scale = 1),
   threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
-  iter = 1e3,
-  warmup = 1e3,
+  iter = 2e3,
+  warmup = 2e3,
   na_action = c("listwise", "impute"),
   update_method = c("nuts", "adaptive-metropolis"),
   target_accept,

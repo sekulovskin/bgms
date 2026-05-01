@@ -7,7 +7,7 @@
 sample_precision_prior(
   p,
   n_samples,
-  n_warmup = 1000L,
+  n_warmup = 2000,
   interaction_prior = cauchy_prior(scale = 2.5),
   precision_scale_prior = gamma_prior(shape = 1, rate = 1),
   step_size = 0.1,
@@ -22,7 +22,7 @@ sample_precision_prior(
 
 \item{n_samples}{Integer. Number of post-warmup draws to keep.}
 
-\item{n_warmup}{Integer. NUTS warmup iterations. Default \code{1000}.}
+\item{n_warmup}{Integer. NUTS warmup iterations. Default \code{2000}.}
 
 \item{interaction_prior}{A \code{bgms_parameter_prior} for the
 off-diagonal entries. Use \code{\link{cauchy_prior}()} or

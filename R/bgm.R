@@ -49,11 +49,11 @@
 #'   \code{"blume-capel"}.
 #'
 #' @param iter Integer. Number of post--burn-in iterations (per chain).
-#'   Default: \code{1e3}.
+#'   Default: \code{2e3}.
 #'
 #' @param warmup Integer. Number of warmup iterations before collecting
 #'   samples. A minimum of 1000 iterations is enforced, with a warning if a
-#'   smaller value is requested. Default: \code{1e3}.
+#'   smaller value is requested. Default: \code{2e3}.
 #'
 #' @param interaction_prior A prior specification object for pairwise
 #'   interaction parameters, created by one of the prior constructor functions:
@@ -320,8 +320,8 @@ bgm = function(
   x,
   variable_type = "ordinal",
   baseline_category,
-  iter = 1e3,
-  warmup = 1e3,
+  iter = 2e3,
+  warmup = 2e3,
   interaction_prior = cauchy_prior(scale = 1),
   threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
   means_prior = normal_prior(scale = 1),

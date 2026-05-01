@@ -17,7 +17,7 @@
 #'
 #' @param p Integer. Dimension of the precision matrix (\eqn{p \ge 2}).
 #' @param n_samples Integer. Number of post-warmup draws to keep.
-#' @param n_warmup Integer. NUTS warmup iterations. Default \code{1000}.
+#' @param n_warmup Integer. NUTS warmup iterations. Default \code{2000}.
 #' @param interaction_prior A \code{bgms_parameter_prior} for the
 #'   off-diagonal entries. Use \code{\link{cauchy_prior}()} or
 #'   \code{\link{normal_prior}()}; \code{\link{beta_prime_prior}()} is not
@@ -83,7 +83,7 @@
 sample_precision_prior = function(
   p,
   n_samples,
-  n_warmup = 1000L,
+  n_warmup = 2e3,
   interaction_prior = cauchy_prior(scale = 2.5),
   precision_scale_prior = gamma_prior(shape = 1, rate = 1),
   step_size = 0.1,

@@ -17,8 +17,8 @@ bgmCompare(
   difference_probability,
   interaction_prior = cauchy_prior(scale = 1),
   threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
-  iter = 1000,
-  warmup = 1000,
+  iter = 2000,
+  warmup = 2000,
   na_action = c("listwise", "impute"),
   update_method = c("nuts", "adaptive-metropolis"),
   target_accept,
@@ -120,10 +120,10 @@ When supplied, overrides \code{main_alpha} and \code{main_beta}.
 Default: \code{beta_prime_prior(alpha = 0.5, beta = 0.5)}.}
 
 \item{iter}{Integer. Number of post--warmup iterations per chain.
-Default: \code{1e3}.}
+Default: \code{2e3}.}
 
 \item{warmup}{Integer. Number of warmup iterations before sampling.
-Default: \code{1e3}.}
+Default: \code{2e3}.}
 
 \item{na_action}{Character. How to handle missing data:
 \code{"listwise"} (drop rows) or \code{"impute"} (impute within Gibbs).
