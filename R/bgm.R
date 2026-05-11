@@ -3,10 +3,9 @@
 #' @description
 #' The \code{bgm} function estimates the pseudoposterior distribution of the
 #' parameters of a Markov Random Field (MRF) for binary, ordinal, continuous,
-#' or mixed (discrete and continuous) variables. Depending on the variable
-#' types, the model is an ordinal MRF, a Gaussian graphical model (GGM), or a
-#' mixed MRF. Optionally, it performs Bayesian edge selection using
-#' spike-and-slab priors to infer the network structure.
+#' or mixed (discrete and continuous) variables. Optionally, it performs
+#' Bayesian edge selection using discrete spike-and-slab priors to infer the
+#' network structure.
 #'
 #' @details
 #' Depending on the variable types, the model is an ordinal MRF, a Gaussian
@@ -14,10 +13,10 @@
 #' Blume--Capel ordinal variables (with a baseline category) are supported.
 #'
 #' Edge selection uses spike-and-slab priors with Bernoulli, Beta-Bernoulli,
-#' or Stochastic-Block inclusion priors. Parameters are sampled with NUTS
-#' (default) or adaptive Metropolis--Hastings, with a multi-stage warmup
-#' schedule. Missing data can be handled via listwise deletion or Gibbs
-#' imputation.
+#' or Stochastic-Block priors on the edge inclusion indicators. Parameters are
+#' sampled with NUTS (default) or adaptive Metropolis--Hastings, with a
+#' multi-stage warmup schedule. Missing data can be handled via listwise
+#' deletion or Gibbs imputation.
 #'
 #' For full details on model specification, prior choices, warmup, and
 #' output interpretation, see the package website at
@@ -401,7 +400,7 @@ bgm = function(
   # --- Legacy deprecation: scalar prior parameters ----------------------------
   if(hasArg(pairwise_scale)) {
     lifecycle::deprecate_warn(
-      "0.3.0", "bgm(pairwise_scale =)",
+      "0.2.0", "bgm(pairwise_scale =)",
       "bgm(interaction_prior =)"
     )
     if(identical(interaction_prior, cauchy_prior(scale = 1))) {
@@ -411,7 +410,7 @@ bgm = function(
 
   if(hasArg(main_alpha) || hasArg(main_beta)) {
     lifecycle::deprecate_warn(
-      "0.3.0",
+      "0.2.0",
       "bgm(main_alpha =)",
       "bgm(threshold_prior =)"
     )
@@ -425,7 +424,7 @@ bgm = function(
   # Handle edge_prior: accept both string (deprecated) and object (new)
   if(is.character(edge_prior)) {
     lifecycle::deprecate_warn(
-      "0.3.0", "bgm(edge_prior = 'must be a prior object')",
+      "0.2.0", "bgm(edge_prior = 'must be a prior object')",
       "bgm(edge_prior = 'bernoulli_prior()')"
     )
     edge_prior_str = match.arg(edge_prior,
@@ -453,13 +452,13 @@ bgm = function(
     # Warn if loose edge params are also supplied alongside an object
     if(hasArg(inclusion_probability)) {
       lifecycle::deprecate_warn(
-        "0.3.0", "bgm(inclusion_probability =)",
+        "0.2.0", "bgm(inclusion_probability =)",
         "bgm(edge_prior = 'bernoulli_prior()')"
       )
     }
     if(hasArg(beta_bernoulli_alpha)) {
       lifecycle::deprecate_warn(
-        "0.3.0", "bgm(beta_bernoulli_alpha =)",
+        "0.2.0", "bgm(beta_bernoulli_alpha =)",
         "bgm(edge_prior = 'beta_bernoulli_prior()')"
       )
     }
