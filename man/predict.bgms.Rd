@@ -127,10 +127,10 @@ pred_class = predict(fit, newdata = Wenchuan[1:10, 1:5], type = "response")
 \seealso{
 \code{\link{simulate.bgms}} for generating new data from the model.
 
-Other prediction: 
-\code{\link{predict.bgmCompare}()},
-\code{\link{simulate.bgmCompare}()},
-\code{\link{simulate.bgms}()},
-\code{\link{simulate_mrf}()}
+Other prediction:
+\code{\link[=predict.bgmCompare]{predict.bgmCompare()}},
+\code{\link[=simulate.bgmCompare]{simulate.bgmCompare()}},
+\code{\link[=simulate.bgms]{simulate.bgms()}},
+\code{\link[=simulate_mrf]{simulate_mrf()}}
 }
 \concept{prediction}

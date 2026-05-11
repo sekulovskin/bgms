@@ -27,11 +27,11 @@ print(fit)
 \seealso{
 \code{\link[=bgm]{bgm()}}, \code{\link[=summary.bgms]{summary.bgms()}}, \code{\link[=coef.bgms]{coef.bgms()}}
 
-Other posterior-methods: 
-\code{\link{coef.bgmCompare}()},
-\code{\link{coef.bgms}()},
-\code{\link{print.bgmCompare}()},
-\code{\link{summary.bgmCompare}()},
-\code{\link{summary.bgms}()}
+Other posterior-methods:
+\code{\link[=coef.bgmCompare]{coef.bgmCompare()}},
+\code{\link[=coef.bgms]{coef.bgms()}},
+\code{\link[=print.bgmCompare]{print.bgmCompare()}},
+\code{\link[=summary.bgmCompare]{summary.bgmCompare()}},
+\code{\link[=summary.bgms]{summary.bgms()}}
 }
 \concept{posterior-methods}

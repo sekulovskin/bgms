@@ -87,6 +87,7 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Maarten Marsman \email{m.marsman@uva.nl} (\href{https://orcid.org/0000-0001-5309-7502}{ORCID})
   \item Don van den Bergh (\href{https://orcid.org/0000-0002-9838-7308}{ORCID})
 }
 

@@ -26,11 +26,11 @@ Minimal console output for \code{bgmCompare} fit objects.
 \seealso{
 \code{\link[=bgmCompare]{bgmCompare()}}, \code{\link[=summary.bgmCompare]{summary.bgmCompare()}}, \code{\link[=coef.bgmCompare]{coef.bgmCompare()}}
 
-Other posterior-methods: 
-\code{\link{coef.bgmCompare}()},
-\code{\link{coef.bgms}()},
-\code{\link{print.bgms}()},
-\code{\link{summary.bgmCompare}()},
-\code{\link{summary.bgms}()}
+Other posterior-methods:
+\code{\link[=coef.bgmCompare]{coef.bgmCompare()}},
+\code{\link[=coef.bgms]{coef.bgms()}},
+\code{\link[=print.bgms]{print.bgms()}},
+\code{\link[=summary.bgmCompare]{summary.bgmCompare()}},
+\code{\link[=summary.bgms]{summary.bgms()}}
 }
 \concept{posterior-methods}

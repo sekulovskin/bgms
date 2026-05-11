@@ -44,7 +44,6 @@ LinkingTo:
     dqrng, 
     BH
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Depends: 
     R (>= 3.5)
 LazyData: true
@@ -61,3 +60,4 @@ Suggests:
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/Needs/website: tidyverse/tidytemplate
+Config/roxygen2/version: 8.0.0

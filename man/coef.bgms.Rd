@@ -37,11 +37,11 @@ coef(fit)
 \seealso{
 \code{\link[=bgm]{bgm()}}, \code{\link[=print.bgms]{print.bgms()}}, \code{\link[=summary.bgms]{summary.bgms()}}
 
-Other posterior-methods: 
-\code{\link{coef.bgmCompare}()},
-\code{\link{print.bgmCompare}()},
-\code{\link{print.bgms}()},
-\code{\link{summary.bgmCompare}()},
-\code{\link{summary.bgms}()}
+Other posterior-methods:
+\code{\link[=coef.bgmCompare]{coef.bgmCompare()}},
+\code{\link[=print.bgmCompare]{print.bgmCompare()}},
+\code{\link[=print.bgms]{print.bgms()}},
+\code{\link[=summary.bgmCompare]{summary.bgmCompare()}},
+\code{\link[=summary.bgms]{summary.bgms()}}
 }
 \concept{posterior-methods}

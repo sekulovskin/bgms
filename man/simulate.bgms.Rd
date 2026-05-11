@@ -100,10 +100,10 @@ new_data_list = simulate(fit,
 \code{\link{predict.bgms}} for computing conditional probabilities,
 \code{\link{simulate_mrf}} for simulation with user-specified parameters.
 
-Other prediction: 
-\code{\link{predict.bgmCompare}()},
-\code{\link{predict.bgms}()},
-\code{\link{simulate.bgmCompare}()},
-\code{\link{simulate_mrf}()}
+Other prediction:
+\code{\link[=predict.bgmCompare]{predict.bgmCompare()}},
+\code{\link[=predict.bgms]{predict.bgms()}},
+\code{\link[=simulate.bgmCompare]{simulate.bgmCompare()}},
+\code{\link[=simulate_mrf]{simulate_mrf()}}
 }
 \concept{prediction}

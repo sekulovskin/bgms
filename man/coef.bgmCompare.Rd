@@ -39,11 +39,11 @@ and group-specific effects from a \code{bgmCompare} fit, as well as inclusion in
 \seealso{
 \code{\link[=bgmCompare]{bgmCompare()}}, \code{\link[=print.bgmCompare]{print.bgmCompare()}}, \code{\link[=summary.bgmCompare]{summary.bgmCompare()}}
 
-Other posterior-methods: 
-\code{\link{coef.bgms}()},
-\code{\link{print.bgmCompare}()},
-\code{\link{print.bgms}()},
-\code{\link{summary.bgmCompare}()},
-\code{\link{summary.bgms}()}
+Other posterior-methods:
+\code{\link[=coef.bgms]{coef.bgms()}},
+\code{\link[=print.bgmCompare]{print.bgmCompare()}},
+\code{\link[=print.bgms]{print.bgms()}},
+\code{\link[=summary.bgmCompare]{summary.bgmCompare()}},
+\code{\link[=summary.bgms]{summary.bgms()}}
 }
 \concept{posterior-methods}

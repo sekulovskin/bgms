@@ -88,10 +88,10 @@ from single-group models,
 \code{\link{simulate.bgmCompare}} for simulating
 from group-comparison models.
 
-Other prediction: 
-\code{\link{predict.bgms}()},
-\code{\link{simulate.bgmCompare}()},
-\code{\link{simulate.bgms}()},
-\code{\link{simulate_mrf}()}
+Other prediction:
+\code{\link[=predict.bgms]{predict.bgms()}},
+\code{\link[=simulate.bgmCompare]{simulate.bgmCompare()}},
+\code{\link[=simulate.bgms]{simulate.bgms()}},
+\code{\link[=simulate_mrf]{simulate_mrf()}}
 }
 \concept{prediction}
