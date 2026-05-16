@@ -822,8 +822,8 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         ln_alpha += MY_LOG(1.0 - inclusion_probability_(i, j)) - MY_LOG(inclusion_probability_(i, j));
 
         ln_alpha += R::dnorm(precision_matrix_(i, j) / constants_[3], 0.0, proposal_sd, true) - MY_LOG(constants_[3]);
-        // Interaction prior on K_yy_{ij} = -0.5 * Omega_{ij}
-        ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j));
+        // Slab in K_yy coords; proposal in K_ij coords. Jacobian |dK_yy/dK_ij| = 1/2.
+        ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j)) - MY_LOG(2.0);
 
         // Gamma(shape, rate) prior on changed diagonal K_jj. The Roverato move
         // slaves K_jj = c_3 + phi_{q-1,q}^2, so K_jj moves with the off-diagonal
@@ -879,8 +879,8 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         // }
         ln_alpha += MY_LOG(inclusion_probability_(i, j)) - MY_LOG(1.0 - inclusion_probability_(i, j));
 
-        // Prior change: add slab (interaction prior on K_yy_{ij} = -0.5 * Omega_{ij})
-        ln_alpha += interaction_prior_->logp(-0.5 * omega_prop_ij);
+        // Slab in K_yy coords; proposal in K_ij coords. Jacobian |dK_yy/dK_ij| = 1/2.
+        ln_alpha += interaction_prior_->logp(-0.5 * omega_prop_ij) - MY_LOG(2.0);
 
         // Gamma(shape, rate) prior on changed diagonal K_jj. The Roverato move
         // slaves K_jj = c_3 + phi_{q-1,q}^2, so K_jj moves with the off-diagonal

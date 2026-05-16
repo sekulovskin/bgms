@@ -712,12 +712,11 @@ void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
     ln_alpha += diagonal_prior_->logp(0.5 * theta_prop_jj);
     ln_alpha -= diagonal_prior_->logp(0.5 * (-2.0 * pairwise_effects_continuous_(j, j)));
 
-    // The proposal density is on the precision reparameterized scale:
-    // theta_prop_ij = C[3] * epsilon, so epsilon = theta_prop_ij / C[3]
+    // Slab in K_yy coords; proposal in K_ij coords. Jacobian |dK_yy/dK_ij| = 1/2.
     if(g_prop == 1) {
         // Add: slab prior on proposed off-diagonal
-        ln_alpha += interaction_prior_->logp(cont_prop_ij);
-        // Subtract proposal density (in precision space, Jacobian -1/2 cancels symmetrically)
+        ln_alpha += interaction_prior_->logp(cont_prop_ij) - MY_LOG(2.0);
+        // Subtract proposal density (in K_ij coords)
         ln_alpha -= R::dnorm(theta_prop_ij / cont_constants_[3], 0.0,
                              proposal_sd_pairwise_continuous_(i, j), true)
                   - MY_LOG(cont_constants_[3]);
@@ -726,7 +725,7 @@ void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
                   - MY_LOG(1.0 - inclusion_probability_(p_ + i, p_ + j));
     } else {
         // Delete: subtract slab prior on current off-diagonal
-        ln_alpha -= interaction_prior_->logp(cont_curr_ij);
+        ln_alpha -= interaction_prior_->logp(cont_curr_ij) - MY_LOG(2.0);
         // Add reverse proposal density
         double theta_curr_ij = -2.0 * cont_curr_ij;
         ln_alpha += R::dnorm(theta_curr_ij / cont_constants_[3], 0.0,
