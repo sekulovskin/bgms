@@ -146,25 +146,25 @@ sample_ggm_prior = function(
   edge_inclusion_prob = 0.5
 ) {
   spec = match.arg(spec)
-  validate_positive_integer(p, "p", min_value = 2L)
-  validate_positive_integer(n_samples, "n_samples", min_value = 1L)
-  validate_positive_integer(n_warmup, "n_warmup", min_value = 0L)
-  validate_positive_integer(max_depth, "max_depth", min_value = 1L)
+  validate_integer(p, "p", min_value = 2L)
+  validate_integer(n_samples, "n_samples", min_value = 1L)
+  validate_integer(n_warmup, "n_warmup", min_value = 0L)
+  validate_integer(max_depth, "max_depth", min_value = 1L)
   validate_finite_scalar(step_size, "step_size", positive = TRUE)
-  validate_positive_integer(seed, "seed", min_value = 0L)
+  validate_integer(seed, "seed", min_value = 0L)
   if(is.null(delta)) {
     delta = 0.5 * log(p)
   }
   if(!is.numeric(delta) || length(delta) != 1L || is.na(delta) ||
-     !is.finite(delta) || delta < 0) {
+    !is.finite(delta) || delta < 0) {
     stop("'delta' must be a single finite non-negative numeric, or NULL.")
   }
   if(!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
     stop("'verbose' must be TRUE or FALSE.")
   }
   if(!is.numeric(edge_inclusion_prob) || length(edge_inclusion_prob) != 1L ||
-     is.na(edge_inclusion_prob) || edge_inclusion_prob <= 0 ||
-     edge_inclusion_prob >= 1) {
+    is.na(edge_inclusion_prob) || edge_inclusion_prob <= 0 ||
+    edge_inclusion_prob >= 1) {
     stop("'edge_inclusion_prob' must be a single numeric in (0, 1).")
   }
 
@@ -235,12 +235,12 @@ sample_ggm_prior = function(
   # Both `samples` and `indicator_samples` are emitted as the full upper
   # triangle in (i <= j) order, p(p+1)/2 rows per iteration. Diagonals on
   # the indicator side are always 1 and discarded here.
-  upper = results[[1L]]$samples            # ((p*(p+1))/2) x n_samples
-  inds  = results[[1L]]$indicator_samples  # ((p*(p+1))/2) x n_samples
+  upper = results[[1L]]$samples # ((p*(p+1))/2) x n_samples
+  inds = results[[1L]]$indicator_samples # ((p*(p+1))/2) x n_samples
   n_edges = as.integer(p * (p - 1) / 2)
 
-  K_offdiag    = matrix(0,  n_samples, n_edges)
-  K_diag       = matrix(0,  n_samples, p)
+  K_offdiag = matrix(0, n_samples, n_edges)
+  K_diag = matrix(0, n_samples, p)
   gamma_offdiag = matrix(0L, n_samples, n_edges)
   e = 1L
   off_idx = 1L
@@ -249,7 +249,7 @@ sample_ggm_prior = function(
       if(i == j) {
         K_diag[, i] = upper[e, ]
       } else {
-        K_offdiag[,    off_idx] = upper[e, ]
+        K_offdiag[, off_idx] = upper[e, ]
         gamma_offdiag[, off_idx] = inds[e, ]
         off_idx = off_idx + 1L
       }
@@ -279,7 +279,7 @@ sample_ggm_prior = function(
 
 # Internal helpers -------------------------------------------------------------
 
-validate_positive_integer = function(x, name, min_value = 1L) {
+validate_integer = function(x, name, min_value = 1L) {
   if(!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x)) {
     stop(sprintf("'%s' must be a single finite integer.", name))
   }
