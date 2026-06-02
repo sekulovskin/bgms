@@ -2,6 +2,39 @@
 # Extractor Functions - S3 Generics and Methods
 # ==============================================================================
 
+
+# ------------------------------------------------------------------------------
+# samples_to_array3d()
+# ------------------------------------------------------------------------------
+# Stack a per-chain list of [iter x param] sample matrices into an
+# [iter x chain x param] array. Returns NULL for a NULL input (e.g. absent
+# indicator samples) and coerces any non-matrix element to a one-column
+# matrix. Several bgmCompare extractors defined this as a local closure; the
+# variants had drifted (only some handled NULL / vector inputs), so this is
+# the single hardened version.
+#
+# @param xlist  List of per-chain matrices, or NULL.
+#
+# Returns: [iter x chain x param] numeric array, or NULL.
+# ------------------------------------------------------------------------------
+samples_to_array3d = function(xlist) {
+  if(is.null(xlist)) {
+    return(NULL)
+  }
+  stopifnot(length(xlist) >= 1)
+  mats = lapply(xlist, function(x) {
+    m = as.matrix(x)
+    if(is.null(dim(m))) m = matrix(m, ncol = 1L)
+    m
+  })
+  niter = nrow(mats[[1]])
+  nparam = ncol(mats[[1]])
+  arr = array(NA_real_, dim = c(niter, length(mats), nparam))
+  for(c in seq_along(mats)) arr[, c, ] = mats[[c]]
+  arr
+}
+
+
 #' Extract Model Arguments
 #'
 #' @description
@@ -298,21 +331,10 @@ extract_posterior_inclusion_probabilities.bgmCompare = function(bgms_object) {
   # Handle legacy field name (no_variables -> num_variables in 0.1.6.0)
   num_variables = as.integer(arguments$num_variables %||% arguments$no_variables)
 
-  # ---- helper: combine chains into [iter, chain, param]
-  to_array3d = function(xlist) {
-    stopifnot(length(xlist) >= 1)
-    mats = lapply(xlist, as.matrix)
-    niter = nrow(mats[[1]])
-    nparam = ncol(mats[[1]])
-    arr = array(NA_real_, dim = c(niter, length(mats), nparam))
-    for(c in seq_along(mats)) arr[, c, ] = mats[[c]]
-    arr
-  }
-
   # Current format (0.1.6.0+)
   raw = get_raw_samples(bgms_object)
   if(!is.null(raw$indicator)) {
-    array3d_ind = to_array3d(raw$indicator)
+    array3d_ind = samples_to_array3d(raw$indicator)
     mean_ind = apply(array3d_ind, 3, mean)
 
     # reconstruct VxV matrix using the sampler's interleaved order:
@@ -741,7 +763,23 @@ extract_group_params.bgmCompare = function(bgms_object) {
 }
 
 # Helper for current format (0.1.6+)
-.extract_group_params_current = function(bgms_object, arguments) {
+# ------------------------------------------------------------------------------
+# .compute_group_param_matrices()
+# ------------------------------------------------------------------------------
+# Shared bgmCompare group-parameter reconstruction. From the posterior-mean
+# main and pairwise samples, builds the [param x (baseline, diff...)] matrices
+# and the projection-expanded [param x group] effect matrices. Used by both
+# extract_group_params() (group effects only) and coef.bgmCompare() (which also
+# returns the raw baseline+diff matrices alongside the indicators).
+#
+# @param arguments  Fit arguments (data_columnnames, num_categories,
+#   is_ordinal_variable, num_groups, num_variables, projection).
+# @param raw        get_raw_samples() output (uses $main, $pairwise).
+#
+# Returns: list(main_mat, pairwise_mat, main_effects_groups,
+#   pairwise_effects_groups).
+# ------------------------------------------------------------------------------
+.compute_group_param_matrices = function(arguments, raw) {
   var_names = arguments$data_columnnames
   num_categories = as.integer(arguments$num_categories)
   is_ordinal = as.logical(arguments$is_ordinal_variable)
@@ -749,21 +787,9 @@ extract_group_params.bgmCompare = function(bgms_object) {
   num_variables = as.integer(arguments$num_variables)
   projection = arguments$projection # [num_groups x (num_groups-1)]
 
-  # ---- helper: combine chains into [iter, chain, param]
-  to_array3d = function(xlist) {
-    stopifnot(length(xlist) >= 1)
-    mats = lapply(xlist, as.matrix)
-    niter = nrow(mats[[1]])
-    nparam = ncol(mats[[1]])
-    arr = array(NA_real_, dim = c(niter, length(mats), nparam))
-    for(c in seq_along(mats)) arr[, c, ] = mats[[c]]
-    arr
-  }
-
-  # ============================================================
   # ---- main effects ----
-  raw = get_raw_samples(bgms_object)
-  array3d_main = to_array3d(raw$main)
+  array3d_main = samples_to_array3d(raw$main)
+  stopifnot(!is.null(array3d_main))
   mean_main = apply(array3d_main, 3, mean)
 
   stopifnot(length(mean_main) %% num_groups == 0L)
@@ -794,9 +820,9 @@ extract_group_params.bgmCompare = function(bgms_object) {
   rownames(main_effects_groups) = rownames(main_mat)
   colnames(main_effects_groups) = paste0("group", seq_len(num_groups))
 
-  # ============================================================
   # ---- pairwise effects ----
-  array3d_pair = to_array3d(raw$pairwise)
+  array3d_pair = samples_to_array3d(raw$pairwise)
+  stopifnot(!is.null(array3d_pair))
   mean_pair = apply(array3d_pair, 3, mean)
 
   stopifnot(length(mean_pair) %% num_groups == 0L)
@@ -826,10 +852,20 @@ extract_group_params.bgmCompare = function(bgms_object) {
   rownames(pairwise_effects_groups) = rownames(pairwise_mat)
   colnames(pairwise_effects_groups) = paste0("group", seq_len(num_groups))
 
-  return(list(
+  list(
+    main_mat = main_mat,
+    pairwise_mat = pairwise_mat,
     main_effects_groups = main_effects_groups,
     pairwise_effects_groups = pairwise_effects_groups
-  ))
+  )
+}
+
+.extract_group_params_current = function(bgms_object, arguments) {
+  gp = .compute_group_param_matrices(arguments, get_raw_samples(bgms_object))
+  list(
+    main_effects_groups = gp$main_effects_groups,
+    pairwise_effects_groups = gp$pairwise_effects_groups
+  )
 }
 
 # Helper for legacy format (0.1.4--0.1.5)
