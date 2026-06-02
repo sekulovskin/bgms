@@ -200,6 +200,98 @@ build_raw_samples_list = function(raw, edge_selection, edge_prior,
 
 
 # ------------------------------------------------------------------
+# attach_diagnostic_traces
+# ------------------------------------------------------------------
+# Copy NUTS / adaptive-Metropolis diagnostic traces from a raw C++
+# chain onto the normalized chain list `res`, applying the trailing
+# "__" naming convention expected by summarize_nuts_diagnostics() and
+# summarize_am_diagnostics(). Each trace is attached only when present
+# on the raw chain. Returns `res` with the traces attached.
+#
+# @param res    Normalized chain list under construction.
+# @param chain  Raw per-chain C++ output.
+#
+# Returns: `res`, with any available diagnostic traces attached.
+# ------------------------------------------------------------------
+attach_diagnostic_traces = function(res, chain) {
+  if(!is.null(chain$treedepth)) res[["treedepth__"]] = chain$treedepth
+  if(!is.null(chain$divergent)) res[["divergent__"]] = chain$divergent
+  if(!is.null(chain$non_reversible)) res[["non_reversible__"]] = chain$non_reversible
+  if(!is.null(chain$energy)) res[["energy__"]] = chain$energy
+  if(!is.null(chain$accept_prob)) res[["accept_prob__"]] = chain$accept_prob
+  if(!is.null(chain$am_accept_prob)) res[["am_accept_prob__"]] = chain$am_accept_prob
+  res
+}
+
+
+# ------------------------------------------------------------------
+# attach_sampler_diagnostics
+# ------------------------------------------------------------------
+# Attach the sampler-specific diagnostics block to a results list:
+# NUTS diagnostics under "nuts", adaptive-Metropolis diagnostics under
+# "adaptive-metropolis", nothing otherwise. The three output builders
+# differ only in the parameter-name vectors they pass to the AM
+# summary, so those are arguments.
+#
+# @param results        Results list under construction.
+# @param raw            Normalized per-chain list.
+# @param update_method  Sampler name from spec$sampler$update_method.
+# @param nuts_max_depth  Max tree depth (for the NUTS summary).
+# @param names_main     Main-effect parameter names (for the AM summary).
+# @param names_pairwise Pairwise parameter names (for the AM summary).
+# @param target_accept  Target acceptance (for the AM summary).
+#
+# Returns: `results`, with $nuts_diag or $am_diag attached as applicable.
+# ------------------------------------------------------------------
+attach_sampler_diagnostics = function(results, raw, update_method,
+                                      nuts_max_depth, names_main,
+                                      names_pairwise, target_accept) {
+  if(update_method == "nuts") {
+    results$nuts_diag = summarize_nuts_diagnostics(
+      raw,
+      nuts_max_depth = nuts_max_depth
+    )
+  } else if(update_method == "adaptive-metropolis") {
+    results$am_diag = summarize_am_diagnostics(
+      raw,
+      names_main = names_main,
+      names_pairwise = names_pairwise,
+      target_accept = target_accept
+    )
+  }
+  results
+}
+
+
+# ------------------------------------------------------------------
+# attach_sbm_posterior_summary
+# ------------------------------------------------------------------
+# Attach the Stochastic-Block posterior allocation summary (mean,
+# mode, and block count) to a results list. All three output builders
+# call posterior_summary_SBM() identically; they differ only in the
+# `arguments` they pass (bgm/mixed forward build_arguments(spec);
+# compare hand-builds list(dirichlet_alpha, lambda)), so that is an
+# argument here.
+#
+# @param results    Results list under construction.
+# @param raw        Normalized per-chain list (each carrying $allocations).
+# @param arguments  Argument list forwarded to posterior_summary_SBM().
+#
+# Returns: `results`, with the three SBM allocation fields attached.
+# ------------------------------------------------------------------
+attach_sbm_posterior_summary = function(results, raw, arguments) {
+  sbm_summary = posterior_summary_SBM(
+    allocations = lapply(raw, `[[`, "allocations"),
+    arguments = arguments
+  )
+  results$posterior_mean_allocations = sbm_summary$allocations_mean
+  results$posterior_mode_allocations = sbm_summary$allocations_mode
+  results$posterior_num_blocks = sbm_summary$blocks
+  results
+}
+
+
+# ------------------------------------------------------------------
 # needs_easybgm_s3_compat
 # ------------------------------------------------------------------
 # Returns TRUE when easybgm is loaded at a version that overwrites
@@ -339,13 +431,7 @@ build_output_bgm = function(spec, raw) {
       if(!is.null(chain$allocation_samples)) {
         res$allocations = t(chain$allocation_samples)
       }
-      if(!is.null(chain$treedepth)) res[["treedepth__"]] = chain$treedepth
-      if(!is.null(chain$divergent)) res[["divergent__"]] = chain$divergent
-      if(!is.null(chain$non_reversible)) res[["non_reversible__"]] = chain$non_reversible
-      if(!is.null(chain$energy)) res[["energy__"]] = chain$energy
-      if(!is.null(chain$accept_prob)) res[["accept_prob__"]] = chain$accept_prob
-      if(!is.null(chain$am_accept_prob)) res[["am_accept_prob__"]] = chain$am_accept_prob
-      res
+      attach_diagnostic_traces(res, chain)
     })
   } else {
     # OMRF: the first num_thresholds params are main effects, the rest are
@@ -367,13 +453,7 @@ build_output_bgm = function(spec, raw) {
       if(!is.null(chain$allocation_samples)) {
         res$allocations = t(chain$allocation_samples)
       }
-      if(!is.null(chain$treedepth)) res[["treedepth__"]] = chain$treedepth
-      if(!is.null(chain$divergent)) res[["divergent__"]] = chain$divergent
-      if(!is.null(chain$non_reversible)) res[["non_reversible__"]] = chain$non_reversible
-      if(!is.null(chain$energy)) res[["energy__"]] = chain$energy
-      if(!is.null(chain$accept_prob)) res[["accept_prob__"]] = chain$accept_prob
-      if(!is.null(chain$am_accept_prob)) res[["am_accept_prob__"]] = chain$am_accept_prob
-      res
+      attach_diagnostic_traces(res, chain)
     })
   }
 
@@ -520,15 +600,7 @@ build_output_bgm = function(spec, raw) {
 
     if(has_sbm) {
       results$posterior_mean_coclustering_matrix = co_occur_matrix
-
-      arguments = build_arguments(spec)
-      sbm_summary = posterior_summary_SBM(
-        allocations = lapply(raw, `[[`, "allocations"),
-        arguments   = arguments
-      )
-      results$posterior_mean_allocations = sbm_summary$allocations_mean
-      results$posterior_mode_allocations = sbm_summary$allocations_mode
-      results$posterior_num_blocks = sbm_summary$blocks
+      results = attach_sbm_posterior_summary(results, raw, build_arguments(spec))
     }
   }
 
@@ -557,15 +629,12 @@ build_output_bgm = function(spec, raw) {
   }
   results$cache = cache
 
-  # --- NUTS diagnostics -------------------------------------------------------
-  if(s$update_method == "nuts") {
-    results$nuts_diag = summarize_nuts_diagnostics(
-      raw,
-      nuts_max_depth = s$nuts_max_depth
-    )
-  } else if(s$update_method == "adaptive-metropolis") {
-    results$am_diag = summarize_am_diagnostics(raw, names_main = names_main, names_pairwise = edge_names, target_accept = s$target_accept)
-  }
+  # --- Sampler diagnostics ----------------------------------------------------
+  results = attach_sampler_diagnostics(
+    results, raw, s$update_method, s$nuts_max_depth,
+    names_main = names_main, names_pairwise = edge_names,
+    target_accept = s$target_accept
+  )
 
   results$.bgm_spec = spec
   if(needs_easybgm_s3_compat()) {
@@ -638,13 +707,7 @@ build_output_mixed_mrf = function(spec, raw) {
     if(!is.null(chain$allocation_samples)) {
       res$allocations = t(chain$allocation_samples)
     }
-    if(!is.null(chain$treedepth)) res[["treedepth__"]] = chain$treedepth
-    if(!is.null(chain$divergent)) res[["divergent__"]] = chain$divergent
-    if(!is.null(chain$non_reversible)) res[["non_reversible__"]] = chain$non_reversible
-    if(!is.null(chain$energy)) res[["energy__"]] = chain$energy
-    if(!is.null(chain$accept_prob)) res[["accept_prob__"]] = chain$accept_prob
-    if(!is.null(chain$am_accept_prob)) res[["am_accept_prob__"]] = chain$am_accept_prob
-    res
+    attach_diagnostic_traces(res, chain)
   })
 
   # --- Parameter names --------------------------------------------------------
@@ -811,15 +874,7 @@ build_output_mixed_mrf = function(spec, raw) {
 
     if(has_sbm) {
       results$posterior_mean_coclustering_matrix = co_occur_matrix
-
-      arguments = build_arguments(spec)
-      sbm_summary = posterior_summary_SBM(
-        allocations = lapply(raw, `[[`, "allocations"),
-        arguments   = arguments
-      )
-      results$posterior_mean_allocations = sbm_summary$allocations_mean
-      results$posterior_mode_allocations = sbm_summary$allocations_mode
-      results$posterior_num_blocks = sbm_summary$blocks
+      results = attach_sbm_posterior_summary(results, raw, build_arguments(spec))
     }
   }
 
@@ -845,15 +900,12 @@ build_output_mixed_mrf = function(spec, raw) {
     raw, edge_selection, edge_prior, names_main, edge_names, alloc_names
   )
 
-  # --- NUTS diagnostics -------------------------------------------------------
-  if(s$update_method == "nuts") {
-    results$nuts_diag = summarize_nuts_diagnostics(
-      raw,
-      nuts_max_depth = s$nuts_max_depth
-    )
-  } else if(s$update_method == "adaptive-metropolis") {
-    results$am_diag = summarize_am_diagnostics(raw, names_main = names_main, names_pairwise = edge_names, target_accept = s$target_accept)
-  }
+  # --- Sampler diagnostics ----------------------------------------------------
+  results = attach_sampler_diagnostics(
+    results, raw, s$update_method, s$nuts_max_depth,
+    names_main = names_main, names_pairwise = edge_names,
+    target_accept = s$target_accept
+  )
 
   results$.bgm_spec = spec
   if(needs_easybgm_s3_compat()) {
@@ -1037,16 +1089,10 @@ build_output_compare = function(spec, raw) {
     results$posterior_summary_pairwise_allocations = sbm_convergence$sbm_summary
     results$posterior_mean_coclustering_matrix = sbm_convergence$co_occur_matrix
 
-    sbm_summary = posterior_summary_SBM(
-      allocations = lapply(raw, `[[`, "allocations"),
-      arguments = list(
-        dirichlet_alpha = p$dirichlet_alpha,
-        lambda          = p$lambda
-      )
+    results = attach_sbm_posterior_summary(
+      results, raw,
+      list(dirichlet_alpha = p$dirichlet_alpha, lambda = p$lambda)
     )
-    results$posterior_mean_allocations = sbm_summary$allocations_mean
-    results$posterior_mode_allocations = sbm_summary$allocations_mode
-    results$posterior_num_blocks = sbm_summary$blocks
   }
 
   # --- raw_samples ------------------------------------------------------------
@@ -1082,20 +1128,13 @@ build_output_compare = function(spec, raw) {
   results$cache = cache
   class(results) = "bgmCompare"
 
-  # --- NUTS diagnostics -------------------------------------------------------
-  if(s$update_method == "nuts") {
-    results$nuts_diag = summarize_nuts_diagnostics(
-      raw,
-      nuts_max_depth = s$nuts_max_depth
-    )
-  } else if(s$update_method == "adaptive-metropolis") {
-    results$am_diag = summarize_am_diagnostics(
-      raw,
-      names_main     = c(names_all$main_baseline, names_all$main_diff),
-      names_pairwise = c(names_all$pairwise_baseline, names_all$pairwise_diff),
-      target_accept  = s$target_accept
-    )
-  }
+  # --- Sampler diagnostics ----------------------------------------------------
+  results = attach_sampler_diagnostics(
+    results, raw, s$update_method, s$nuts_max_depth,
+    names_main = c(names_all$main_baseline, names_all$main_diff),
+    names_pairwise = c(names_all$pairwise_baseline, names_all$pairwise_diff),
+    target_accept = s$target_accept
+  )
 
   results$.bgm_spec = spec
   if(needs_easybgm_s3_compat()) {
