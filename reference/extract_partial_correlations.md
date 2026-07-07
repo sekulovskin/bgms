@@ -42,10 +42,6 @@ or `NULL` for OMRF models.
 
   `NULL` (invisibly).
 
-## Details
-
-Extract Posterior Mean Partial Correlations
-
 ## See also
 
 [`bgm()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/bgm.md),
@@ -76,16 +72,16 @@ fit = bgm(
 )
 #> 2 rows with missing values excluded (n = 360 remaining).
 #> To impute missing values instead, use na_action = "impute".
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
-#> Chain 3 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
-#> Chain 4 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 8000/8000 (100.0%)
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
+#> Chain 3 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
+#> Chain 4 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 16000/16000 (100.0%)
 #> Elapsed: 0s | ETA: 0s
 extract_partial_correlations(fit)
 #>           intrusion    dreams     flash
-#> intrusion 1.0000000 0.4970107 0.3003118
-#> dreams    0.4970107 1.0000000 0.4252134
-#> flash     0.3003118 0.4252134 1.0000000
+#> intrusion 1.0000000 0.4967956 0.3012106
+#> dreams    0.4967956 1.0000000 0.4258984
+#> flash     0.3012106 0.4258984 1.0000000
 # }
 ```

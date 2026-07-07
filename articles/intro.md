@@ -68,22 +68,22 @@ summary(fit)
 #> 
 #> Category thresholds: 
 #>                 mean  mcse    sd    n_eff  Rhat
-#> intrusion (1)  0.491 0.009 0.230  613.795 1.000
-#> intrusion (2) -1.872 0.018 0.354  401.556 1.001
-#> intrusion (3) -4.782 0.030 0.583  366.925 1.002
-#> intrusion (4) -9.416 0.046 0.926  405.375 1.002
-#> dreams (1)    -0.598 0.005 0.191 1458.976 1.000
-#> dreams (2)    -3.801 0.010 0.330 1004.464 1.002
+#> intrusion (2)  0.480 0.005 0.232 2469.487 1.000
+#> intrusion (3) -1.892 0.009 0.337 1320.552 1.002
+#> intrusion (4) -4.822 0.018 0.545  962.378 1.003
+#> intrusion (5) -9.471 0.028 0.885  993.513 1.002
+#> dreams (2)    -0.594 0.003 0.189 3135.713 1.001
+#> dreams (3)    -3.795 0.007 0.339 2446.670 1.002
 #> ... (use `summary(fit)$main` to see full output)
 #> 
 #> Pairwise interactions:
 #>                    mean  mcse    sd    n_eff n_eff_mixt  Rhat
-#> intrusion-dreams  0.315 0.001 0.032 1404.718            1.000
-#> intrusion-flash   0.170 0.001 0.031 1263.303            1.004
-#> intrusion-upset   0.090 0.005 0.042  106.701     79.281 1.022
-#> intrusion-physior 0.100 0.003 0.034  275.329    183.842 1.004
-#> dreams-flash      0.250 0.001 0.029 1932.660            1.000
-#> dreams-upset      0.116 0.001 0.028  527.426    435.499 1.003
+#> intrusion-dreams  0.315 0.001 0.033 3555.912            1.000
+#> intrusion-flash   0.169 0.001 0.031 3205.798            1.000
+#> intrusion-upset   0.100 0.002 0.035  314.264    244.948 1.007
+#> intrusion-physior 0.093 0.003 0.039  233.375    149.899 1.052
+#> dreams-flash      0.249 0.000 0.030 4190.570            1.001
+#> dreams-upset      0.112 0.002 0.030 1213.966    297.702 1.031
 #> ... (use `summary(fit)$pairwise` to see full output)
 #> Note: NA values are suppressed in the print table. They occur here when an 
 #> indicator was zero across all iterations, so mcse/n_eff/n_eff_mixt/Rhat are undefined;
@@ -91,19 +91,19 @@ summary(fit)
 #> 
 #> Inclusion probabilities:
 #>                    mean  mcse    sd n0->0 n0->1 n1->0 n1->1 n_eff_mixt
-#> intrusion-dreams  1.000       0.000     0     0     0  1999           
-#> intrusion-flash   1.000       0.000     0     0     0  1999           
-#> intrusion-upset   0.884 0.045 0.320   221    10    10  1758     50.174
-#> intrusion-physior 0.962 0.023 0.191    71     5     5  1918     70.811
-#> dreams-flash      1.000       0.000     0     0     0  1999           
-#> dreams-upset      0.997 0.004 0.055     5     1     1  1992           
+#> intrusion-dreams  1.000       0.000     0     0     0  3999           
+#> intrusion-flash   1.000       0.000     0     0     0  3999           
+#> intrusion-upset   0.958 0.019 0.201   160     9     9  3821    114.389
+#> intrusion-physior 0.911  0.03 0.285   342    14    14  3629     88.242
+#> dreams-flash      1.000       0.000     0     0     0  3999           
+#> dreams-upset      0.986 0.014 0.117    54     2     2  3941           
 #>                    Rhat
 #> intrusion-dreams       
 #> intrusion-flash        
-#> intrusion-upset   1.052
-#> intrusion-physior     1
+#> intrusion-upset       1
+#> intrusion-physior 1.127
 #> dreams-flash           
-#> dreams-upset      1.293
+#> dreams-upset      1.304
 #> ... (use `summary(fit)$indicator` to see full output)
 #> Note: NA values are suppressed in the print table. They occur when an indicator
 #> was constant or had fewer than 5 transitions, so n_eff_mixt is unreliable;
@@ -121,27 +121,27 @@ You can also access posterior means or inclusion probabilities directly:
 coef(fit)
 #> $main
 #>              cat (1)   cat (2)   cat (3)    cat (4)
-#> intrusion  0.4905223 -1.872491 -4.781571  -9.415589
-#> dreams    -0.5976886 -3.801467 -7.137578 -11.583421
-#> flash     -0.1070827 -2.578464 -5.394010  -9.719818
-#> upset      0.4245807 -1.289478 -3.344967  -6.987112
-#> physior   -0.6120216 -3.165189 -6.211773 -10.556802
+#> intrusion  0.4801346 -1.891782 -4.822461  -9.471156
+#> dreams    -0.5944712 -3.794730 -7.114985 -11.555925
+#> flash     -0.1056784 -2.564123 -5.360984  -9.668527
+#> upset      0.4126304 -1.313944 -3.385299  -7.050747
+#> physior   -0.6087441 -3.153320 -6.192194 -10.527126
 #> 
 #> $pairwise
-#>            intrusion     dreams       flash       upset    physior
-#> intrusion 0.00000000 0.31485357 0.169868976 0.090325114 0.10001514
-#> dreams    0.31485357 0.00000000 0.249759272 0.115708387 0.00302638
-#> flash     0.16986898 0.24975927 0.000000000 0.006345009 0.15244124
-#> upset     0.09032511 0.11570839 0.006345009 0.000000000 0.35442935
-#> physior   0.10001514 0.00302638 0.152441240 0.354429352 0.00000000
+#>            intrusion      dreams       flash       upset     physior
+#> intrusion 0.00000000 0.315091867 0.168970899 0.099644632 0.093461147
+#> dreams    0.31509187 0.000000000 0.249224625 0.112325564 0.005904644
+#> flash     0.16897090 0.249224625 0.000000000 0.003948511 0.153829023
+#> upset     0.09964463 0.112325564 0.003948511 0.000000000 0.354824095
+#> physior   0.09346115 0.005904644 0.153829023 0.354824095 0.000000000
 #> 
 #> $indicator
-#>           intrusion dreams  flash  upset physior
-#> intrusion    0.0000  1.000 1.0000 0.8845   0.962
-#> dreams       1.0000  0.000 1.0000 0.9970   0.067
-#> flash        1.0000  1.000 0.0000 0.1245   1.000
-#> upset        0.8845  0.997 0.1245 0.0000   1.000
-#> physior      0.9620  0.067 1.0000 1.0000   0.000
+#>           intrusion dreams  flash   upset physior
+#> intrusion   0.00000  1.000 1.0000 0.95775   0.911
+#> dreams      1.00000  0.000 1.0000 0.98600   0.102
+#> flash       1.00000  1.000 0.0000 0.08350   1.000
+#> upset       0.95775  0.986 0.0835 0.00000   1.000
+#> physior     0.91100  0.102 1.0000 1.00000   0.000
 ```
 
 ## Network plot
@@ -181,8 +181,13 @@ fit_ggm = bgm(continuous_data, variable_type = "continuous", seed = 1234)
 summary(fit_ggm)
 ```
 
-The pairwise effects are partial correlations (off-diagonal entries of
-the standardized precision matrix). Missing values can be imputed during
+The pairwise effects are unstandardized partial associations derived
+from the off-diagonal entries of the precision matrix (stored as
+`-0.5 * K_ij`). They are not standardized partial correlations. Use
+[`extract_partial_correlations()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_partial_correlations.md)
+to convert them to actual partial correlations, or
+[`extract_precision()`](https://bayesian-graphical-modelling-lab.github.io/bgms/reference/extract_precision.md)
+to obtain the precision matrix. Missing values can be imputed during
 sampling with `na_action = "impute"`.
 
 ## Next steps
